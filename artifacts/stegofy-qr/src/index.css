@@ -1,0 +1,103 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap');
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: 'Poppins', sans-serif;
+  --font-display: 'Poppins', sans-serif;
+
+  /* Color Palette based on requirements */
+  --color-background: hsl(210 40% 98%); /* #F8FAFC */
+  --color-foreground: hsl(222 47% 11%); /* #0F172A */
+  
+  --color-primary: hsl(221 83% 53%); /* #2563EB */
+  --color-primary-foreground: hsl(0 0% 100%);
+  
+  --color-secondary: hsl(217 91% 60%); /* #3B82F6 */
+  --color-secondary-foreground: hsl(0 0% 100%);
+
+  --color-dark-blue: hsl(224 64% 33%); /* #1E3A8A */
+  --color-purple: hsl(258 90% 66%); /* #7C3AED */
+  
+  --color-accent: hsl(189 94% 43%); /* #06B6D4 */
+  --color-accent-foreground: hsl(0 0% 100%);
+
+  --color-muted: hsl(210 40% 96%);
+  --color-muted-foreground: hsl(215 16% 47%); /* #64748B */
+
+  --color-border: hsl(214 32% 91%);
+  --color-ring: hsl(221 83% 53%);
+
+  --color-card: hsl(0 0% 100%);
+  --color-card-foreground: hsl(222 47% 11%);
+
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+}
+
+:root {
+  --background: 210 40% 98%;
+  --foreground: 222 47% 11%;
+  
+  --primary: 221 83% 53%;
+  --primary-foreground: 0 0% 100%;
+  
+  --secondary: 217 91% 60%;
+  --secondary-foreground: 0 0% 100%;
+
+  --muted: 210 40% 96%;
+  --muted-foreground: 215 16% 47%;
+
+  --border: 214 32% 91%;
+  --ring: 221 83% 53%;
+
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+}
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 5rem;
+}
+
+@layer base {
+  body {
+    @apply bg-background text-foreground antialiased font-sans overflow-x-hidden selection:bg-primary/20 selection:text-primary;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-semibold tracking-tight;
+  }
+}
+
+@layer utilities {
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-primary to-purple;
+  }
+  
+  .bg-gradient-primary {
+    @apply bg-gradient-to-r from-primary to-purple text-white;
+  }
+
+  .glass-card {
+    @apply bg-white/70 backdrop-blur-md border border-white/20 shadow-[0_8px_32px_0_rgba(31,38,135,0.07)];
+  }
+}
+
+/* Custom glowing blobs for backgrounds */
+.glow-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  z-index: -1;
+  opacity: 0.4;
+  animation: float 10s ease-in-out infinite alternate;
+}
+
+@keyframes float {
+  0% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(30px, -50px) scale(1.1); }
+  66% { transform: translate(-20px, 20px) scale(0.9); }
+  100% { transform: translate(0, 0) scale(1); }
+}

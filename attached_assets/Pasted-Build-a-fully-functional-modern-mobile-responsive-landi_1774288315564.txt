@@ -1,0 +1,226 @@
+Build a fully functional, modern, mobile-responsive landing page for a product called “Stegofy QR”.
+
+Tech stack:
+- React (with functional components)
+- Tailwind CSS for styling
+- Use clean, modular component structure
+- Mobile-first responsive design
+- Smooth scrolling and basic animations
+
+-----------------------------------
+
+PRODUCT OVERVIEW:
+
+Stegofy QR provides smart QR-based tags and stickers for everyday use cases like vehicles, pets, kids safety, medical alerts, luggage, and personal belongings. Each QR connects to a secure, editable profile with privacy-first communication features.
+
+-----------------------------------
+
+DESIGN STYLE:
+
+- Modern SaaS + eCommerce hybrid
+- Clean, premium, minimal UI
+- Use Poppins font
+- Color palette:
+  - Primary: #2563EB
+  - Secondary: #3B82F6
+  - Dark blue: #1E3A8A
+  - Gradient: #2563EB → #7C3AED
+  - Accent: #06B6D4
+  - Background: #F8FAFC and white
+  - Text: #0F172A, #64748B
+
+- Use soft shadows, rounded corners (16px)
+- Add subtle gradient glow backgrounds
+- Use hover effects and smooth transitions
+
+-----------------------------------
+
+STRUCTURE:
+
+1. HEADER (Sticky Navbar)
+- Logo (Stegofy)
+- Navigation:
+  Home
+  Products (dropdown with all categories)
+  How It Works
+  FAQs
+  Partner With Us
+  About Us (dropdown: Privacy Policy, Terms, Refund Policy)
+- Right side:
+  Login
+  Sign Up (primary button)
+  Cart icon
+- Mobile: hamburger menu
+
+-----------------------------------
+
+2. HERO SECTION
+
+Headline:
+“Turn Everyday Items Into Smart, Scannable Experiences”
+
+Subheadline:
+“Protect your vehicles, pets, loved ones, and belongings with secure QR tags that instantly connect people to the right information.”
+
+Buttons:
+- Buy QR Tags (primary)
+- Create Your QR Profile (secondary)
+
+Visual:
+- Show multiple use-case images (placeholder images)
+- Add floating UI card mockup (scan result UI)
+
+Background:
+- Soft gradient glow (blue → purple)
+
+-----------------------------------
+
+3. USE CASE GRID
+
+Title:
+“One Platform. Multiple Everyday Uses.”
+
+Grid cards (with icons):
+- Vehicle Parking Tags
+- Pet ID Tags
+- Medical Alert Tags
+- Child Safety Bands
+- Luggage Tags
+- Wallet/Key Tags
+- Home/Visitor QR
+- Event QR Cards
+- NFC Business Cards
+
+Each card:
+- Icon
+- Title
+- One-line description
+- CTA button (Explore / Buy)
+
+-----------------------------------
+
+4. HOW IT WORKS
+
+Title:
+“Simple. Fast. Powerful.”
+
+Create 2 tabs:
+
+Tab 1: Digital Setup
+Steps:
+1. Sign Up
+2. Create QR Profile
+3. Attach to Item
+4. Scan → Get Info
+
+Tab 2: Physical Tag Flow
+Steps:
+1. Sign Up
+2. Order QR Tag
+3. Setup Profile
+4. Attach
+5. Scan → Connect
+
+Add icons and horizontal step layout
+
+-----------------------------------
+
+5. PRODUCT SECTION
+
+Title:
+“Choose Your QR Tag”
+
+Display product cards:
+- Pet QR Tag (Steel)
+- Car Dashboard QR Card
+- Medical Bracelet
+- Kids Safety Band
+- QR Sticker Pack
+
+Each card:
+- Image (placeholder)
+- Name
+- Short description
+- Price placeholder
+- CTA: Buy Now
+
+Add hover effect and shadow
+
+-----------------------------------
+
+6. TRUST & SAFETY SECTION
+
+Title:
+“Privacy-First. Safety-Focused.”
+
+Grid with icons:
+- Masked Calls & WhatsApp
+- Emergency Contact Access
+- Video Calls & Media Sharing
+- Edit Anytime
+- Ownership Control
+- No App Required
+
+-----------------------------------
+
+7. REAL LIFE SCENARIOS
+
+Title:
+“Built for Real-Life Situations”
+
+Add 3–4 cards:
+- Lost pet found quickly
+- Parking conflict solved easily
+- Emergency contact reached
+- Lost luggage recovered
+
+-----------------------------------
+
+8. CTA SECTION
+
+Headline:
+“Start Protecting What Matters Today”
+
+Buttons:
+- Buy QR Tags
+- Create Free Profile
+
+Background:
+- Full gradient (blue → purple)
+
+-----------------------------------
+
+9. FOOTER
+
+Include:
+- Product links
+- Company links
+- Legal links
+- Contact info
+- Social icons
+- “Powered by Stegofy”
+
+-----------------------------------
+
+FUNCTIONALITY:
+
+- Responsive across mobile, tablet, desktop
+- Dropdown menus working
+- Smooth scroll navigation
+- Basic button interactions
+- Clean component structure
+
+-----------------------------------
+
+EXTRA:
+
+- Use reusable components (Card, Button, Section)
+- Add subtle animations (fade-in, hover lift)
+- Ensure spacing and alignment are clean
+- Keep UI minimal and premium
+
+-----------------------------------
+
+GOAL:
+
+Create a visually appealing, conversion-focused landing page that communicates trust, safety, and modern technology while supporting product browsing and purchase intent.

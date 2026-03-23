@@ -1,0 +1,27 @@
+packages:
+  "framer-motion": "For premium smooth animations, scroll reveals, and tab transitions"
+  "lucide-react": "For all requested UI icons"
+  "clsx": "For conditional class name merging"
+  "tailwind-merge": "For merging Tailwind classes without conflicts"
+
+images:
+  - path: "artifacts/stegofy-qr/public/images/product-pet.png"
+    description: "Premium product photography of a sleek stainless steel pet ID tag with a QR code engraved on it, isolated on a light clean background, high resolution, studio lighting."
+    aspect_ratio: "1:1"
+  - path: "artifacts/stegofy-qr/public/images/product-car.png"
+    description: "Premium product photography of a modern smart QR code card sitting on a sleek car dashboard, soft natural lighting, shallow depth of field, high end automotive accessory feel."
+    aspect_ratio: "1:1"
+  - path: "artifacts/stegofy-qr/public/images/product-medical.png"
+    description: "Premium product photography of a stylish silicone and metal medical alert bracelet featuring a small QR code, clean white and clinical background, high end wearable tech."
+    aspect_ratio: "1:1"
+  - path: "artifacts/stegofy-qr/public/images/product-kids.png"
+    description: "Premium product photography of a colorful, durable child safety wristband with a QR code, playful but secure design, soft lighting, clean background."
+    aspect_ratio: "1:1"
+  - path: "artifacts/stegofy-qr/public/images/product-stickers.png"
+    description: "Premium product photography of a pack of high-quality, weather-resistant smart QR code stickers, slightly fanned out, glossy finish reflecting light, clean minimal background."
+    aspect_ratio: "1:1"
+
+notes:
+  - This is a static landing page built entirely in the frontend.
+  - Smooth scrolling is implemented using standard anchor tags and CSS scroll-behavior.
+  - Uses Framer Motion for scroll reveal animations.
