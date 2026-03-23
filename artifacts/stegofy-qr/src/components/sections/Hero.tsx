@@ -30,7 +30,7 @@ export function Hero() {
   }, []);
 
   return (
-    <section className="relative pt-32 pb-20 lg:pt-48 lg:pb-32 overflow-hidden">
+    <section className="relative pt-24 pb-16 lg:pt-32 lg:pb-24 overflow-hidden">
       {/* Glowing Background Blobs */}
       <div className="glow-blob bg-primary/20 w-[600px] h-[600px] top-[-100px] left-[-200px]"></div>
       <div className="glow-blob bg-purple-500/20 w-[500px] h-[500px] bottom-[0px] right-[-100px]" style={{ animationDelay: '-5s' }}></div>

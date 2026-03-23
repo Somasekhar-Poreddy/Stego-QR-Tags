@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
-import { 
-  Menu, X, QrCode, ShoppingCart, ChevronDown, 
-  Car, Heart, Cross, Shield, Briefcase, CreditCard, Home, Calendar, ContactRound 
+import {
+  Menu, X, QrCode, ShoppingCart, ChevronDown,
+  Car, Heart, Cross, Shield, Briefcase, CreditCard, Home, Calendar, ContactRound, Moon
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
@@ -32,117 +32,119 @@ export function Navbar() {
   }, []);
 
   return (
-    <header
-      className={cn(
-        "fixed top-0 w-full z-50 transition-all duration-300",
-        isScrolled 
-          ? "bg-white/80 backdrop-blur-lg shadow-sm border-b border-gray-100 py-3" 
-          : "bg-transparent py-5"
-      )}
-    >
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center">
-          {/* Logo */}
-          <a href="#" className="flex items-center gap-2 group">
-            <div className="bg-primary text-white p-1.5 rounded-lg group-hover:scale-110 transition-transform">
-              <QrCode className="w-5 h-5" />
-            </div>
-            <span className="text-xl font-bold text-gradient">Stegofy</span>
+    <header className="fixed top-0 left-0 right-0 z-50 flex justify-center pt-4 px-4">
+      {/* Floating pill navbar */}
+      <div
+        className={cn(
+          "w-full max-w-3xl transition-all duration-300 rounded-2xl flex items-center justify-between px-4 py-2.5",
+          isScrolled
+            ? "bg-white/95 backdrop-blur-lg shadow-lg border border-gray-200/80"
+            : "bg-white/90 backdrop-blur-md shadow-md border border-gray-200/60"
+        )}
+      >
+        {/* Logo */}
+        <a href="#" className="flex items-center gap-2 group">
+          <div className="bg-primary text-white p-1.5 rounded-xl group-hover:scale-110 transition-transform">
+            <QrCode className="w-5 h-5" />
+          </div>
+          <span className="text-lg font-bold text-foreground">Stegofy</span>
+        </a>
+
+        {/* Desktop Nav — center */}
+        <nav className="hidden md:flex items-center gap-6">
+          <a href="#" className="text-sm font-medium text-foreground/70 hover:text-primary transition-colors">Home</a>
+
+          <div
+            className="relative"
+            onMouseEnter={() => setIsProductsDropdownOpen(true)}
+            onMouseLeave={() => setIsProductsDropdownOpen(false)}
+          >
+            <button className="flex items-center gap-1 text-sm font-medium text-foreground/70 hover:text-primary transition-colors py-1">
+              Products <ChevronDown className="w-3.5 h-3.5" />
+            </button>
+
+            <AnimatePresence>
+              {isProductsDropdownOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 8 }}
+                  transition={{ duration: 0.18 }}
+                  className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-[460px] bg-white rounded-2xl shadow-xl border border-gray-100 p-4 grid grid-cols-2 gap-2"
+                >
+                  {PRODUCTS_MENU.map((item) => (
+                    <a
+                      key={item.name}
+                      href="#products"
+                      className="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 transition-colors group"
+                      onClick={() => setIsProductsDropdownOpen(false)}
+                    >
+                      <div className="bg-primary/10 text-primary p-2 rounded-lg group-hover:bg-primary group-hover:text-white transition-colors">
+                        <item.icon className="w-4 h-4" />
+                      </div>
+                      <span className="text-sm font-medium text-foreground">{item.name}</span>
+                    </a>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          <a href="#how-it-works" className="text-sm font-medium text-foreground/70 hover:text-primary transition-colors">How It Works</a>
+          <a href="#safety" className="text-sm font-medium text-foreground/70 hover:text-primary transition-colors">Safety</a>
+        </nav>
+
+        {/* Right Actions */}
+        <div className="hidden md:flex items-center gap-2">
+          <a
+            href="#products"
+            className="bg-primary text-white text-sm font-semibold px-5 py-2 rounded-xl hover:bg-primary/90 hover:shadow-md hover:shadow-primary/25 hover:-translate-y-0.5 transition-all"
+          >
+            Sign Up
           </a>
+          <a href="#" className="text-sm font-medium text-foreground/70 hover:text-primary transition-colors px-3 py-2">
+            Login
+          </a>
+          <button className="p-2 text-foreground/60 hover:text-primary transition-colors rounded-lg hover:bg-slate-100">
+            <Moon className="w-4 h-4" />
+          </button>
+        </div>
 
-          {/* Desktop Nav */}
-          <nav className="hidden md:flex items-center gap-8">
-            <a href="#" className="text-sm font-medium text-foreground/80 hover:text-primary transition-colors">Home</a>
-            
-            {/* Dropdown */}
-            <div 
-              className="relative"
-              onMouseEnter={() => setIsProductsDropdownOpen(true)}
-              onMouseLeave={() => setIsProductsDropdownOpen(false)}
-            >
-              <button className="flex items-center gap-1 text-sm font-medium text-foreground/80 hover:text-primary transition-colors py-2">
-                Products <ChevronDown className="w-4 h-4" />
-              </button>
-              
-              <AnimatePresence>
-                {isProductsDropdownOpen && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 10 }}
-                    transition={{ duration: 0.2 }}
-                    className="absolute top-full left-1/2 -translate-x-1/2 w-[480px] bg-white rounded-2xl shadow-xl border border-gray-100 p-4 grid grid-cols-2 gap-2"
-                  >
-                    {PRODUCTS_MENU.map((item) => (
-                      <a 
-                        key={item.name} 
-                        href="#products" 
-                        className="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 transition-colors group"
-                        onClick={() => setIsProductsDropdownOpen(false)}
-                      >
-                        <div className="bg-primary/10 text-primary p-2 rounded-lg group-hover:bg-primary group-hover:text-white transition-colors">
-                          <item.icon className="w-4 h-4" />
-                        </div>
-                        <span className="text-sm font-medium text-foreground">{item.name}</span>
-                      </a>
-                    ))}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-
-            <a href="#how-it-works" className="text-sm font-medium text-foreground/80 hover:text-primary transition-colors">How It Works</a>
-            <a href="#safety" className="text-sm font-medium text-foreground/80 hover:text-primary transition-colors">Safety</a>
-          </nav>
-
-          {/* Right Actions */}
-          <div className="hidden md:flex items-center gap-4">
-            <a href="#" className="text-sm font-medium text-foreground hover:text-primary transition-colors">Login</a>
-            <a href="#products" className="bg-gradient-primary px-5 py-2.5 rounded-full text-sm font-medium hover:shadow-lg hover:shadow-primary/25 hover:-translate-y-0.5 transition-all">
-              Sign Up
-            </a>
-            <button className="relative p-2 text-foreground hover:text-primary transition-colors">
-              <ShoppingCart className="w-5 h-5" />
-              <span className="absolute top-0 right-0 w-4 h-4 bg-red-500 text-white text-[10px] font-bold flex items-center justify-center rounded-full border-2 border-white">
-                0
-              </span>
-            </button>
-          </div>
-
-          {/* Mobile Menu Button */}
-          <div className="md:hidden flex items-center gap-4">
-            <button className="relative p-2 text-foreground">
-              <ShoppingCart className="w-5 h-5" />
-            </button>
-            <button 
-              className="text-foreground p-2"
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            >
-              {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-            </button>
-          </div>
+        {/* Mobile Menu Button */}
+        <div className="md:hidden flex items-center gap-2">
+          <button className="p-2 text-foreground/60 hover:text-primary transition-colors rounded-lg hover:bg-slate-100">
+            <Moon className="w-4 h-4" />
+          </button>
+          <button
+            className="text-foreground p-2 rounded-lg hover:bg-slate-100 transition-colors"
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          >
+            {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
         </div>
       </div>
 
-      {/* Mobile Menu */}
+      {/* Mobile Menu — drops below pill */}
       <AnimatePresence>
         {isMobileMenuOpen && (
           <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            className="md:hidden bg-white border-b border-gray-100 overflow-hidden"
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            className="absolute top-[70px] left-4 right-4 max-w-3xl mx-auto bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden"
           >
-            <div className="px-4 py-6 flex flex-col gap-4">
-              <a href="#" onClick={() => setIsMobileMenuOpen(false)} className="text-base font-medium p-2 hover:bg-slate-50 rounded-lg">Home</a>
-              <a href="#products" onClick={() => setIsMobileMenuOpen(false)} className="text-base font-medium p-2 hover:bg-slate-50 rounded-lg">Products</a>
-              <a href="#how-it-works" onClick={() => setIsMobileMenuOpen(false)} className="text-base font-medium p-2 hover:bg-slate-50 rounded-lg">How It Works</a>
-              <a href="#safety" onClick={() => setIsMobileMenuOpen(false)} className="text-base font-medium p-2 hover:bg-slate-50 rounded-lg">Safety</a>
-              
-              <div className="h-px bg-gray-100 my-2"></div>
-              
-              <a href="#" className="text-base font-medium p-2 text-center border border-gray-200 rounded-xl hover:bg-slate-50">Login</a>
-              <a href="#products" className="text-base font-medium p-2 text-center bg-primary text-white rounded-xl">Sign Up</a>
+            <div className="px-4 py-5 flex flex-col gap-1">
+              <a href="#" onClick={() => setIsMobileMenuOpen(false)} className="text-sm font-medium px-3 py-2.5 hover:bg-slate-50 rounded-xl">Home</a>
+              <a href="#products" onClick={() => setIsMobileMenuOpen(false)} className="text-sm font-medium px-3 py-2.5 hover:bg-slate-50 rounded-xl">Products</a>
+              <a href="#how-it-works" onClick={() => setIsMobileMenuOpen(false)} className="text-sm font-medium px-3 py-2.5 hover:bg-slate-50 rounded-xl">How It Works</a>
+              <a href="#safety" onClick={() => setIsMobileMenuOpen(false)} className="text-sm font-medium px-3 py-2.5 hover:bg-slate-50 rounded-xl">Safety</a>
+
+              <div className="h-px bg-gray-100 my-2" />
+
+              <div className="flex gap-2">
+                <a href="#" className="flex-1 text-sm font-medium py-2.5 text-center border border-gray-200 rounded-xl hover:bg-slate-50">Login</a>
+                <a href="#products" className="flex-1 text-sm font-semibold py-2.5 text-center bg-primary text-white rounded-xl">Sign Up</a>
+              </div>
             </div>
           </motion.div>
         )}
