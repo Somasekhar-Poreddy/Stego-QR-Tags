@@ -1,7 +1,34 @@
 import { ArrowRight, QrCode, ShieldCheck, MapPin, Phone } from "lucide-react";
 import { FadeIn } from "@/components/ui/FadeIn";
+import { useState, useEffect } from "react";
+
+const ROTATING_WORDS = [
+  "Cars & Bikes",
+  "Pets",
+  "Loved Ones",
+  "Emergencies",
+  "Your Home",
+  "Luggage",
+  "Wallet & Keys",
+  "Events",
+  "Business Cards",
+];
 
 export function Hero() {
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isAnimating, setIsAnimating] = useState(false);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setIsAnimating(true);
+      setTimeout(() => {
+        setCurrentIndex((prev) => (prev + 1) % ROTATING_WORDS.length);
+        setIsAnimating(false);
+      }, 300);
+    }, 2200);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <section className="relative pt-32 pb-20 lg:pt-48 lg:pb-32 overflow-hidden">
       {/* Glowing Background Blobs */}
@@ -22,8 +49,18 @@ export function Hero() {
             </FadeIn>
             
             <FadeIn delay={0.1}>
-              <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold leading-[1.1] mb-6 text-foreground">
-                Turn Everyday Items Into <span className="text-gradient">Smart Profiles</span>
+              <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold leading-[1.15] mb-6 text-foreground">
+                Smart QR Tags for<br />
+                <span className="block">Everything That Matters</span>
+                <span
+                  className="block mt-2 bg-gradient-to-r from-blue-500 via-violet-500 to-cyan-400 bg-clip-text text-transparent transition-all duration-300"
+                  style={{
+                    opacity: isAnimating ? 0 : 1,
+                    transform: isAnimating ? "translateY(8px)" : "translateY(0)",
+                  }}
+                >
+                  {ROTATING_WORDS[currentIndex]}
+                </span>
               </h1>
             </FadeIn>
 
