@@ -6,65 +6,74 @@ const CASES = [
     icon: Car,
     title: "Vehicle Parking Tags",
     desc: "Resolve parking issues peacefully without sharing your real phone number.",
-    color: "from-blue-500 to-cyan-400",
-    bgLight: "bg-blue-50"
+    iconColor: "text-blue-500",
+    bgLight: "bg-blue-50",
+    borderHover: "hover:border-blue-200",
   },
   {
     icon: Heart,
     title: "Pet ID Tags",
     desc: "Ensure your furry friends find their way home fast if they ever get lost.",
-    color: "from-rose-500 to-pink-400",
-    bgLight: "bg-rose-50"
+    iconColor: "text-rose-500",
+    bgLight: "bg-rose-50",
+    borderHover: "hover:border-rose-200",
   },
   {
     icon: Cross,
     title: "Medical Alert Tags",
     desc: "Provide critical medical info to first responders instantly in emergencies.",
-    color: "from-red-500 to-orange-400",
-    bgLight: "bg-red-50"
+    iconColor: "text-red-500",
+    bgLight: "bg-red-50",
+    borderHover: "hover:border-red-200",
   },
   {
     icon: Shield,
     title: "Child Safety Bands",
     desc: "Keep kids safe in crowded places. Finders can contact you securely.",
-    color: "from-green-500 to-emerald-400",
-    bgLight: "bg-green-50"
+    iconColor: "text-green-500",
+    bgLight: "bg-green-50",
+    borderHover: "hover:border-green-200",
   },
   {
     icon: Briefcase,
     title: "Luggage Tags",
     desc: "Never lose your bags again. Finders can reach out from anywhere globally.",
-    color: "from-indigo-500 to-purple-400",
-    bgLight: "bg-indigo-50"
+    iconColor: "text-indigo-500",
+    bgLight: "bg-indigo-50",
+    borderHover: "hover:border-indigo-200",
   },
   {
     icon: CreditCard,
     title: "Wallet & Key Tags",
     desc: "Get your most important daily items back if dropped or forgotten.",
-    color: "from-amber-500 to-yellow-400",
-    bgLight: "bg-amber-50"
+    iconColor: "text-amber-500",
+    bgLight: "bg-amber-50",
+    borderHover: "hover:border-amber-200",
   },
   {
     icon: Home,
     title: "Home Visitor QR",
     desc: "Manage deliveries and visitors without giving out your personal number.",
-    color: "from-teal-500 to-green-400",
-    bgLight: "bg-teal-50"
+    iconColor: "text-teal-500",
+    bgLight: "bg-teal-50",
+    borderHover: "hover:border-teal-200",
   },
   {
     icon: Calendar,
     title: "Event QR Cards",
     desc: "Share event schedules, links, and contact info dynamically.",
-    color: "from-fuchsia-500 to-pink-400",
-    bgLight: "bg-fuchsia-50"
+    iconColor: "text-fuchsia-500",
+    bgLight: "bg-fuchsia-50",
+    borderHover: "hover:border-fuchsia-200",
   },
   {
     icon: ContactRound,
     title: "NFC Business Cards",
     desc: "Share your professional profile with a tap or a scan instantly.",
-    color: "from-slate-700 to-slate-500",
-    bgLight: "bg-slate-100"
-  }
+    iconColor: "text-slate-600",
+    bgLight: "bg-slate-100",
+    borderHover: "hover:border-slate-300",
+  },
 ];
 
 export function UseCases() {
@@ -84,26 +93,18 @@ export function UseCases() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {CASES.map((useCase, index) => (
-            <FadeIn key={index} delay={index * 0.1}>
-              <div className="group relative bg-white border border-slate-100 rounded-2xl p-6 hover:shadow-xl hover:border-primary/20 hover:-translate-y-1 transition-all duration-300">
-                <div className={`w-14 h-14 rounded-xl ${useCase.bgLight} flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300`}>
-                  <div className={`bg-gradient-to-br ${useCase.color} bg-clip-text text-transparent`}>
-                    <useCase.icon className="w-7 h-7 stroke-[url(#gradient)]" stroke="currentColor" style={{ stroke: 'url(#myGradient)' }} />
-                    <svg width="0" height="0">
-                      <linearGradient id="myGradient" x1="100%" y1="100%" x2="0%" y2="0%">
-                        <stop stopColor="currentColor" offset="0%" />
-                        <stop stopColor="currentColor" offset="100%" />
-                      </linearGradient>
-                    </svg>
-                  </div>
+            <FadeIn key={index} delay={index * 0.08}>
+              <div className={`group relative bg-white border border-slate-100 rounded-2xl p-6 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 ${useCase.borderHover}`}>
+                <div className={`w-14 h-14 rounded-xl ${useCase.bgLight} flex items-center justify-center mb-5 group-hover:scale-110 transition-transform duration-300`}>
+                  <useCase.icon className={`w-7 h-7 ${useCase.iconColor}`} />
                 </div>
-                
-                <h3 className="text-xl font-bold text-slate-900 mb-2">{useCase.title}</h3>
-                <p className="text-slate-500 text-sm leading-relaxed mb-6">
+
+                <h3 className="text-lg font-bold text-slate-900 mb-2">{useCase.title}</h3>
+                <p className="text-slate-500 text-sm leading-relaxed mb-5">
                   {useCase.desc}
                 </p>
 
-                <a href="#buy" className="inline-flex items-center text-sm font-semibold text-primary group-hover:text-purple transition-colors">
+                <a href="#buy" className="inline-flex items-center text-sm font-semibold text-primary hover:opacity-80 transition-opacity">
                   Explore Tags <ArrowRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
                 </a>
               </div>

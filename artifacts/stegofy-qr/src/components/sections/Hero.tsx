@@ -49,11 +49,11 @@ export function Hero() {
             </FadeIn>
             
             <FadeIn delay={0.1}>
-              <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold leading-[1.15] mb-6 text-foreground">
+              <h1 className="text-4xl sm:text-5xl lg:text-[3.25rem] font-bold leading-[1.15] mb-5 text-foreground">
                 Smart QR Tags for<br />
                 <span className="block">Everything That Matters</span>
                 <span
-                  className="block mt-2 bg-gradient-to-r from-blue-500 via-violet-500 to-cyan-400 bg-clip-text text-transparent transition-all duration-300"
+                  className="block mt-1.5 bg-gradient-to-r from-blue-500 via-violet-500 to-cyan-400 bg-clip-text text-transparent transition-all duration-300"
                   style={{
                     opacity: isAnimating ? 0 : 1,
                     transform: isAnimating ? "translateY(8px)" : "translateY(0)",
@@ -65,8 +65,8 @@ export function Hero() {
             </FadeIn>
 
             <FadeIn delay={0.2}>
-              <p className="text-lg sm:text-xl text-muted-foreground mb-8 leading-relaxed">
-                Protect your vehicles, pets, loved ones, and belongings with secure QR tags that instantly connect people to the right information without compromising your privacy.
+              <p className="text-base sm:text-lg text-muted-foreground mb-8 leading-relaxed">
+                Because the things you care about should always find their way back to you.
               </p>
             </FadeIn>
 
@@ -92,7 +92,7 @@ export function Hero() {
           </div>
 
           {/* Right Visual: Mock UI Card */}
-          <div className="relative lg:h-[600px] flex items-center justify-center">
+          <div className="relative lg:h-[600px] flex items-start justify-center lg:-mt-10">
             {/* Decorative circles */}
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] border border-primary/20 rounded-full animate-[spin_30s_linear_infinite]"></div>
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] border border-purple-500/20 rounded-full animate-[spin_20s_linear_infinite_reverse]"></div>

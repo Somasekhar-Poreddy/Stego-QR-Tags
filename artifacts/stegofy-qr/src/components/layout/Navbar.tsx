@@ -36,7 +36,7 @@ export function Navbar() {
       {/* Floating pill navbar */}
       <div
         className={cn(
-          "w-full max-w-3xl transition-all duration-300 rounded-2xl flex items-center justify-between px-4 py-2.5",
+          "w-full max-w-5xl transition-all duration-300 rounded-2xl flex items-center justify-between px-5 py-2.5",
           isScrolled
             ? "bg-white/95 backdrop-blur-lg shadow-lg border border-gray-200/80"
             : "bg-white/90 backdrop-blur-md shadow-md border border-gray-200/60"
