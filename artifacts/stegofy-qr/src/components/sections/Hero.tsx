@@ -1,17 +1,161 @@
-import { ArrowRight, QrCode, ShieldCheck, MapPin, Phone } from "lucide-react";
+import { ArrowRight, QrCode, ShieldCheck, MapPin, Phone, Car, Heart, Cross, Shield, Briefcase, CreditCard, Home, Calendar, ContactRound, AlertCircle, User } from "lucide-react";
 import { FadeIn } from "@/components/ui/FadeIn";
 import { useState, useEffect } from "react";
 
-const ROTATING_WORDS = [
-  "Cars & Bikes",
-  "Pets",
-  "Loved Ones",
-  "Emergencies",
-  "Your Home",
-  "Luggage",
-  "Wallet & Keys",
-  "Events",
-  "Business Cards",
+const SLIDES = [
+  {
+    word: "Cars & Bikes",
+    icon: Car,
+    iconBg: "bg-blue-100",
+    iconColor: "text-blue-500",
+    headerBg: "from-blue-500 to-cyan-400",
+    avatar: "🚗",
+    title: "Honda City",
+    subtitle: "MH 01 AB 1234",
+    tag: "Parking Tag",
+    fields: [
+      { label: "Owner", value: "Rahul Sharma", icon: User, color: "text-blue-500", bg: "bg-blue-50" },
+      { label: "Masked Number", value: "+91 98*** ***12", icon: Phone, color: "text-slate-500", bg: "bg-slate-50" },
+    ],
+    btnText: "Contact Car Owner",
+    btnColor: "bg-blue-500 shadow-blue-500/30 hover:bg-blue-600",
+  },
+  {
+    word: "Pets",
+    icon: Heart,
+    iconBg: "bg-rose-100",
+    iconColor: "text-rose-500",
+    headerBg: "from-rose-500 to-pink-400",
+    avatar: "🐕",
+    title: "Max (Golden Retriever)",
+    subtitle: "Lost in Bandra West",
+    tag: "Pet ID Tag",
+    fields: [
+      { label: "Owner", value: "Sarah Sharma", icon: ShieldCheck, color: "text-green-500", bg: "bg-green-50" },
+      { label: "Masked Number", value: "+91 98*** ***45", icon: Phone, color: "text-slate-500", bg: "bg-slate-50" },
+    ],
+    btnText: "Call Owner Now",
+    btnColor: "bg-green-500 shadow-green-500/30 hover:bg-green-600",
+  },
+  {
+    word: "Loved Ones",
+    icon: Shield,
+    iconBg: "bg-green-100",
+    iconColor: "text-green-500",
+    headerBg: "from-green-500 to-emerald-400",
+    avatar: "👦",
+    title: "Aarav Sharma",
+    subtitle: "Age 6 · Child Safety Band",
+    tag: "Child Safety",
+    fields: [
+      { label: "Parent", value: "Priya Sharma", icon: User, color: "text-green-500", bg: "bg-green-50" },
+      { label: "Emergency", value: "+91 97*** ***88", icon: Phone, color: "text-slate-500", bg: "bg-slate-50" },
+    ],
+    btnText: "Contact Parent",
+    btnColor: "bg-green-500 shadow-green-500/30 hover:bg-green-600",
+  },
+  {
+    word: "Emergencies",
+    icon: Cross,
+    iconBg: "bg-red-100",
+    iconColor: "text-red-500",
+    headerBg: "from-red-500 to-orange-400",
+    avatar: "🏥",
+    title: "Rahul Verma",
+    subtitle: "Blood Type: A+ · Diabetic",
+    tag: "Medical Alert",
+    fields: [
+      { label: "Allergy", value: "Penicillin", icon: AlertCircle, color: "text-red-500", bg: "bg-red-50" },
+      { label: "Emergency", value: "+91 99*** ***01", icon: Phone, color: "text-slate-500", bg: "bg-slate-50" },
+    ],
+    btnText: "Call Emergency Contact",
+    btnColor: "bg-red-500 shadow-red-500/30 hover:bg-red-600",
+  },
+  {
+    word: "Your Home",
+    icon: Home,
+    iconBg: "bg-teal-100",
+    iconColor: "text-teal-500",
+    headerBg: "from-teal-500 to-cyan-400",
+    avatar: "🏠",
+    title: "Sharma Residence",
+    subtitle: "Visitor / Delivery QR",
+    tag: "Home QR",
+    fields: [
+      { label: "Host", value: "Meera Sharma", icon: User, color: "text-teal-500", bg: "bg-teal-50" },
+      { label: "Ring", value: "Masked doorbell", icon: Phone, color: "text-slate-500", bg: "bg-slate-50" },
+    ],
+    btnText: "Notify Homeowner",
+    btnColor: "bg-teal-500 shadow-teal-500/30 hover:bg-teal-600",
+  },
+  {
+    word: "Luggage",
+    icon: Briefcase,
+    iconBg: "bg-indigo-100",
+    iconColor: "text-indigo-500",
+    headerBg: "from-indigo-500 to-purple-400",
+    avatar: "🧳",
+    title: "Priya Singh's Bag",
+    subtitle: "Flight AI-202 · Row 14C",
+    tag: "Luggage Tag",
+    fields: [
+      { label: "Owner", value: "Priya Singh", icon: User, color: "text-indigo-500", bg: "bg-indigo-50" },
+      { label: "Contact", value: "+91 96*** ***34", icon: Phone, color: "text-slate-500", bg: "bg-slate-50" },
+    ],
+    btnText: "Return Luggage",
+    btnColor: "bg-indigo-500 shadow-indigo-500/30 hover:bg-indigo-600",
+  },
+  {
+    word: "Wallet & Keys",
+    icon: CreditCard,
+    iconBg: "bg-amber-100",
+    iconColor: "text-amber-500",
+    headerBg: "from-amber-500 to-yellow-400",
+    avatar: "👜",
+    title: "Lost Wallet",
+    subtitle: "Reward offered if found",
+    tag: "Wallet Tag",
+    fields: [
+      { label: "Owner", value: "Amit Joshi", icon: User, color: "text-amber-500", bg: "bg-amber-50" },
+      { label: "Contact", value: "+91 93*** ***77", icon: Phone, color: "text-slate-500", bg: "bg-slate-50" },
+    ],
+    btnText: "Contact Owner",
+    btnColor: "bg-amber-500 shadow-amber-500/30 hover:bg-amber-600",
+  },
+  {
+    word: "Events",
+    icon: Calendar,
+    iconBg: "bg-fuchsia-100",
+    iconColor: "text-fuchsia-500",
+    headerBg: "from-fuchsia-500 to-pink-400",
+    avatar: "🎪",
+    title: "TechConf 2025",
+    subtitle: "Mar 30 · Hall B, Mumbai",
+    tag: "Event QR",
+    fields: [
+      { label: "Organiser", value: "Stegofy Events", icon: User, color: "text-fuchsia-500", bg: "bg-fuchsia-50" },
+      { label: "RSVP", value: "Scan to register", icon: QrCode, color: "text-slate-500", bg: "bg-slate-50" },
+    ],
+    btnText: "View Event Details",
+    btnColor: "bg-fuchsia-500 shadow-fuchsia-500/30 hover:bg-fuchsia-600",
+  },
+  {
+    word: "Business Cards",
+    icon: ContactRound,
+    iconBg: "bg-slate-100",
+    iconColor: "text-slate-600",
+    headerBg: "from-slate-700 to-slate-500",
+    avatar: "💼",
+    title: "Raj Kumar",
+    subtitle: "Product Manager · Stegofy",
+    tag: "NFC Card",
+    fields: [
+      { label: "Email", value: "raj@stegofy.in", icon: MapPin, color: "text-slate-500", bg: "bg-slate-50" },
+      { label: "Phone", value: "+91 98*** ***00", icon: Phone, color: "text-slate-500", bg: "bg-slate-50" },
+    ],
+    btnText: "Save Contact",
+    btnColor: "bg-slate-700 shadow-slate-700/30 hover:bg-slate-800",
+  },
 ];
 
 export function Hero() {
@@ -22,12 +166,14 @@ export function Hero() {
     const interval = setInterval(() => {
       setIsAnimating(true);
       setTimeout(() => {
-        setCurrentIndex((prev) => (prev + 1) % ROTATING_WORDS.length);
+        setCurrentIndex((prev) => (prev + 1) % SLIDES.length);
         setIsAnimating(false);
       }, 300);
     }, 2200);
     return () => clearInterval(interval);
   }, []);
+
+  const slide = SLIDES[currentIndex];
 
   return (
     <section className="relative pt-24 pb-16 lg:pt-32 lg:pb-24 overflow-hidden">
@@ -38,7 +184,7 @@ export function Hero() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         <div className="grid lg:grid-cols-2 gap-12 lg:gap-8 items-center">
-          
+
           {/* Left Content */}
           <div className="max-w-2xl">
             <FadeIn>
@@ -47,7 +193,7 @@ export function Hero() {
                 <span>Smart Privacy Protection</span>
               </div>
             </FadeIn>
-            
+
             <FadeIn delay={0.1}>
               <h1 className="text-4xl sm:text-5xl lg:text-[3.25rem] font-bold leading-[1.15] mb-5 text-foreground">
                 Smart QR Tags for<br />
@@ -59,7 +205,7 @@ export function Hero() {
                     transform: isAnimating ? "translateY(8px)" : "translateY(0)",
                   }}
                 >
-                  {ROTATING_WORDS[currentIndex]}
+                  {slide.word}
                 </span>
               </h1>
             </FadeIn>
@@ -79,7 +225,7 @@ export function Hero() {
                 Create Free Profile
               </a>
             </FadeIn>
-            
+
             <FadeIn delay={0.4} className="mt-10 flex items-center gap-6 text-sm text-muted-foreground font-medium">
               <div className="flex -space-x-3">
                 <img className="w-10 h-10 rounded-full border-2 border-white object-cover" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100&fit=crop" alt="User" />
@@ -91,61 +237,64 @@ export function Hero() {
             </FadeIn>
           </div>
 
-          {/* Right Visual: Mock UI Card */}
-          <div className="relative lg:h-[600px] flex items-start justify-center lg:-mt-10">
+          {/* Right Visual: Synced Phone Mockup */}
+          <div className="relative lg:h-[580px] flex items-start justify-center lg:-mt-10">
             {/* Decorative circles */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] border border-primary/20 rounded-full animate-[spin_30s_linear_infinite]"></div>
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] border border-purple-500/20 rounded-full animate-[spin_20s_linear_infinite_reverse]"></div>
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[360px] h-[360px] border border-primary/20 rounded-full animate-[spin_30s_linear_infinite]"></div>
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[260px] h-[260px] border border-purple-500/20 rounded-full animate-[spin_20s_linear_infinite_reverse]"></div>
 
-            <FadeIn delay={0.2} direction="left" className="relative z-10 w-full max-w-sm">
-              {/* Phone Mockup Frame */}
-              <div className="bg-white rounded-[2.5rem] shadow-2xl p-2 border-[8px] border-slate-900 mx-auto transform rotate-3 hover:rotate-0 transition-transform duration-500">
-                <div className="bg-slate-50 rounded-[2rem] overflow-hidden h-[600px] flex flex-col relative">
-                  
-                  {/* Mock UI Header */}
-                  <div className="bg-gradient-primary h-32 relative">
-                    <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 w-20 h-20 bg-white rounded-full p-1 shadow-lg">
-                      <div className="w-full h-full bg-slate-200 rounded-full flex items-center justify-center text-2xl font-bold text-slate-400">
-                        {/* car dog placeholder */}
-                        <img src="https://images.unsplash.com/photo-1543466835-00a7907e9de1?w=200&h=200&fit=crop" className="w-full h-full rounded-full object-cover" alt="Pet" />
-                      </div>
+            <FadeIn delay={0.2} direction="left" className="relative z-10 w-full max-w-[240px]">
+              {/* Smaller Phone Frame */}
+              <div className="bg-white rounded-[2rem] shadow-2xl p-1.5 border-[6px] border-slate-900 mx-auto transform rotate-3 hover:rotate-0 transition-transform duration-500">
+                <div
+                  className="bg-slate-50 rounded-[1.6rem] overflow-hidden flex flex-col relative"
+                  style={{ height: "460px" }}
+                >
+                  {/* Dynamic Header */}
+                  <div
+                    className={`bg-gradient-to-br ${slide.headerBg} h-24 relative flex-shrink-0 transition-all duration-500`}
+                    style={{ opacity: isAnimating ? 0 : 1 }}
+                  >
+                    {/* Tag badge */}
+                    <div className="absolute top-3 right-3 bg-white/20 backdrop-blur-sm text-white text-[10px] font-semibold px-2 py-0.5 rounded-full">
+                      {slide.tag}
+                    </div>
+                    {/* Avatar */}
+                    <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 w-16 h-16 bg-white rounded-full flex items-center justify-center text-3xl shadow-lg border-2 border-white">
+                      {slide.avatar}
                     </div>
                   </div>
 
-                  {/* Mock UI Content */}
-                  <div className="pt-14 px-6 pb-6 flex-1 flex flex-col">
-                    <div className="text-center mb-6">
-                      <h3 className="text-xl font-bold text-slate-900">Max (Golden Retriever)</h3>
-                      <p className="text-sm text-slate-500 flex items-center justify-center gap-1 mt-1">
-                        <MapPin className="w-3 h-3" /> Lost in Bandra West
+                  {/* Dynamic Content */}
+                  <div
+                    className="pt-11 px-4 pb-4 flex-1 flex flex-col transition-all duration-300"
+                    style={{ opacity: isAnimating ? 0 : 1, transform: isAnimating ? "translateY(6px)" : "translateY(0)" }}
+                  >
+                    <div className="text-center mb-4">
+                      <h3 className="text-sm font-bold text-slate-900 leading-tight">{slide.title}</h3>
+                      <p className="text-xs text-slate-400 mt-0.5 flex items-center justify-center gap-1">
+                        <MapPin className="w-2.5 h-2.5" />
+                        {slide.subtitle}
                       </p>
                     </div>
 
-                    <div className="space-y-3">
-                      <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex items-center gap-3">
-                        <div className="bg-green-100 text-green-600 p-2 rounded-full">
-                          <ShieldCheck className="w-5 h-5" />
+                    <div className="space-y-2 flex-1">
+                      {slide.fields.map((field, i) => (
+                        <div key={i} className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex items-center gap-2.5">
+                          <div className={`${field.bg} ${field.color} p-1.5 rounded-full flex-shrink-0`}>
+                            <field.icon className="w-3.5 h-3.5" />
+                          </div>
+                          <div>
+                            <p className="text-[10px] text-slate-400 font-medium leading-none mb-0.5">{field.label}</p>
+                            <p className="text-xs font-semibold text-slate-800">{field.value}</p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="text-xs text-slate-500 font-medium">Owner</p>
-                          <p className="text-sm font-semibold text-slate-900">Sarah Sharma</p>
-                        </div>
-                      </div>
-
-                      <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex items-center gap-3">
-                        <div className="bg-primary/10 text-primary p-2 rounded-full">
-                          <Phone className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <p className="text-xs text-slate-500 font-medium">Masked Number</p>
-                          <p className="text-sm font-semibold text-slate-900">+91 98*** ***45</p>
-                        </div>
-                      </div>
+                      ))}
                     </div>
 
-                    <div className="mt-auto">
-                      <button className="w-full bg-green-500 text-white font-semibold py-3.5 rounded-xl shadow-lg shadow-green-500/30 flex items-center justify-center gap-2 hover:bg-green-600 transition-colors">
-                        <Phone className="w-5 h-5" /> Call Owner Now
+                    <div className="mt-3">
+                      <button className={`w-full ${slide.btnColor} text-white text-xs font-semibold py-2.5 rounded-xl shadow-lg flex items-center justify-center gap-1.5 transition-colors`}>
+                        <Phone className="w-3.5 h-3.5" /> {slide.btnText}
                       </button>
                     </div>
                   </div>
@@ -153,16 +302,26 @@ export function Hero() {
               </div>
 
               {/* Floating scan badge */}
-              <div className="absolute -right-12 top-20 bg-white rounded-2xl shadow-xl p-4 border border-slate-100 animate-bounce" style={{ animationDuration: '3s' }}>
-                <div className="flex items-center gap-3">
-                  <div className="bg-primary/10 p-2 rounded-lg text-primary">
-                    <QrCode className="w-6 h-6" />
+              <div className="absolute -right-14 top-16 bg-white rounded-xl shadow-xl p-3 border border-slate-100 animate-bounce" style={{ animationDuration: '3s' }}>
+                <div className="flex items-center gap-2">
+                  <div className="bg-primary/10 p-1.5 rounded-lg text-primary">
+                    <QrCode className="w-4 h-4" />
                   </div>
                   <div>
-                    <p className="text-xs text-slate-500 font-medium">Status</p>
-                    <p className="text-sm font-bold text-green-600">Scanned Just Now</p>
+                    <p className="text-[10px] text-slate-400 font-medium">Status</p>
+                    <p className="text-xs font-bold text-green-600">Scanned Just Now</p>
                   </div>
                 </div>
+              </div>
+
+              {/* Dot indicators */}
+              <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 flex gap-1.5">
+                {SLIDES.map((_, i) => (
+                  <div
+                    key={i}
+                    className={`rounded-full transition-all duration-300 ${i === currentIndex ? "w-4 h-1.5 bg-primary" : "w-1.5 h-1.5 bg-slate-300"}`}
+                  />
+                ))}
               </div>
             </FadeIn>
           </div>
