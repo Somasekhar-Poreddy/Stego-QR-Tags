@@ -5,11 +5,8 @@ import { useState, useEffect } from "react";
 const SLIDES = [
   {
     word: "Cars & Bikes",
-    icon: Car,
-    iconBg: "bg-blue-100",
-    iconColor: "text-blue-500",
     headerBg: "from-blue-500 to-cyan-400",
-    avatar: "🚗",
+    image: "https://images.unsplash.com/photo-1494976388531-d1058494cdd8?w=200&h=200&fit=crop&auto=format",
     title: "Honda City",
     subtitle: "MH 01 AB 1234",
     tag: "Parking Tag",
@@ -22,11 +19,8 @@ const SLIDES = [
   },
   {
     word: "Pets",
-    icon: Heart,
-    iconBg: "bg-rose-100",
-    iconColor: "text-rose-500",
     headerBg: "from-rose-500 to-pink-400",
-    avatar: "🐕",
+    image: "https://images.unsplash.com/photo-1543466835-00a7907e9de1?w=200&h=200&fit=crop&auto=format",
     title: "Max (Golden Retriever)",
     subtitle: "Lost in Bandra West",
     tag: "Pet ID Tag",
@@ -39,11 +33,8 @@ const SLIDES = [
   },
   {
     word: "Loved Ones",
-    icon: Shield,
-    iconBg: "bg-green-100",
-    iconColor: "text-green-500",
     headerBg: "from-green-500 to-emerald-400",
-    avatar: "👦",
+    image: "https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?w=200&h=200&fit=crop&auto=format",
     title: "Aarav Sharma",
     subtitle: "Age 6 · Child Safety Band",
     tag: "Child Safety",
@@ -56,11 +47,8 @@ const SLIDES = [
   },
   {
     word: "Emergencies",
-    icon: Cross,
-    iconBg: "bg-red-100",
-    iconColor: "text-red-500",
     headerBg: "from-red-500 to-orange-400",
-    avatar: "🏥",
+    image: "https://images.unsplash.com/photo-1584515933487-779824d29309?w=200&h=200&fit=crop&auto=format",
     title: "Rahul Verma",
     subtitle: "Blood Type: A+ · Diabetic",
     tag: "Medical Alert",
@@ -73,11 +61,8 @@ const SLIDES = [
   },
   {
     word: "Your Home",
-    icon: Home,
-    iconBg: "bg-teal-100",
-    iconColor: "text-teal-500",
     headerBg: "from-teal-500 to-cyan-400",
-    avatar: "🏠",
+    image: "https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=200&h=200&fit=crop&auto=format",
     title: "Sharma Residence",
     subtitle: "Visitor / Delivery QR",
     tag: "Home QR",
@@ -90,11 +75,8 @@ const SLIDES = [
   },
   {
     word: "Luggage",
-    icon: Briefcase,
-    iconBg: "bg-indigo-100",
-    iconColor: "text-indigo-500",
     headerBg: "from-indigo-500 to-purple-400",
-    avatar: "🧳",
+    image: "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=200&h=200&fit=crop&auto=format",
     title: "Priya Singh's Bag",
     subtitle: "Flight AI-202 · Row 14C",
     tag: "Luggage Tag",
@@ -107,11 +89,8 @@ const SLIDES = [
   },
   {
     word: "Wallet & Keys",
-    icon: CreditCard,
-    iconBg: "bg-amber-100",
-    iconColor: "text-amber-500",
     headerBg: "from-amber-500 to-yellow-400",
-    avatar: "👜",
+    image: "https://images.unsplash.com/photo-1627843563095-f6e94676cfe0?w=200&h=200&fit=crop&auto=format",
     title: "Lost Wallet",
     subtitle: "Reward offered if found",
     tag: "Wallet Tag",
@@ -124,11 +103,8 @@ const SLIDES = [
   },
   {
     word: "Events",
-    icon: Calendar,
-    iconBg: "bg-fuchsia-100",
-    iconColor: "text-fuchsia-500",
     headerBg: "from-fuchsia-500 to-pink-400",
-    avatar: "🎪",
+    image: "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=200&h=200&fit=crop&auto=format",
     title: "TechConf 2025",
     subtitle: "Mar 30 · Hall B, Mumbai",
     tag: "Event QR",
@@ -141,11 +117,8 @@ const SLIDES = [
   },
   {
     word: "Business Cards",
-    icon: ContactRound,
-    iconBg: "bg-slate-100",
-    iconColor: "text-slate-600",
     headerBg: "from-slate-700 to-slate-500",
-    avatar: "💼",
+    image: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop&auto=format",
     title: "Raj Kumar",
     subtitle: "Product Manager · Stegofy",
     tag: "NFC Card",
@@ -176,7 +149,7 @@ export function Hero() {
   const slide = SLIDES[currentIndex];
 
   return (
-    <section className="relative pt-24 pb-16 lg:pt-32 lg:pb-24 overflow-hidden">
+    <section className="relative pt-28 pb-16 lg:pt-36 lg:pb-24 overflow-hidden">
       {/* Glowing Background Blobs */}
       <div className="glow-blob bg-primary/20 w-[600px] h-[600px] top-[-100px] left-[-200px]"></div>
       <div className="glow-blob bg-purple-500/20 w-[500px] h-[500px] bottom-[0px] right-[-100px]" style={{ animationDelay: '-5s' }}></div>
@@ -252,16 +225,21 @@ export function Hero() {
                 >
                   {/* Dynamic Header */}
                   <div
-                    className={`bg-gradient-to-br ${slide.headerBg} h-24 relative flex-shrink-0 transition-all duration-500`}
+                    className={`bg-gradient-to-br ${slide.headerBg} h-24 relative flex-shrink-0 rounded-t-[1.5rem] transition-all duration-500`}
                     style={{ opacity: isAnimating ? 0 : 1 }}
                   >
                     {/* Tag badge */}
                     <div className="absolute top-3 right-3 bg-white/20 backdrop-blur-sm text-white text-[10px] font-semibold px-2 py-0.5 rounded-full">
                       {slide.tag}
                     </div>
-                    {/* Avatar */}
-                    <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 w-16 h-16 bg-white rounded-full flex items-center justify-center text-3xl shadow-lg border-2 border-white">
-                      {slide.avatar}
+                    {/* Real image avatar */}
+                    <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 w-16 h-16 bg-white rounded-full shadow-lg border-2 border-white overflow-hidden">
+                      <img
+                        src={slide.image}
+                        alt={slide.title}
+                        className="w-full h-full object-cover rounded-full"
+                        style={{ opacity: isAnimating ? 0 : 1, transition: "opacity 0.3s" }}
+                      />
                     </div>
                   </div>
 
