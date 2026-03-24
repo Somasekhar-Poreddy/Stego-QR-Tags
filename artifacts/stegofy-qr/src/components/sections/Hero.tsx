@@ -280,7 +280,7 @@ export function Hero() {
               </div>
 
               {/* Floating scan badge */}
-              <div className="absolute -right-20 top-1/2 -translate-y-1/2 bg-white rounded-xl shadow-xl p-3 border border-slate-100 animate-bounce" style={{ animationDuration: '3s' }}>
+              <div className="absolute -right-24 top-16 bg-white rounded-xl shadow-xl p-3 border border-slate-100 animate-bounce" style={{ animationDuration: '3s' }}>
                 <div className="flex items-center gap-2">
                   <div className="bg-primary/10 p-1.5 rounded-lg text-primary">
                     <QrCode className="w-4 h-4" />
