@@ -44,7 +44,7 @@ export function Navbar() {
       {/* Floating pill navbar */}
       <div
         className={cn(
-          "w-full max-w-5xl transition-all duration-300 rounded-2xl flex items-center justify-between px-5 py-2.5 dark:border-slate-700/60",
+          "w-full max-w-[1400px] transition-all duration-300 rounded-2xl flex items-center justify-between px-6 py-2.5",
           isScrolled
             ? "bg-white/95 dark:bg-slate-900/95 backdrop-blur-lg shadow-lg border border-gray-200/80"
             : "bg-white/90 dark:bg-slate-900/90 backdrop-blur-md shadow-md border border-gray-200/60"
@@ -59,7 +59,7 @@ export function Navbar() {
         </a>
 
         {/* Desktop Nav */}
-        <nav className="hidden md:flex items-center gap-5">
+        <nav className="hidden md:flex items-center gap-4">
           <a href="#" className={navLinkCls}>Home</a>
 
           {/* Products dropdown */}
