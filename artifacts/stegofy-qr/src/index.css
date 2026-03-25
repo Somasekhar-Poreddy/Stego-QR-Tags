@@ -1,6 +1,8 @@
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap');
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme inline {
   --font-sans: 'Poppins', sans-serif;
   --font-display: 'Poppins', sans-serif;
@@ -54,6 +56,16 @@
 
   --card: 0 0% 100%;
   --card-foreground: 222 47% 11%;
+}
+
+.dark {
+  --color-background: hsl(222 47% 6%);
+  --color-foreground: hsl(210 40% 96%);
+  --color-card: hsl(222 47% 10%);
+  --color-card-foreground: hsl(210 40% 96%);
+  --color-muted: hsl(222 47% 14%);
+  --color-muted-foreground: hsl(215 16% 65%);
+  --color-border: hsl(222 47% 18%);
 }
 
 html {
