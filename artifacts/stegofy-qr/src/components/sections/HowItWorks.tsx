@@ -16,51 +16,47 @@ const PHYSICAL_STEPS = [
   { icon: PhoneForwarded, title: "Connect", desc: "Finder calls you via masked number." }
 ];
 
-function FlowColumn({
+function FlowRow({
   label,
   labelColor,
   steps,
-  accentFrom,
-  accentTo,
   delay = 0,
 }: {
   label: string;
   labelColor: string;
   steps: typeof DIGITAL_STEPS;
-  accentFrom: string;
-  accentTo: string;
   delay?: number;
 }) {
   return (
-    <FadeIn delay={delay} className="flex flex-col">
-      <div className={`inline-flex items-center gap-2 self-start mb-8 px-4 py-2 rounded-full text-sm font-semibold ${labelColor}`}>
-        <span className="w-2 h-2 rounded-full bg-current opacity-70"></span>
-        {label}
+    <FadeIn delay={delay}>
+      <div className="mb-4">
+        <span className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-semibold ${labelColor}`}>
+          <span className="w-2 h-2 rounded-full bg-current opacity-70"></span>
+          {label}
+        </span>
       </div>
 
-      <div className="relative flex flex-col gap-0">
-        {steps.map((step, index) => (
-          <div key={index} className="flex gap-4 group">
-            {/* Icon column with connector line */}
-            <div className="flex flex-col items-center">
-              <div className={`w-12 h-12 bg-white rounded-2xl shadow-md border-2 border-slate-100 flex items-center justify-center relative flex-shrink-0 group-hover:border-primary group-hover:shadow-primary/20 group-hover:-translate-y-0.5 transition-all duration-300`}>
-                <step.icon className="w-5 h-5 text-primary" />
-                <div className="absolute -top-2 -right-2 w-5 h-5 bg-slate-900 text-white rounded-full flex items-center justify-center text-[10px] font-bold">
+      <div className="relative">
+        {/* Connecting Line (Desktop only) */}
+        <div className="hidden md:block absolute top-[2.25rem] left-[calc(10%+1.5rem)] right-[calc(10%+1.5rem)] h-0.5 bg-gradient-to-r from-primary/10 via-primary/40 to-primary/10 rounded-full z-0"></div>
+
+        <div
+          className="grid gap-6 relative z-10"
+          style={{ gridTemplateColumns: `repeat(${steps.length}, minmax(0, 1fr))` }}
+        >
+          {steps.map((step, index) => (
+            <FadeIn key={index} delay={delay + 0.08 * index} className="flex flex-col items-center text-center group">
+              <div className="w-[4.5rem] h-[4.5rem] bg-white rounded-2xl shadow-lg border-2 border-primary/20 flex items-center justify-center mb-5 relative group-hover:-translate-y-2 group-hover:border-primary group-hover:shadow-primary/20 transition-all duration-300">
+                <step.icon className="w-7 h-7 text-primary group-hover:scale-110 transition-transform" />
+                <div className="absolute -top-3 -right-3 w-7 h-7 bg-slate-900 text-white rounded-full flex items-center justify-center text-xs font-bold border-4 border-slate-50">
                   {index + 1}
                 </div>
               </div>
-              {index < steps.length - 1 && (
-                <div className={`w-0.5 flex-1 my-1 bg-gradient-to-b ${accentFrom} ${accentTo} min-h-[2rem]`}></div>
-              )}
-            </div>
-
-            {/* Text content */}
-            <div className="pt-1 pb-6 last:pb-0">
-              <h3 className="text-sm font-bold text-slate-900 leading-tight">{step.title}</h3>
-              <p className="text-xs text-slate-500 mt-0.5 leading-snug">{step.desc}</p>
-            </div>
-          </div>
-        ))}
+              <h3 className="text-sm font-bold text-slate-900 mb-1">{step.title}</h3>
+              <p className="text-xs text-slate-500 px-2 leading-snug">{step.desc}</p>
+            </FadeIn>
+          ))}
+        </div>
       </div>
     </FadeIn>
   );
@@ -82,33 +78,19 @@ export function HowItWorks() {
           </FadeIn>
         </div>
 
-        {/* Two flows side by side on desktop, stacked on mobile */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-4xl mx-auto">
-
-          {/* Physical Tag Flow */}
-          <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
-            <FlowColumn
-              label="Physical Tag Flow"
-              labelColor="bg-primary/10 text-primary"
-              steps={PHYSICAL_STEPS}
-              accentFrom="from-primary/40"
-              accentTo="to-primary/10"
-              delay={0.1}
-            />
-          </div>
-
-          {/* Digital Only Flow */}
-          <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
-            <FlowColumn
-              label="Digital Only Setup"
-              labelColor="bg-violet-100 text-violet-600"
-              steps={DIGITAL_STEPS}
-              accentFrom="from-violet-400/40"
-              accentTo="to-violet-400/10"
-              delay={0.2}
-            />
-          </div>
-
+        <div className="space-y-16 max-w-5xl mx-auto">
+          <FlowRow
+            label="Physical Tag Flow"
+            labelColor="bg-primary/10 text-primary"
+            steps={PHYSICAL_STEPS}
+            delay={0.1}
+          />
+          <FlowRow
+            label="Digital Only Setup"
+            labelColor="bg-violet-100 text-violet-600"
+            steps={DIGITAL_STEPS}
+            delay={0.2}
+          />
         </div>
 
       </div>
