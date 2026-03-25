@@ -1,0 +1,214 @@
+1. AUTH FLOW:
+
+Screen:
+- Mobile number input
+- OTP verification (mock)
+
+After login:
+- Check if first-time user
+
+-----------------------------------
+
+2. ONBOARDING:
+
+Screen:
+“Welcome to Stegofy”
+
+Question:
+“What would you like to protect today?”
+
+Options:
+- Pet
+- Vehicle
+- Child
+- Medical
+- Belongings
+- Other
+
+On select → go to profile creation
+
+-----------------------------------
+
+3. HOME SCREEN (ACTION HUB):
+
+Sections:
+
+Top bar:
+- Greeting (Hi User 👋)
+- Notification icon
+
+Primary actions:
+- Create New QR
+- Scan QR
+- Buy QR Tags
+
+Your QR Profiles:
+- Card list (name, type, status)
+- Actions: View, Edit, Share
+
+Recent Activity:
+- Example: “Someone tried to contact you”
+- Example: “QR scanned 2 times”
+
+Safety Settings:
+- Privacy status
+- Strict mode toggle
+
+Shop preview:
+- Small product cards
+
+-----------------------------------
+
+4. CREATE QR FLOW:
+
+Steps:
+
+Step 1: Select type
+Step 2: Form (minimal fields):
+- Name
+- Photo upload
+- Primary contact
+- Emergency contact
+- Notes
+
+Step 3: Privacy settings:
+- Show number
+- Mask number
+- WhatsApp only
+- Emergency priority
+
+Step 4: Generate QR
+
+-----------------------------------
+
+5. QR SUCCESS SCREEN:
+
+Show:
+- QR code preview
+- Download button
+- Share button
+
+CTA:
+- Order Physical Tag
+- Add Another
+
+-----------------------------------
+
+6. MY QR SCREEN:
+
+List all QRs:
+
+Each card:
+- Name
+- Type
+- Status
+
+Actions:
+- View
+- Edit
+- Share
+- Delete
+
+-----------------------------------
+
+7. SCAN FLOW (CORE SECURITY SYSTEM):
+
+Screen:
+Camera placeholder (no real camera required initially)
+
+Simulate scan → open profile page
+
+-----------------------------------
+
+8. PUBLIC PROFILE PAGE (CRITICAL):
+
+Show:
+- Name
+- Image
+- Details
+
+Instead of direct contact:
+
+Show:
+“Request to Connect”
+
+Steps:
+
+1. Select reason:
+- Wrong Parking
+- Found Pet
+- Emergency
+- General
+
+2. Enter 4-digit code:
+Label:
+“Enter the code on the tag to continue”
+
+3. Submit request
+
+-----------------------------------
+
+9. REQUEST HANDLING (SIMULATION):
+
+After submit:
+Show:
+“Request sent to owner”
+
+Simulate owner response:
+- Accepted
+- Rejected
+- No response
+
+-----------------------------------
+
+10. OWNER CONTROLS (SIMULATED):
+
+In profile view:
+
+Show incoming request:
+- Reason
+- Time
+
+Actions:
+- Accept
+- Reject
+- Block
+
+-----------------------------------
+
+11. SHOP SCREEN:
+
+- Product listing
+- Add to cart (basic)
+- No real payment needed
+
+-----------------------------------
+
+12. PROFILE SCREEN:
+
+- Edit user info
+- Manage settings
+- Toggle Strict Mode
+- Logout
+
+-----------------------------------
+
+PWA FEATURES:
+-----------------------------------
+- Add manifest.json
+- Enable install prompt
+- Add service worker (basic caching)
+- App should feel like native mobile app
+
+-----------------------------------
+
+UX REQUIREMENTS:
+-----------------------------------
+- Mobile-first layout
+- Thumb-friendly UI
+- Clean spacing
+- Minimal clutter
+- Fast interactions
+- Smooth transitions
+
+-----------------------------------

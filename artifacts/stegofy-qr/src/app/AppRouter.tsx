@@ -1,0 +1,39 @@
+import { Switch, Route, useLocation } from "wouter";
+import { AppLayout } from "@/app/AppLayout";
+import { useAuth } from "@/app/context/AuthContext";
+
+import { LoginScreen } from "@/app/screens/auth/LoginScreen";
+import { OTPScreen } from "@/app/screens/auth/OTPScreen";
+import { OnboardingScreen } from "@/app/screens/onboarding/OnboardingScreen";
+import { HomeScreen } from "@/app/screens/home/HomeScreen";
+import { MyQRScreen } from "@/app/screens/qr/MyQRScreen";
+import { CreateQRScreen } from "@/app/screens/qr/CreateQRScreen";
+import { QRSuccessScreen } from "@/app/screens/qr/QRSuccessScreen";
+import { ScanScreen } from "@/app/screens/scan/ScanScreen";
+import { PublicProfileScreen } from "@/app/screens/scan/PublicProfileScreen";
+import { ShopScreen } from "@/app/screens/shop/ShopScreen";
+import { ProfileScreen } from "@/app/screens/profile/ProfileScreen";
+
+export function AppRouter() {
+  const { step } = useAuth();
+
+  if (step === "login") return <LoginScreen />;
+  if (step === "otp") return <OTPScreen />;
+  if (step === "onboarding") return <OnboardingScreen />;
+
+  return (
+    <AppLayout>
+      <Switch>
+        <Route path="/app" component={HomeScreen} />
+        <Route path="/app/qr" component={MyQRScreen} />
+        <Route path="/app/qr/create" component={CreateQRScreen} />
+        <Route path="/app/qr/success" component={QRSuccessScreen} />
+        <Route path="/app/scan" component={ScanScreen} />
+        <Route path="/app/scan/profile" component={PublicProfileScreen} />
+        <Route path="/app/shop" component={ShopScreen} />
+        <Route path="/app/profile" component={ProfileScreen} />
+        <Route component={HomeScreen} />
+      </Switch>
+    </AppLayout>
+  );
+}
