@@ -161,7 +161,13 @@ export function Navbar() {
         </div>
 
         {/* Mobile controls */}
-        <div className="md:hidden flex items-center gap-2">
+        <div className="md:hidden flex items-center gap-1.5">
+          <a href="#" className="text-xs font-medium text-foreground/70 hover:text-primary transition-colors px-2 py-1.5">
+            Login
+          </a>
+          <a href="#products" className="text-xs font-semibold bg-primary text-white px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-colors whitespace-nowrap">
+            Sign Up
+          </a>
           <button
             className="p-2 text-foreground/60 hover:text-primary transition-colors rounded-lg hover:bg-slate-100 relative"
             aria-label="Cart"
@@ -203,12 +209,6 @@ export function Navbar() {
               ))}
 
               <a href="#contact" onClick={() => setIsMobileMenuOpen(false)} className="text-sm font-medium px-3 py-2.5 hover:bg-slate-50 rounded-xl">Contact Us</a>
-
-              <div className="h-px bg-gray-100 my-2" />
-              <div className="flex gap-2">
-                <a href="#" className="flex-1 text-sm font-medium py-2.5 text-center border border-gray-200 rounded-xl hover:bg-slate-50">Login</a>
-                <a href="#products" className="flex-1 text-sm font-semibold py-2.5 text-center bg-primary text-white rounded-xl">Sign Up</a>
-              </div>
             </div>
           </motion.div>
         )}
