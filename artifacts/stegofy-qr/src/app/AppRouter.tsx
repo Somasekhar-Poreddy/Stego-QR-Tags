@@ -1,9 +1,11 @@
-import { Switch, Route, useLocation } from "wouter";
+import { Switch, Route } from "wouter";
 import { AppLayout } from "@/app/AppLayout";
 import { useAuth } from "@/app/context/AuthContext";
 
 import { LoginScreen } from "@/app/screens/auth/LoginScreen";
 import { OTPScreen } from "@/app/screens/auth/OTPScreen";
+import { SignUpScreen } from "@/app/screens/auth/SignUpScreen";
+import { EmailVerifyScreen } from "@/app/screens/auth/EmailVerifyScreen";
 import { OnboardingScreen } from "@/app/screens/onboarding/OnboardingScreen";
 import { HomeScreen } from "@/app/screens/home/HomeScreen";
 import { MyQRScreen } from "@/app/screens/qr/MyQRScreen";
@@ -19,6 +21,8 @@ export function AppRouter() {
 
   if (step === "login") return <LoginScreen />;
   if (step === "otp") return <OTPScreen />;
+  if (step === "signup") return <SignUpScreen />;
+  if (step === "email-verify") return <EmailVerifyScreen />;
   if (step === "onboarding") return <OnboardingScreen />;
 
   return (
