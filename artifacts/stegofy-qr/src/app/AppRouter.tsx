@@ -1,9 +1,9 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
+import { useEffect } from "react";
 import { AppLayout } from "@/app/AppLayout";
 import { useAuth } from "@/app/context/AuthContext";
 
 import { LoginScreen } from "@/app/screens/auth/LoginScreen";
-import { OTPScreen } from "@/app/screens/auth/OTPScreen";
 import { SignUpScreen } from "@/app/screens/auth/SignUpScreen";
 import { EmailVerifyScreen } from "@/app/screens/auth/EmailVerifyScreen";
 import { OnboardingScreen } from "@/app/screens/onboarding/OnboardingScreen";
@@ -17,18 +17,30 @@ import { ShopScreen } from "@/app/screens/shop/ShopScreen";
 import { ProfileScreen } from "@/app/screens/profile/ProfileScreen";
 
 export function AppRouter() {
-  const { step } = useAuth();
+  const { step, setStep } = useAuth();
+  const [location] = useLocation();
 
-  if (step === "login") return <LoginScreen />;
-  if (step === "otp") return <OTPScreen />;
+  // When landing directly on /app/signup via URL (e.g. from Navbar "Sign Up"),
+  // advance the step so the signup form shows immediately
+  useEffect(() => {
+    if (location === "/app/signup" && (step === "login" || step === "otp")) {
+      setStep("signup");
+    }
+  }, [location]);
+
+  // Auth gate — step drives which screen to show
+  if (step === "login" || step === "otp") return <LoginScreen />;
   if (step === "signup") return <SignUpScreen />;
   if (step === "email-verify") return <EmailVerifyScreen />;
   if (step === "onboarding") return <OnboardingScreen />;
 
+  // Authenticated app
   return (
     <AppLayout>
       <Switch>
         <Route path="/app" component={HomeScreen} />
+        <Route path="/app/login" component={HomeScreen} />
+        <Route path="/app/signup" component={HomeScreen} />
         <Route path="/app/qr" component={MyQRScreen} />
         <Route path="/app/qr/create" component={CreateQRScreen} />
         <Route path="/app/qr/success" component={QRSuccessScreen} />
