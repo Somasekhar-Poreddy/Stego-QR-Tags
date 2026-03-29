@@ -86,10 +86,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!mounted) return;
-      if (session?.user && !otpSignupInProgress.current) {
-        const built = await fetchAndBuildUser(session.user);
-        if (mounted) { setUser(built); setStep("app"); }
+      try {
+        if (session?.user && !otpSignupInProgress.current) {
+          const built = await fetchAndBuildUser(session.user);
+          if (mounted) { setUser(built); setStep("app"); }
+        }
+      } catch (err) {
+        console.warn("Session restore failed:", err);
+      } finally {
+        if (mounted) setLoading(false);
       }
+    }).catch(() => {
       if (mounted) setLoading(false);
     });
 
