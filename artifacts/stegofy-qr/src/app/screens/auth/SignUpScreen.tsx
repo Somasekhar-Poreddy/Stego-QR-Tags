@@ -132,24 +132,49 @@ export function SignUpScreen() {
 
   // Step 1: Send OTP to email
   const handleSendOtp = async () => {
+    // Caution: first name and last name must be filled before we can verify email
+    const nameErrors: Record<string, string> = {};
+    if (!form.firstName.trim()) nameErrors.firstName = "Enter your first name before verifying email";
+    if (!form.lastName.trim()) nameErrors.lastName = "Enter your last name before verifying email";
+    if (Object.keys(nameErrors).length > 0) {
+      setErrors((p) => ({ ...p, ...nameErrors }));
+      return;
+    }
+
     if (!form.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
       setErrors((p) => ({ ...p, email: "Enter a valid email address first" }));
       return;
     }
+
     setOtpLoading(true);
     setOtpError(null);
 
-    const { error } = await supabase.auth.signInWithOtp({
+    // Use signUp (not signInWithOtp) so first_name + last_name are passed as metadata.
+    // This lets the DB trigger insert the profile row correctly — no "Database error" anymore.
+    // A random temp password is used here; the real password is set after OTP verification.
+    const tempPassword = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2).toUpperCase() + "!1";
+
+    const { error } = await supabase.auth.signUp({
       email: form.email,
-      options: { shouldCreateUser: true },
+      password: tempPassword,
+      options: {
+        data: {
+          first_name: form.firstName,
+          last_name: form.lastName,
+        },
+      },
     });
 
     setOtpLoading(false);
+
     if (error) {
-      // Show error directly below the email field
-      setOtpError(error.message || "Could not send OTP. Please try again.");
+      if (error.message.toLowerCase().includes("already registered")) {
+        setOtpError("An account with this email already exists. Try signing in instead.");
+      } else {
+        setOtpError(error.message || "Could not send verification code. Please try again.");
+      }
     } else {
-      beginOtpVerification(); // suppress auto-navigation only after OTP is sent
+      beginOtpVerification(); // suppress auto-navigation until form is submitted
       setOtpSent(true);
       setOtp("");
       startResendTimer();
@@ -168,7 +193,7 @@ export function SignUpScreen() {
     const { error } = await supabase.auth.verifyOtp({
       email: form.email,
       token: otp,
-      type: "email",
+      type: "signup",
     });
 
     setOtpLoading(false);
@@ -303,8 +328,8 @@ export function SignUpScreen() {
         {otpSent && !emailVerified && (
           <div className="bg-primary/5 border border-primary/20 rounded-2xl p-4 space-y-3">
             <p className="text-xs font-semibold text-slate-700 text-center">
-              Enter the 6-digit code sent to{" "}
-              <span className="text-primary">{form.email}</span>
+              A verification code has been sent to{" "}
+              <span className="text-primary">{form.email}</span>. Check your inbox and enter the 6-digit code below.
             </p>
 
             <OtpInput value={otp} onChange={setOtp} disabled={otpLoading} />
