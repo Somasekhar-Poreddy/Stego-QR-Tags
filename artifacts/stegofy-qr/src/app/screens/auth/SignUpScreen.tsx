@@ -1,6 +1,7 @@
-import { useState } from "react";
-import { ChevronLeft, User, Mail, Phone, Eye, EyeOff, ChevronDown, CheckCircle2, ArrowRight } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { ChevronLeft, User, Mail, Phone, Eye, EyeOff, ChevronDown, CheckCircle2, ArrowRight, RefreshCw } from "lucide-react";
 import { useAuth, SignUpData } from "@/app/context/AuthContext";
+import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 
 const AGE_GROUPS = ["Under 18", "18–25", "26–35", "36–45", "46–55", "56 and above"];
@@ -28,50 +29,162 @@ function InputRow({ icon: Icon, children, className }: { icon?: any; children: R
   );
 }
 
+// 6 separate digit boxes
+function OtpInput({ value, onChange, disabled }: { value: string; onChange: (v: string) => void; disabled?: boolean }) {
+  const refs = useRef<(HTMLInputElement | null)[]>([]);
+  const digits = value.padEnd(6, "").split("").slice(0, 6);
+
+  const handleKey = (i: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Backspace") {
+      const next = digits.map((d, idx) => (idx === i ? "" : d)).join("").replace(/\s/g, "");
+      onChange(next);
+      if (i > 0) refs.current[i - 1]?.focus();
+    }
+  };
+
+  const handleChange = (i: number, val: string) => {
+    const digit = val.replace(/\D/g, "").slice(-1);
+    const arr = digits.map((d) => (d === " " ? "" : d));
+    arr[i] = digit;
+    const joined = arr.join("").replace(/\s/g, "");
+    onChange(joined);
+    if (digit && i < 5) refs.current[i + 1]?.focus();
+  };
+
+  const handlePaste = (e: React.ClipboardEvent) => {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+    onChange(pasted);
+    const nextFocus = Math.min(pasted.length, 5);
+    refs.current[nextFocus]?.focus();
+  };
+
+  return (
+    <div className="flex gap-2 justify-center">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <input
+          key={i}
+          ref={(el) => { refs.current[i] = el; }}
+          type="text"
+          inputMode="numeric"
+          maxLength={1}
+          value={digits[i]?.trim() || ""}
+          onChange={(e) => handleChange(i, e.target.value)}
+          onKeyDown={(e) => handleKey(i, e)}
+          onPaste={handlePaste}
+          disabled={disabled}
+          className={cn(
+            "w-11 h-12 text-center text-lg font-bold rounded-xl border-2 bg-slate-50 outline-none transition-all",
+            digits[i]?.trim()
+              ? "border-primary bg-primary/5 text-primary"
+              : "border-slate-200 text-slate-900",
+            "focus:border-primary focus:ring-2 focus:ring-primary/20",
+            disabled && "opacity-50 cursor-not-allowed"
+          )}
+        />
+      ))}
+    </div>
+  );
+}
+
 export function SignUpScreen() {
-  const { setStep, signUpWithEmail, authError, setAuthError } = useAuth();
+  const { setStep, signUpWithEmail, completeOtpSignup, beginOtpVerification, authError, setAuthError } = useAuth();
 
   const [form, setForm] = useState({
-    firstName: "",
-    lastName: "",
-    email: "",
-    password: "",
-    confirmPassword: "",
-    mobile: "",
-    ageGroup: "",
-    gender: "",
+    firstName: "", lastName: "", email: "",
+    password: "", confirmPassword: "", mobile: "", ageGroup: "", gender: "",
   });
   const [showPwd, setShowPwd] = useState(false);
   const [showConfirmPwd, setShowConfirmPwd] = useState(false);
-  const [emailVerified, setEmailVerified] = useState(false);
-  const [emailVerifying, setEmailVerifying] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // OTP state
+  const [otpSent, setOtpSent] = useState(false);
+  const [otp, setOtp] = useState("");
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [otpError, setOtpError] = useState<string | null>(null);
+  const [emailVerified, setEmailVerified] = useState(false);
+  const [resendSeconds, setResendSeconds] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, []);
+
+  const startResendTimer = () => {
+    setResendSeconds(30);
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => {
+      setResendSeconds((s) => {
+        if (s <= 1) { clearInterval(timerRef.current!); return 0; }
+        return s - 1;
+      });
+    }, 1000);
+  };
 
   const set = (key: string, val: string) => {
     setForm((p) => ({ ...p, [key]: val }));
     setErrors((p) => ({ ...p, [key]: "" }));
     setAuthError(null);
+    if (key === "email") { setOtpSent(false); setEmailVerified(false); setOtp(""); setOtpError(null); }
   };
 
-  const handleVerifyEmail = () => {
+  // Step 1: Send OTP to email
+  const handleSendOtp = async () => {
     if (!form.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
-      setErrors((p) => ({ ...p, email: "Enter a valid email address" }));
+      setErrors((p) => ({ ...p, email: "Enter a valid email address first" }));
       return;
     }
-    setEmailVerifying(true);
-    // Simulate verification check (real: supabase.auth.signInWithOtp or send magic link)
-    setTimeout(() => {
-      setEmailVerifying(false);
+    setOtpLoading(true);
+    setOtpError(null);
+    beginOtpVerification(); // suppress auto-navigation on SIGNED_IN event
+
+    const { error } = await supabase.auth.signInWithOtp({
+      email: form.email,
+      options: { shouldCreateUser: true },
+    });
+
+    setOtpLoading(false);
+    if (error) {
+      setOtpError(error.message || "Could not send OTP. Try again.");
+    } else {
+      setOtpSent(true);
+      setOtp("");
+      startResendTimer();
+    }
+  };
+
+  // Step 2: Verify the 6-digit OTP
+  const handleVerifyOtp = async () => {
+    if (otp.length !== 6) {
+      setOtpError("Enter the complete 6-digit code");
+      return;
+    }
+    setOtpLoading(true);
+    setOtpError(null);
+
+    const { error } = await supabase.auth.verifyOtp({
+      email: form.email,
+      token: otp,
+      type: "email",
+    });
+
+    setOtpLoading(false);
+    if (error) {
+      setOtpError(error.message || "Invalid or expired code. Try again.");
+    } else {
       setEmailVerified(true);
-    }, 1200);
+      setOtpSent(false);
+      if (timerRef.current) clearInterval(timerRef.current);
+    }
   };
 
   const validate = () => {
     const errs: Record<string, string> = {};
     if (!form.firstName.trim()) errs.firstName = "First name is required";
     if (!form.lastName.trim()) errs.lastName = "Last name is required";
-    if (!form.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) errs.email = "Valid email required";
+    if (!emailVerified) errs.email = "Please verify your email first";
     if (!form.password || form.password.length < 6) errs.password = "Min 6 characters";
     if (form.password !== form.confirmPassword) errs.confirmPassword = "Passwords do not match";
     if (!form.mobile || form.mobile.length < 10) errs.mobile = "Enter valid 10-digit mobile number";
@@ -84,7 +197,8 @@ export function SignUpScreen() {
   const handleSignUp = async () => {
     if (!validate()) return;
     setLoading(true);
-    await signUpWithEmail({
+
+    const payload: SignUpData = {
       firstName: form.firstName,
       lastName: form.lastName,
       email: form.email,
@@ -92,7 +206,15 @@ export function SignUpScreen() {
       mobile: form.mobile,
       ageGroup: form.ageGroup,
       gender: form.gender,
-    });
+    };
+
+    if (emailVerified) {
+      // Email was verified via OTP — user already has a session, just update password + save profile
+      await completeOtpSignup(payload);
+    } else {
+      // Fallback: standard Supabase signup (sends confirmation email)
+      await signUpWithEmail(payload);
+    }
     setLoading(false);
   };
 
@@ -119,29 +241,21 @@ export function SignUpScreen() {
         <div className="grid grid-cols-2 gap-3">
           <FieldWrapper label="First Name" error={errors.firstName}>
             <InputRow icon={User}>
-              <input
-                type="text"
-                placeholder="John"
+              <input type="text" placeholder="John"
                 className="flex-1 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400 font-medium"
-                value={form.firstName}
-                onChange={(e) => set("firstName", e.target.value)}
-              />
+                value={form.firstName} onChange={(e) => set("firstName", e.target.value)} />
             </InputRow>
           </FieldWrapper>
           <FieldWrapper label="Last Name" error={errors.lastName}>
             <InputRow>
-              <input
-                type="text"
-                placeholder="Doe"
+              <input type="text" placeholder="Doe"
                 className="flex-1 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400 font-medium"
-                value={form.lastName}
-                onChange={(e) => set("lastName", e.target.value)}
-              />
+                value={form.lastName} onChange={(e) => set("lastName", e.target.value)} />
             </InputRow>
           </FieldWrapper>
         </div>
 
-        {/* Email */}
+        {/* Email + Verify */}
         <FieldWrapper label="Email ID" error={errors.email}>
           <div className={cn(
             "flex items-center gap-2 bg-slate-50 border rounded-2xl px-4 py-3.5 transition-all",
@@ -155,30 +269,79 @@ export function SignUpScreen() {
               placeholder="john@example.com"
               className="flex-1 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400 font-medium"
               value={form.email}
-              onChange={(e) => { set("email", e.target.value); setEmailVerified(false); }}
+              onChange={(e) => set("email", e.target.value)}
               autoComplete="email"
+              disabled={emailVerified}
             />
             {emailVerified ? (
               <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
             ) : (
               <button
-                onClick={handleVerifyEmail}
-                disabled={!form.email || emailVerifying}
+                onClick={handleSendOtp}
+                disabled={!form.email || otpLoading || otpSent}
                 className="text-xs font-bold text-primary px-2.5 py-1 bg-primary/10 rounded-xl flex-shrink-0 disabled:opacity-50 hover:bg-primary/20 transition-colors active:scale-95"
               >
-                {emailVerifying ? (
+                {otpLoading && !otpSent ? (
                   <div className="w-3 h-3 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
-                ) : "Verify"}
+                ) : otpSent ? "Sent ✓" : "Verify"}
               </button>
             )}
           </div>
-          {emailVerified && <p className="text-[11px] text-green-600 font-semibold">Email verified ✓</p>}
+          {emailVerified && (
+            <p className="text-[11px] text-green-600 font-semibold flex items-center gap-1">
+              <CheckCircle2 className="w-3 h-3" /> Email verified successfully
+            </p>
+          )}
         </FieldWrapper>
+
+        {/* OTP Input — shown after OTP is sent, before it's verified */}
+        {otpSent && !emailVerified && (
+          <div className="bg-primary/5 border border-primary/20 rounded-2xl p-4 space-y-3">
+            <p className="text-xs font-semibold text-slate-700 text-center">
+              Enter the 6-digit code sent to{" "}
+              <span className="text-primary">{form.email}</span>
+            </p>
+
+            <OtpInput value={otp} onChange={setOtp} disabled={otpLoading} />
+
+            {otpError && (
+              <p className="text-[11px] text-red-500 font-medium text-center">{otpError}</p>
+            )}
+
+            <button
+              onClick={handleVerifyOtp}
+              disabled={otp.length !== 6 || otpLoading}
+              className="w-full bg-primary text-white text-sm font-bold py-3 rounded-xl disabled:opacity-50 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+            >
+              {otpLoading ? (
+                <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+              ) : "Verify Code"}
+            </button>
+
+            <div className="flex items-center justify-center gap-1.5">
+              {resendSeconds > 0 ? (
+                <p className="text-[11px] text-slate-400">
+                  Resend code in <span className="font-bold text-primary">{resendSeconds}s</span>
+                </p>
+              ) : (
+                <button
+                  onClick={handleSendOtp}
+                  disabled={otpLoading}
+                  className="text-[11px] text-primary font-semibold flex items-center gap-1 disabled:opacity-50"
+                >
+                  <RefreshCw className="w-3 h-3" /> Resend code
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Password */}
         <FieldWrapper label="Password" error={errors.password}>
           <InputRow>
-            <svg className="w-4 h-4 text-slate-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+            <svg className="w-4 h-4 text-slate-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
             <input
               type={showPwd ? "text" : "password"}
               placeholder="Min 6 characters"
@@ -195,7 +358,9 @@ export function SignUpScreen() {
         {/* Confirm Password */}
         <FieldWrapper label="Confirm Password" error={errors.confirmPassword}>
           <InputRow>
-            <svg className="w-4 h-4 text-slate-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+            <svg className="w-4 h-4 text-slate-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
             <input
               type={showConfirmPwd ? "text" : "password"}
               placeholder="Re-enter password"
@@ -230,43 +395,38 @@ export function SignUpScreen() {
 
         {/* Age Group */}
         <FieldWrapper label="Age Group" error={errors.ageGroup}>
-          <div className="relative">
-            <div className={cn(
-              "flex items-center gap-3 bg-slate-50 border rounded-2xl px-4 py-3.5 transition-all",
-              errors.ageGroup ? "border-red-300" : "border-slate-200"
-            )}>
-              <svg className="w-4 h-4 text-slate-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-              <select
-                className="flex-1 bg-transparent text-sm text-slate-900 outline-none font-medium appearance-none cursor-pointer"
-                value={form.ageGroup}
-                onChange={(e) => set("ageGroup", e.target.value)}
-              >
-                <option value="" disabled>Select age group</option>
-                {AGE_GROUPS.map((a) => <option key={a} value={a}>{a}</option>)}
-              </select>
-              <ChevronDown className="w-4 h-4 text-slate-400 flex-shrink-0 pointer-events-none" />
-            </div>
+          <div className={cn("flex items-center gap-3 bg-slate-50 border rounded-2xl px-4 py-3.5 transition-all", errors.ageGroup ? "border-red-300" : "border-slate-200")}>
+            <svg className="w-4 h-4 text-slate-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
+            <select
+              className="flex-1 bg-transparent text-sm text-slate-900 outline-none font-medium appearance-none cursor-pointer"
+              value={form.ageGroup}
+              onChange={(e) => set("ageGroup", e.target.value)}
+            >
+              <option value="" disabled>Select age group</option>
+              {AGE_GROUPS.map((a) => <option key={a} value={a}>{a}</option>)}
+            </select>
+            <ChevronDown className="w-4 h-4 text-slate-400 flex-shrink-0 pointer-events-none" />
           </div>
         </FieldWrapper>
 
         {/* Gender */}
         <FieldWrapper label="Gender" error={errors.gender}>
-          <div className="relative">
-            <div className={cn(
-              "flex items-center gap-3 bg-slate-50 border rounded-2xl px-4 py-3.5 transition-all",
-              errors.gender ? "border-red-300" : "border-slate-200"
-            )}>
-              <svg className="w-4 h-4 text-slate-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><circle cx="12" cy="8" r="4" strokeWidth="2"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 12v4m0 0H9m3 0h3" /></svg>
-              <select
-                className="flex-1 bg-transparent text-sm text-slate-900 outline-none font-medium appearance-none cursor-pointer"
-                value={form.gender}
-                onChange={(e) => set("gender", e.target.value)}
-              >
-                <option value="" disabled>Select gender</option>
-                {GENDERS.map((g) => <option key={g} value={g}>{g}</option>)}
-              </select>
-              <ChevronDown className="w-4 h-4 text-slate-400 flex-shrink-0 pointer-events-none" />
-            </div>
+          <div className={cn("flex items-center gap-3 bg-slate-50 border rounded-2xl px-4 py-3.5 transition-all", errors.gender ? "border-red-300" : "border-slate-200")}>
+            <svg className="w-4 h-4 text-slate-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <circle cx="12" cy="8" r="4" strokeWidth="2" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 12v4m0 0H9m3 0h3" />
+            </svg>
+            <select
+              className="flex-1 bg-transparent text-sm text-slate-900 outline-none font-medium appearance-none cursor-pointer"
+              value={form.gender}
+              onChange={(e) => set("gender", e.target.value)}
+            >
+              <option value="" disabled>Select gender</option>
+              {GENDERS.map((g) => <option key={g} value={g}>{g}</option>)}
+            </select>
+            <ChevronDown className="w-4 h-4 text-slate-400 flex-shrink-0 pointer-events-none" />
           </div>
         </FieldWrapper>
 
@@ -280,7 +440,7 @@ export function SignUpScreen() {
         {/* Submit */}
         <button
           onClick={handleSignUp}
-          disabled={loading}
+          disabled={loading || (otpSent && !emailVerified)}
           className="w-full bg-gradient-to-r from-primary to-violet-600 text-white font-semibold py-4 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-primary/30 disabled:opacity-50 transition-all active:scale-[0.98] mt-2"
         >
           {loading ? (

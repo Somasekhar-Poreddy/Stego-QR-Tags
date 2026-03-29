@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useRef, ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
 
 export type AuthStep =
@@ -19,6 +19,16 @@ export interface User {
   isFirstTime: boolean;
 }
 
+export interface SignUpData {
+  firstName: string;
+  lastName: string;
+  email: string;
+  password: string;
+  mobile: string;
+  ageGroup: string;
+  gender: string;
+}
+
 interface AuthContextType {
   step: AuthStep;
   user: User | null;
@@ -29,17 +39,9 @@ interface AuthContextType {
   setAuthError: (msg: string | null) => void;
   signInWithEmail: (email: string, password: string) => Promise<void>;
   signUpWithEmail: (data: SignUpData) => Promise<void>;
+  beginOtpVerification: () => void;
+  completeOtpSignup: (data: SignUpData) => Promise<void>;
   logout: () => void;
-}
-
-export interface SignUpData {
-  firstName: string;
-  lastName: string;
-  email: string;
-  password: string;
-  mobile: string;
-  ageGroup: string;
-  gender: string;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -74,14 +76,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [authError, setAuthError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // ── Step 5: Restore session on app load ──────────────────────────────────
+  // Ref to suppress auto-navigation when user is mid OTP signup form
+  const otpSignupInProgress = useRef(false);
+
   useEffect(() => {
     let mounted = true;
 
-    // Check for an existing session (user refreshed the page / reopened the app)
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!mounted) return;
-      if (session?.user) {
+      if (session?.user && !otpSignupInProgress.current) {
         const built = await fetchAndBuildUser(session.user);
         if (mounted) {
           setUser(built);
@@ -91,9 +94,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (mounted) setLoading(false);
     });
 
-    // Listen for future auth events (email confirmation redirect, logout, etc.)
     const { data: listener } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
+
+      // Don't auto-navigate while user is completing the OTP signup form
+      if (otpSignupInProgress.current) return;
 
       if (event === "SIGNED_IN" && session?.user) {
         const built = await fetchAndBuildUser(session.user);
@@ -108,7 +113,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setLoading(false);
       }
 
-      // Email confirmed — user clicks link and lands back in app
       if (event === "USER_UPDATED" && session?.user) {
         const built = await fetchAndBuildUser(session.user);
         setUser(built);
@@ -123,7 +127,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  // ── Step 3: Sign in — fetch full profile from user_profiles ──────────────
   const signInWithEmail = async (email: string, password: string) => {
     setAuthError(null);
     try {
@@ -137,12 +140,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // ── Step 2: Sign up — save user data to user_profiles ───────────────────
+  // Standard signup (no OTP email verification — Supabase sends confirmation email)
   const signUpWithEmail = async (data: SignUpData) => {
     setAuthError(null);
     try {
-      // Create auth user; metadata goes into auth.users.raw_user_meta_data
-      // and the DB trigger auto-inserts a row into user_profiles
       const { data: authData, error: signUpError } = await supabase.auth.signUp({
         email: data.email,
         password: data.password,
@@ -159,8 +160,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (signUpError) throw signUpError;
 
-      // Fallback direct insert — works when email confirmation is disabled.
-      // When confirmation is ON the trigger handles it; conflict is ignored.
       if (authData.user) {
         const { error: profileError } = await supabase.from("user_profiles").insert({
           id: authData.user.id,
@@ -171,7 +170,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           age_group: data.ageGroup || null,
           gender: data.gender || null,
         });
-
         if (profileError) {
           console.warn("Direct profile insert skipped (trigger will handle it):", profileError.message);
         }
@@ -191,7 +189,61 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Called from SignUpScreen just before OTP is verified — suppresses auto-nav
+  const beginOtpVerification = () => {
+    otpSignupInProgress.current = true;
+  };
+
+  // Called after OTP is verified + form is submitted — user already has a session from OTP
+  const completeOtpSignup = async (data: SignUpData) => {
+    setAuthError(null);
+    try {
+      // User is already signed in via OTP — set their password and metadata
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: data.password,
+        data: {
+          first_name: data.firstName,
+          last_name: data.lastName,
+          mobile: data.mobile,
+          age_group: data.ageGroup,
+          gender: data.gender,
+        },
+      });
+      if (updateError) throw updateError;
+
+      // Save full profile to user_profiles table
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (currentUser) {
+        await supabase.from("user_profiles").upsert({
+          id: currentUser.id,
+          first_name: data.firstName,
+          last_name: data.lastName,
+          email: data.email,
+          mobile: data.mobile || null,
+          age_group: data.ageGroup || null,
+          gender: data.gender || null,
+        });
+
+        setUser({
+          id: currentUser.id,
+          email: currentUser.email,
+          name: `${data.firstName} ${data.lastName}`.trim(),
+          firstName: data.firstName,
+          lastName: data.lastName,
+          isFirstTime: true,
+        });
+      }
+
+      otpSignupInProgress.current = false;
+      setStep("app");
+    } catch (err: any) {
+      otpSignupInProgress.current = false;
+      setAuthError(err.message || "Sign up failed. Please try again.");
+    }
+  };
+
   const logout = async () => {
+    otpSignupInProgress.current = false;
     await supabase.auth.signOut();
     setUser(null);
     setStep("login");
@@ -209,6 +261,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setAuthError,
         signInWithEmail,
         signUpWithEmail,
+        beginOtpVerification,
+        completeOtpSignup,
         logout,
       }}
     >
