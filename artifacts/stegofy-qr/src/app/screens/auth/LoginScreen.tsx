@@ -86,8 +86,8 @@ export function LoginScreen() {
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, []);
 
-  const startResendTimer = () => {
-    setResendSeconds(30);
+  const startResendTimer = (seconds = 30) => {
+    setResendSeconds(seconds);
     if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = setInterval(() => {
       setResendSeconds((s) => {
@@ -95,6 +95,11 @@ export function LoginScreen() {
         return s - 1;
       });
     }, 1000);
+  };
+
+  const parseRateLimitSeconds = (msg: string): number | null => {
+    const match = msg.match(/(\d+)\s*second/i);
+    return match ? parseInt(match[1], 10) : null;
   };
 
   const switchMode = (m: LoginMode) => {
@@ -127,7 +132,13 @@ export function LoginScreen() {
     const err = await sendLoginOtp(email);
     setOtpLoading(false);
     if (err) {
-      setOtpError(err);
+      const secs = parseRateLimitSeconds(err);
+      if (secs) {
+        startResendTimer(secs);
+        setOtpSent(true);
+      } else {
+        setOtpError(err);
+      }
     } else {
       setOtpSent(true);
       setOtp("");
