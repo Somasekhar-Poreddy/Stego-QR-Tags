@@ -32,7 +32,7 @@ function InputRow({ icon: Icon, children, className }: { icon?: any; children: R
 // 6 separate digit boxes
 function OtpInput({ value, onChange, disabled }: { value: string; onChange: (v: string) => void; disabled?: boolean }) {
   const refs = useRef<(HTMLInputElement | null)[]>([]);
-  const digits = value.padEnd(6, "").split("").slice(0, 6);
+  const digits = value.padEnd(8, "").split("").slice(0, 8);
 
   const handleKey = (i: number, e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Backspace") {
@@ -48,20 +48,20 @@ function OtpInput({ value, onChange, disabled }: { value: string; onChange: (v: 
     arr[i] = digit;
     const joined = arr.join("").replace(/\s/g, "");
     onChange(joined);
-    if (digit && i < 5) refs.current[i + 1]?.focus();
+    if (digit && i < 7) refs.current[i + 1]?.focus();
   };
 
   const handlePaste = (e: React.ClipboardEvent) => {
     e.preventDefault();
-    const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+    const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 8);
     onChange(pasted);
-    const nextFocus = Math.min(pasted.length, 5);
+    const nextFocus = Math.min(pasted.length, 7);
     refs.current[nextFocus]?.focus();
   };
 
   return (
     <div className="flex gap-2 justify-center">
-      {Array.from({ length: 6 }).map((_, i) => (
+      {Array.from({ length: 8 }).map((_, i) => (
         <input
           key={i}
           ref={(el) => { refs.current[i] = el; }}
@@ -183,8 +183,8 @@ export function SignUpScreen() {
 
   // Step 2: Verify the 6-digit OTP
   const handleVerifyOtp = async () => {
-    if (otp.length !== 6) {
-      setOtpError("Enter the complete 6-digit code");
+    if (otp.length !== 8) {
+      setOtpError("Enter the complete 8-digit code");
       return;
     }
     setOtpLoading(true);
@@ -329,7 +329,7 @@ export function SignUpScreen() {
           <div className="bg-primary/5 border border-primary/20 rounded-2xl p-4 space-y-3">
             <p className="text-xs font-semibold text-slate-700 text-center">
               A verification code has been sent to{" "}
-              <span className="text-primary">{form.email}</span>. Check your inbox and enter the 6-digit code below.
+              <span className="text-primary">{form.email}</span>. Check your inbox and enter the 8-digit code below.
             </p>
 
             <OtpInput value={otp} onChange={setOtp} disabled={otpLoading} />
@@ -340,7 +340,7 @@ export function SignUpScreen() {
 
             <button
               onClick={handleVerifyOtp}
-              disabled={otp.length !== 6 || otpLoading}
+              disabled={otp.length !== 8 || otpLoading}
               className="w-full bg-primary text-white text-sm font-bold py-3 rounded-xl disabled:opacity-50 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
             >
               {otpLoading ? (
