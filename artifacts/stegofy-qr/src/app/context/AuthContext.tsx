@@ -41,6 +41,9 @@ interface AuthContextType {
   signUpWithEmail: (data: SignUpData) => Promise<void>;
   beginOtpVerification: () => void;
   completeOtpSignup: (data: SignUpData) => Promise<void>;
+  sendLoginOtp: (email: string) => Promise<string | null>;
+  verifyLoginOtp: (email: string, token: string) => Promise<void>;
+  sendPasswordReset: (email: string) => Promise<string | null>;
   logout: () => void;
 }
 
@@ -76,7 +79,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [authError, setAuthError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Ref to suppress auto-navigation when user is mid OTP signup form
   const otpSignupInProgress = useRef(false);
 
   useEffect(() => {
@@ -86,38 +88,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!mounted) return;
       if (session?.user && !otpSignupInProgress.current) {
         const built = await fetchAndBuildUser(session.user);
-        if (mounted) {
-          setUser(built);
-          setStep("app");
-        }
+        if (mounted) { setUser(built); setStep("app"); }
       }
       if (mounted) setLoading(false);
     });
 
     const { data: listener } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
-
-      // Don't auto-navigate while user is completing the OTP signup form
       if (otpSignupInProgress.current) return;
 
       if (event === "SIGNED_IN" && session?.user) {
         const built = await fetchAndBuildUser(session.user);
-        setUser(built);
-        setStep("app");
-        setLoading(false);
+        setUser(built); setStep("app"); setLoading(false);
       }
-
       if (event === "SIGNED_OUT") {
-        setUser(null);
-        setStep("login");
-        setLoading(false);
+        setUser(null); setStep("login"); setLoading(false);
       }
-
       if (event === "USER_UPDATED" && session?.user) {
         const built = await fetchAndBuildUser(session.user);
-        setUser(built);
-        setStep("app");
-        setLoading(false);
+        setUser(built); setStep("app"); setLoading(false);
       }
     });
 
@@ -127,6 +116,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  // ── Password login ────────────────────────────────────────────────────────
   const signInWithEmail = async (email: string, password: string) => {
     setAuthError(null);
     try {
@@ -140,7 +130,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Standard signup (no OTP email verification — Supabase sends confirmation email)
+  // ── OTP login — Step 1: send code ────────────────────────────────────────
+  const sendLoginOtp = async (email: string): Promise<string | null> => {
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: { shouldCreateUser: false },
+    });
+    return error ? (error.message || "Could not send OTP. Please try again.") : null;
+  };
+
+  // ── OTP login — Step 2: verify code ─────────────────────────────────────
+  const verifyLoginOtp = async (email: string, token: string) => {
+    setAuthError(null);
+    try {
+      const { data, error } = await supabase.auth.verifyOtp({
+        email,
+        token,
+        type: "email",
+      });
+      if (error) throw error;
+      if (data.user) {
+        const built = await fetchAndBuildUser(data.user);
+        setUser(built);
+        setStep("app");
+      }
+    } catch (err: any) {
+      setAuthError(err.message || "Invalid or expired code. Try again.");
+    }
+  };
+
+  // ── Forgot password: send reset email ────────────────────────────────────
+  const sendPasswordReset = async (email: string): Promise<string | null> => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/app`,
+    });
+    return error ? (error.message || "Could not send reset email. Try again.") : null;
+  };
+
+  // ── Standard signup ───────────────────────────────────────────────────────
   const signUpWithEmail = async (data: SignUpData) => {
     setAuthError(null);
     try {
@@ -157,7 +184,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           },
         },
       });
-
       if (signUpError) throw signUpError;
 
       if (authData.user) {
@@ -170,9 +196,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           age_group: data.ageGroup || null,
           gender: data.gender || null,
         });
-        if (profileError) {
-          console.warn("Direct profile insert skipped (trigger will handle it):", profileError.message);
-        }
+        if (profileError) console.warn("Profile insert skipped:", profileError.message);
       }
 
       setUser({
@@ -189,16 +213,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Called from SignUpScreen just before OTP is verified — suppresses auto-nav
-  const beginOtpVerification = () => {
-    otpSignupInProgress.current = true;
-  };
+  const beginOtpVerification = () => { otpSignupInProgress.current = true; };
 
-  // Called after OTP is verified + form is submitted — user already has a session from OTP
   const completeOtpSignup = async (data: SignUpData) => {
     setAuthError(null);
     try {
-      // User is already signed in via OTP — set their password and metadata
       const { error: updateError } = await supabase.auth.updateUser({
         password: data.password,
         data: {
@@ -211,7 +230,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
       if (updateError) throw updateError;
 
-      // Save full profile to user_profiles table
       const { data: { user: currentUser } } = await supabase.auth.getUser();
       if (currentUser) {
         await supabase.from("user_profiles").upsert({
@@ -223,7 +241,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           age_group: data.ageGroup || null,
           gender: data.gender || null,
         });
-
         setUser({
           id: currentUser.id,
           email: currentUser.email,
@@ -233,7 +250,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           isFirstTime: true,
         });
       }
-
       otpSignupInProgress.current = false;
       setStep("app");
     } catch (err: any) {
@@ -252,17 +268,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <AuthContext.Provider
       value={{
-        step,
-        user,
-        authError,
-        loading,
-        setStep,
-        setUser,
-        setAuthError,
-        signInWithEmail,
-        signUpWithEmail,
-        beginOtpVerification,
-        completeOtpSignup,
+        step, user, authError, loading,
+        setStep, setUser, setAuthError,
+        signInWithEmail, signUpWithEmail,
+        beginOtpVerification, completeOtpSignup,
+        sendLoginOtp, verifyLoginOtp,
+        sendPasswordReset,
         logout,
       }}
     >
