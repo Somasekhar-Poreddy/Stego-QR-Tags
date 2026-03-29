@@ -7,6 +7,7 @@ import { QrCode } from "lucide-react";
 import { LoginScreen } from "@/app/screens/auth/LoginScreen";
 import { SignUpScreen } from "@/app/screens/auth/SignUpScreen";
 import { EmailVerifyScreen } from "@/app/screens/auth/EmailVerifyScreen";
+import { ResetPasswordScreen } from "@/app/screens/auth/ResetPasswordScreen";
 import { OnboardingScreen } from "@/app/screens/onboarding/OnboardingScreen";
 import { HomeScreen } from "@/app/screens/home/HomeScreen";
 import { MyQRScreen } from "@/app/screens/qr/MyQRScreen";
@@ -55,6 +56,7 @@ export function AppRouter() {
   if (step === "login" || step === "otp") return <LoginScreen />;
   if (step === "signup") return <SignUpScreen />;
   if (step === "email-verify") return <EmailVerifyScreen />;
+  if (step === "reset-password") return <ResetPasswordScreen />;
   if (step === "onboarding") return <OnboardingScreen />;
 
   // Authenticated app

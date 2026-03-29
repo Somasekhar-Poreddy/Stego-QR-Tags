@@ -7,6 +7,7 @@ export type AuthStep =
   | "signup"
   | "email-verify"
   | "onboarding"
+  | "reset-password"
   | "app";
 
 export interface User {
@@ -120,6 +121,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!mounted) return;
       if (otpSignupInProgress.current) return;
 
+      if (event === "PASSWORD_RECOVERY") {
+        if (mounted) { setLoading(false); _setStep("reset-password"); }
+        return;
+      }
       if (event === "SIGNED_IN" && session?.user) {
         try {
           const built = await fetchAndBuildUser(session.user);
