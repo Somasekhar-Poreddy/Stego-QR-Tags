@@ -13,6 +13,11 @@ export function AppHeader({ title, showBack, onBack, showNotification = true }: 
   const { user } = useAuth();
   const [, navigate] = useLocation();
 
+  // Build display name from profile — prefer full name, fall back gracefully
+  const fullName = user
+    ? [user.firstName, user.lastName].filter(Boolean).join(" ") || user.name || "User"
+    : "User";
+
   return (
     <header className="bg-white border-b border-slate-100 px-4 py-3 flex items-center justify-between sticky top-0 z-40">
       <div className="flex items-center gap-3">
@@ -29,9 +34,13 @@ export function AppHeader({ title, showBack, onBack, showNotification = true }: 
         ) : (
           <div>
             <p className="text-xs text-slate-400 font-medium leading-none">Welcome back 👋</p>
-            <p className="text-base font-bold text-slate-900 leading-tight">
-              Hi, {user?.name || "User"}
-            </p>
+            {user ? (
+              <p className="text-base font-bold text-slate-900 leading-tight">
+                Hi, {fullName}
+              </p>
+            ) : (
+              <div className="h-5 w-32 bg-slate-100 rounded animate-pulse mt-0.5" />
+            )}
           </div>
         )}
       </div>

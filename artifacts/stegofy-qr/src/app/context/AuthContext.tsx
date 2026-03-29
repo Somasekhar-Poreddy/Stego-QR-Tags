@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
 
 export type AuthStep =
@@ -23,6 +23,7 @@ interface AuthContextType {
   step: AuthStep;
   user: User | null;
   authError: string | null;
+  loading: boolean;
   setStep: (step: AuthStep) => void;
   setUser: (user: User) => void;
   setAuthError: (msg: string | null) => void;
@@ -43,43 +44,105 @@ export interface SignUpData {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+async function fetchAndBuildUser(supabaseUser: any): Promise<User> {
+  const { data: profile } = await supabase
+    .from("user_profiles")
+    .select("*")
+    .eq("id", supabaseUser.id)
+    .single();
+
+  const firstName =
+    profile?.first_name ||
+    supabaseUser.user_metadata?.first_name ||
+    supabaseUser.email?.split("@")[0] ||
+    "User";
+  const lastName = profile?.last_name || supabaseUser.user_metadata?.last_name || "";
+
+  return {
+    id: supabaseUser.id,
+    email: supabaseUser.email,
+    firstName,
+    lastName,
+    name: `${firstName} ${lastName}`.trim(),
+    isFirstTime: false,
+  };
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [step, setStep] = useState<AuthStep>("login");
   const [user, setUser] = useState<User | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
+  // ── Step 5: Restore session on app load ──────────────────────────────────
+  useEffect(() => {
+    let mounted = true;
+
+    // Check for an existing session (user refreshed the page / reopened the app)
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!mounted) return;
+      if (session?.user) {
+        const built = await fetchAndBuildUser(session.user);
+        if (mounted) {
+          setUser(built);
+          setStep("app");
+        }
+      }
+      if (mounted) setLoading(false);
+    });
+
+    // Listen for future auth events (email confirmation redirect, logout, etc.)
+    const { data: listener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!mounted) return;
+
+      if (event === "SIGNED_IN" && session?.user) {
+        const built = await fetchAndBuildUser(session.user);
+        setUser(built);
+        setStep("app");
+        setLoading(false);
+      }
+
+      if (event === "SIGNED_OUT") {
+        setUser(null);
+        setStep("login");
+        setLoading(false);
+      }
+
+      // Email confirmed — user clicks link and lands back in app
+      if (event === "USER_UPDATED" && session?.user) {
+        const built = await fetchAndBuildUser(session.user);
+        setUser(built);
+        setStep("app");
+        setLoading(false);
+      }
+    });
+
+    return () => {
+      mounted = false;
+      listener.subscription.unsubscribe();
+    };
+  }, []);
+
+  // ── Step 3: Sign in — fetch full profile from user_profiles ──────────────
   const signInWithEmail = async (email: string, password: string) => {
     setAuthError(null);
     try {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
-
-      // Fetch full profile from user_profiles table
-      const { data: profile } = await supabase
-        .from("user_profiles")
-        .select("*")
-        .eq("id", data.user.id)
-        .single();
-
-      setUser({
-        id: data.user.id,
-        email: data.user.email,
-        name: profile?.first_name || data.user.user_metadata?.first_name || email.split("@")[0],
-        firstName: profile?.first_name || data.user.user_metadata?.first_name,
-        lastName: profile?.last_name || data.user.user_metadata?.last_name,
-        isFirstTime: false,
-      });
+      const built = await fetchAndBuildUser(data.user);
+      setUser(built);
       setStep("app");
     } catch (err: any) {
       setAuthError(err.message || "Sign in failed. Please try again.");
     }
   };
 
+  // ── Step 2: Sign up — save user data to user_profiles ───────────────────
   const signUpWithEmail = async (data: SignUpData) => {
     setAuthError(null);
     try {
-      // Step 1: Create auth user — metadata is stored in auth.users.raw_user_meta_data
-      // and the DB trigger will auto-insert into user_profiles
+      // Create auth user; metadata goes into auth.users.raw_user_meta_data
+      // and the DB trigger auto-inserts a row into user_profiles
       const { data: authData, error: signUpError } = await supabase.auth.signUp({
         email: data.email,
         password: data.password,
@@ -96,10 +159,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (signUpError) throw signUpError;
 
-      // Step 2: Also attempt a direct insert into user_profiles.
-      // This succeeds when email confirmation is disabled (user is immediately active).
-      // When email confirmation is ON, the DB trigger fires on auth.users INSERT
-      // and handles the insert automatically — so this is a safe fallback.
+      // Fallback direct insert — works when email confirmation is disabled.
+      // When confirmation is ON the trigger handles it; conflict is ignored.
       if (authData.user) {
         const { error: profileError } = await supabase.from("user_profiles").insert({
           id: authData.user.id,
@@ -111,7 +172,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           gender: data.gender || null,
         });
 
-        // Log but don't block — the trigger is the reliable fallback
         if (profileError) {
           console.warn("Direct profile insert skipped (trigger will handle it):", profileError.message);
         }
@@ -120,7 +180,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser({
         id: authData.user?.id,
         email: data.email,
-        name: data.firstName,
+        name: `${data.firstName} ${data.lastName}`.trim(),
         firstName: data.firstName,
         lastName: data.lastName,
         isFirstTime: true,
@@ -131,15 +191,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const logout = () => {
-    supabase.auth.signOut();
+  const logout = async () => {
+    await supabase.auth.signOut();
     setUser(null);
     setStep("login");
   };
 
   return (
     <AuthContext.Provider
-      value={{ step, user, authError, setStep, setUser, setAuthError, signInWithEmail, signUpWithEmail, logout }}
+      value={{
+        step,
+        user,
+        authError,
+        loading,
+        setStep,
+        setUser,
+        setAuthError,
+        signInWithEmail,
+        signUpWithEmail,
+        logout,
+      }}
     >
       {children}
     </AuthContext.Provider>

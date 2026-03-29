@@ -2,6 +2,7 @@ import { Switch, Route, useLocation } from "wouter";
 import { useEffect } from "react";
 import { AppLayout } from "@/app/AppLayout";
 import { useAuth } from "@/app/context/AuthContext";
+import { QrCode } from "lucide-react";
 
 import { LoginScreen } from "@/app/screens/auth/LoginScreen";
 import { SignUpScreen } from "@/app/screens/auth/SignUpScreen";
@@ -16,8 +17,27 @@ import { PublicProfileScreen } from "@/app/screens/scan/PublicProfileScreen";
 import { ShopScreen } from "@/app/screens/shop/ShopScreen";
 import { ProfileScreen } from "@/app/screens/profile/ProfileScreen";
 
+function SessionLoader() {
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-primary to-violet-600 gap-4">
+      <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center">
+        <QrCode className="w-8 h-8 text-white" />
+      </div>
+      <div className="flex gap-1.5">
+        {[0, 1, 2].map((i) => (
+          <span
+            key={i}
+            className="w-2 h-2 bg-white rounded-full animate-bounce"
+            style={{ animationDelay: `${i * 0.15}s` }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function AppRouter() {
-  const { step, setStep } = useAuth();
+  const { step, setStep, loading } = useAuth();
   const [location] = useLocation();
 
   // When landing directly on /app/signup via URL (e.g. from Navbar "Sign Up"),
@@ -27,6 +47,9 @@ export function AppRouter() {
       setStep("signup");
     }
   }, [location]);
+
+  // Step 5: While checking for an existing session, show a branded loader
+  if (loading) return <SessionLoader />;
 
   // Auth gate — step drives which screen to show
   if (step === "login" || step === "otp") return <LoginScreen />;
