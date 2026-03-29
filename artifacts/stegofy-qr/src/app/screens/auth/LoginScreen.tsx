@@ -5,10 +5,10 @@ import { cn } from "@/lib/utils";
 
 type LoginMode = "password" | "otp" | "forgot";
 
-// ── Reusable 6-box OTP input ──────────────────────────────────────────────
+// ── Reusable 8-box OTP input ──────────────────────────────────────────────
 function OtpInput({ value, onChange, disabled }: { value: string; onChange: (v: string) => void; disabled?: boolean }) {
   const refs = useRef<(HTMLInputElement | null)[]>([]);
-  const digits = value.padEnd(6, "").split("").slice(0, 6);
+  const digits = value.padEnd(8, "").split("").slice(0, 8);
 
   const handleKey = (i: number, e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Backspace") {
@@ -23,19 +23,19 @@ function OtpInput({ value, onChange, disabled }: { value: string; onChange: (v: 
     const arr = digits.map((d) => (d === " " ? "" : d));
     arr[i] = digit;
     onChange(arr.join("").replace(/\s/g, ""));
-    if (digit && i < 5) refs.current[i + 1]?.focus();
+    if (digit && i < 7) refs.current[i + 1]?.focus();
   };
 
   const handlePaste = (e: React.ClipboardEvent) => {
     e.preventDefault();
-    const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+    const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 8);
     onChange(pasted);
-    refs.current[Math.min(pasted.length, 5)]?.focus();
+    refs.current[Math.min(pasted.length, 7)]?.focus();
   };
 
   return (
-    <div className="flex gap-2 justify-center">
-      {Array.from({ length: 6 }).map((_, i) => (
+    <div className="flex gap-1.5 justify-center">
+      {Array.from({ length: 8 }).map((_, i) => (
         <input
           key={i}
           ref={(el) => { refs.current[i] = el; }}
@@ -48,7 +48,7 @@ function OtpInput({ value, onChange, disabled }: { value: string; onChange: (v: 
           onPaste={handlePaste}
           disabled={disabled}
           className={cn(
-            "w-11 h-12 text-center text-lg font-bold rounded-xl border-2 bg-slate-50 outline-none transition-all",
+            "w-9 h-11 text-center text-base font-bold rounded-xl border-2 bg-slate-50 outline-none transition-all",
             digits[i]?.trim() ? "border-primary bg-primary/5 text-primary" : "border-slate-200 text-slate-900",
             "focus:border-primary focus:ring-2 focus:ring-primary/20",
             disabled && "opacity-50 cursor-not-allowed"
@@ -137,7 +137,7 @@ export function LoginScreen() {
 
   // ── OTP login: verify code ──────────────────────────────────────────────
   const handleVerifyLoginOtp = async () => {
-    if (otp.length !== 6) { setOtpError("Enter the complete 6-digit code"); return; }
+    if (otp.length !== 8) { setOtpError("Enter the complete 8-digit code"); return; }
     setOtpLoading(true);
     setOtpError(null);
     await verifyLoginOtp(email, otp);
@@ -402,7 +402,7 @@ export function LoginScreen() {
 
                     <button
                       onClick={handleVerifyLoginOtp}
-                      disabled={otp.length !== 6 || otpLoading}
+                      disabled={otp.length !== 8 || otpLoading}
                       className="w-full bg-gradient-to-r from-primary to-violet-600 text-white text-sm font-bold py-3.5 rounded-xl disabled:opacity-50 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
                     >
                       {otpLoading ? (
