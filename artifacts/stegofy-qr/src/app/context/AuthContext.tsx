@@ -12,6 +12,7 @@ export type AuthStep =
 export interface User {
   id?: string;
   phone?: string;
+  mobile?: string;
   email?: string;
   firstName?: string;
   lastName?: string;
@@ -62,12 +63,14 @@ async function fetchAndBuildUser(supabaseUser: any): Promise<User> {
     supabaseUser.email?.split("@")[0] ||
     "User";
   const lastName = profile?.last_name || supabaseUser.user_metadata?.last_name || "";
+  const mobile = profile?.mobile || supabaseUser.user_metadata?.mobile || null;
 
   return {
     id: supabaseUser.id,
     email: supabaseUser.email,
     firstName,
     lastName,
+    mobile,
     name: `${firstName} ${lastName}`.trim(),
     isFirstTime: false,
   };
@@ -209,6 +212,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser({
         id: authData.user?.id,
         email: data.email,
+        mobile: data.mobile || undefined,
         name: `${data.firstName} ${data.lastName}`.trim(),
         firstName: data.firstName,
         lastName: data.lastName,
@@ -251,6 +255,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser({
           id: currentUser.id,
           email: currentUser.email,
+          mobile: data.mobile || undefined,
           name: `${data.firstName} ${data.lastName}`.trim(),
           firstName: data.firstName,
           lastName: data.lastName,

@@ -11,6 +11,11 @@ export function ProfileScreen() {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(user?.name || "User");
 
+  const displayMobile = user?.mobile
+    ? `+91 ${user.mobile.slice(0, 2)}${"*".repeat(user.mobile.length - 4)}${user.mobile.slice(-2)}`
+    : "Not added";
+  const displayEmail = user?.email || "Not linked";
+
   const MENU_ITEMS = [
     { icon: Bell, label: "Notifications", toggle: true, value: notifications, onToggle: () => setNotifications(!notifications) },
     { icon: Lock, label: "Privacy & Security", href: "#" },
@@ -43,9 +48,9 @@ export function ProfileScreen() {
                   className="text-base font-bold text-slate-900 border-b-2 border-primary outline-none w-full bg-transparent"
                 />
               ) : (
-                <p className="text-base font-bold text-slate-900">{name}</p>
+                <p className="text-base font-bold text-slate-900">{user?.name || name}</p>
               )}
-              <p className="text-xs text-slate-400">{user?.phone || "+91 98*** ***12"}</p>
+              <p className="text-xs text-slate-400">{displayMobile}</p>
             </div>
             <button
               onClick={() => setEditing(!editing)}
@@ -58,8 +63,8 @@ export function ProfileScreen() {
           {/* Info rows */}
           <div className="space-y-2.5">
             {[
-              { icon: Phone, label: "Mobile", value: user?.phone || "+91 98*** ***12" },
-              { icon: Mail, label: "Email", value: "Not linked" },
+              { icon: Phone, label: "Mobile", value: displayMobile },
+              { icon: Mail, label: "Email", value: displayEmail },
             ].map((row) => (
               <div key={row.label} className="flex items-center gap-3 bg-slate-50 rounded-xl px-3 py-2.5">
                 <row.icon className="w-4 h-4 text-slate-400" />
