@@ -138,7 +138,6 @@ export function SignUpScreen() {
     }
     setOtpLoading(true);
     setOtpError(null);
-    beginOtpVerification(); // suppress auto-navigation on SIGNED_IN event
 
     const { error } = await supabase.auth.signInWithOtp({
       email: form.email,
@@ -147,8 +146,10 @@ export function SignUpScreen() {
 
     setOtpLoading(false);
     if (error) {
-      setOtpError(error.message || "Could not send OTP. Try again.");
+      // Show error directly below the email field
+      setOtpError(error.message || "Could not send OTP. Please try again.");
     } else {
+      beginOtpVerification(); // suppress auto-navigation only after OTP is sent
       setOtpSent(true);
       setOtp("");
       startResendTimer();
@@ -291,6 +292,10 @@ export function SignUpScreen() {
             <p className="text-[11px] text-green-600 font-semibold flex items-center gap-1">
               <CheckCircle2 className="w-3 h-3" /> Email verified successfully
             </p>
+          )}
+          {/* Show send errors here — visible even before OTP card appears */}
+          {otpError && !otpSent && (
+            <p className="text-[11px] text-red-500 font-medium">{otpError}</p>
           )}
         </FieldWrapper>
 
