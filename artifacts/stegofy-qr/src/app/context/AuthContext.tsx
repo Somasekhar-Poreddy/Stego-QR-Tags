@@ -77,15 +77,26 @@ async function fetchAndBuildUser(supabaseUser: any): Promise<User> {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [step, setStep] = useState<AuthStep>("login");
+  const [step, _setStep] = useState<AuthStep>("login");
   const [user, setUser] = useState<User | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const otpSignupInProgress = useRef(false);
 
+  // Wrap setStep so navigating back to login always clears the OTP signup flag
+  const setStep = (s: AuthStep) => {
+    if (s === "login") otpSignupInProgress.current = false;
+    _setStep(s);
+  };
+
   useEffect(() => {
     let mounted = true;
+
+    // Hard timeout: never stay stuck on loading more than 5 seconds
+    const loadingTimeout = setTimeout(() => {
+      if (mounted) setLoading(false);
+    }, 5000);
 
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!mounted) return;
@@ -97,9 +108,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } catch (err) {
         console.warn("Session restore failed:", err);
       } finally {
+        clearTimeout(loadingTimeout);
         if (mounted) setLoading(false);
       }
     }).catch(() => {
+      clearTimeout(loadingTimeout);
       if (mounted) setLoading(false);
     });
 
@@ -108,20 +121,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (otpSignupInProgress.current) return;
 
       if (event === "SIGNED_IN" && session?.user) {
-        const built = await fetchAndBuildUser(session.user);
-        setUser(built); setStep("app"); setLoading(false);
+        try {
+          const built = await fetchAndBuildUser(session.user);
+          if (mounted) { setUser(built); setStep("app"); setLoading(false); }
+        } catch {
+          if (mounted) setLoading(false);
+        }
       }
       if (event === "SIGNED_OUT") {
         setUser(null); setStep("login"); setLoading(false);
       }
       if (event === "USER_UPDATED" && session?.user) {
-        const built = await fetchAndBuildUser(session.user);
-        setUser(built); setStep("app"); setLoading(false);
+        try {
+          const built = await fetchAndBuildUser(session.user);
+          if (mounted) { setUser(built); setStep("app"); setLoading(false); }
+        } catch {
+          if (mounted) setLoading(false);
+        }
       }
     });
 
     return () => {
       mounted = false;
+      clearTimeout(loadingTimeout);
       listener.subscription.unsubscribe();
     };
   }, []);
