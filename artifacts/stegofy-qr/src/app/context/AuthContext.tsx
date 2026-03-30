@@ -51,6 +51,19 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+// ─── Module-level recovery flag ───────────────────────────────────────────────
+// Set the instant this module is imported — before React renders and before the
+// Supabase client's async initialize() clears the URL hash. This is the earliest
+// possible moment and the only truly reliable way to detect a recovery page load.
+let _recoveryPending = false;
+try {
+  const _h = new URLSearchParams(window.location.hash.slice(1));
+  const _q = new URLSearchParams(window.location.search);
+  if (_h.get("type") === "recovery" || _q.get("type") === "recovery") {
+    _recoveryPending = true;
+  }
+} catch {}
+
 async function fetchAndBuildUser(supabaseUser: any): Promise<User> {
   const { data: profile } = await supabase
     .from("user_profiles")
@@ -77,33 +90,24 @@ async function fetchAndBuildUser(supabaseUser: any): Promise<User> {
   };
 }
 
-// Synchronously detect password recovery from URL before any auth events fire.
-// Checks both hash fragment (implicit flow) and query params (PKCE flow).
-function detectInitialStep(): AuthStep {
-  try {
-    const hashParams = new URLSearchParams(window.location.hash.slice(1));
-    if (hashParams.get("type") === "recovery") return "reset-password";
-    const searchParams = new URLSearchParams(window.location.search);
-    if (searchParams.get("type") === "recovery") return "reset-password";
-  } catch {}
-  return "login";
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [step, _setStep] = useState<AuthStep>(detectInitialStep);
+  // _recoveryPending is the module-level flag set at import time — safe to use directly.
+  const [step, _setStep] = useState<AuthStep>(_recoveryPending ? "reset-password" : "login");
   const [user, setUser] = useState<User | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const otpSignupInProgress = useRef(false);
-  // Track if we are in a password recovery flow so SIGNED_IN doesn't override it
-  const passwordRecoveryInProgress = useRef(detectInitialStep() === "reset-password");
+  // Mirror the module-level flag into a ref so event handlers can read it synchronously.
+  // Initialized ONCE from _recoveryPending (not from URL detection which may be stale).
+  const passwordRecoveryInProgress = useRef(_recoveryPending);
 
-  // Wrap setStep so navigating back to login always clears the OTP signup flag
+  // Wrap setStep so navigating back to login always clears all in-progress flags
   const setStep = (s: AuthStep) => {
     if (s === "login") {
       otpSignupInProgress.current = false;
       passwordRecoveryInProgress.current = false;
+      _recoveryPending = false;
     }
     _setStep(s);
   };
@@ -119,13 +123,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!mounted) return;
       try {
-        // If we detected a recovery token in the URL, sign out any existing session
-        // and show the reset screen — never auto-login during a password reset flow.
+        // Recovery flow: never auto-login. The recovery session (set by Supabase from the
+        // URL hash) is kept intact so the user can call updateUser({ password }) later.
         if (passwordRecoveryInProgress.current) {
-          if (session?.user) {
-            // Sign out the existing session so it doesn't interfere with the recovery session
-            await supabase.auth.signOut({ scope: "local" }).catch(() => {});
-          }
           clearTimeout(loadingTimeout);
           if (mounted) { _setStep("reset-password"); setLoading(false); }
           return;
