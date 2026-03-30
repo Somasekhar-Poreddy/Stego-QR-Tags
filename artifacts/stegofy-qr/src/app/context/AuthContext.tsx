@@ -160,19 +160,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (event === "SIGNED_OUT") {
         setUser(null); setStep("login"); setLoading(false);
       }
-      // After password is updated, clear recovery flag and go to login
+      // USER_UPDATED fires both during recovery session creation AND after password update.
+      // Do NOT clear passwordRecoveryInProgress here — that flag is only cleared by
+      // setStep("login") when the user taps "Back to Sign In" on the success screen.
       if (event === "USER_UPDATED") {
-        passwordRecoveryInProgress.current = false;
-        if (session?.user) {
-          try {
-            const built = await fetchAndBuildUser(session.user);
-            if (mounted) { setUser(built); setLoading(false); }
-          } catch {
-            if (mounted) setLoading(false);
-          }
-        } else {
-          if (mounted) setLoading(false);
-        }
+        if (mounted) setLoading(false);
       }
     });
 
@@ -329,7 +321,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     otpSignupInProgress.current = false;
-    await supabase.auth.signOut();
+    passwordRecoveryInProgress.current = false;
+    try {
+      await supabase.auth.signOut();
+    } catch (e) {
+      console.warn("Sign out error:", e);
+    }
     setUser(null);
     setStep("login");
   };
