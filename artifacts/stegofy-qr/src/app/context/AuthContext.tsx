@@ -77,12 +77,14 @@ async function fetchAndBuildUser(supabaseUser: any): Promise<User> {
   };
 }
 
-// Synchronously detect password recovery from URL hash before any auth events fire
+// Synchronously detect password recovery from URL before any auth events fire.
+// Checks both hash fragment (implicit flow) and query params (PKCE flow).
 function detectInitialStep(): AuthStep {
   try {
-    const hash = window.location.hash.slice(1);
-    const params = new URLSearchParams(hash);
-    if (params.get("type") === "recovery") return "reset-password";
+    const hashParams = new URLSearchParams(window.location.hash.slice(1));
+    if (hashParams.get("type") === "recovery") return "reset-password";
+    const searchParams = new URLSearchParams(window.location.search);
+    if (searchParams.get("type") === "recovery") return "reset-password";
   } catch {}
   return "login";
 }
@@ -117,8 +119,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!mounted) return;
       try {
-        // If we detected a recovery token in the URL, don't auto-login — show reset screen
+        // If we detected a recovery token in the URL, sign out any existing session
+        // and show the reset screen — never auto-login during a password reset flow.
         if (passwordRecoveryInProgress.current) {
+          if (session?.user) {
+            // Sign out the existing session so it doesn't interfere with the recovery session
+            await supabase.auth.signOut({ scope: "local" }).catch(() => {});
+          }
           clearTimeout(loadingTimeout);
           if (mounted) { _setStep("reset-password"); setLoading(false); }
           return;
@@ -158,6 +165,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
       if (event === "SIGNED_OUT") {
+        // Don't navigate to login if we forced sign-out as part of the recovery flow
+        if (passwordRecoveryInProgress.current) return;
         setUser(null); setStep("login"); setLoading(false);
       }
       // USER_UPDATED fires both during recovery session creation AND after password update.
