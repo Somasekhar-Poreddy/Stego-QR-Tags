@@ -60,9 +60,10 @@ function OtpInput({ value, onChange, disabled }: { value: string; onChange: (v: 
 }
 
 export function LoginScreen() {
-  const { setStep, signInWithEmail, sendLoginOtp, verifyLoginOtp, sendPasswordReset, authError, setAuthError } = useAuth();
+  const { setStep, signInWithEmail, sendLoginOtp, verifyLoginOtp, sendPasswordReset, authError, urlError, setAuthError } = useAuth();
 
-  const [mode, setMode] = useState<LoginMode>("password");
+  // If the user landed here via an expired/invalid reset link, open Forgot Password straight away
+  const [mode, setMode] = useState<LoginMode>(urlError ? "forgot" : "password");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPwd, setShowPwd] = useState(false);
@@ -189,7 +190,7 @@ export function LoginScreen() {
         {/* ── Forgot Password view ─────────────────────────────────────── */}
         {mode === "forgot" && (
           <div>
-            <div className="flex items-center gap-3 mb-5">
+            <div className="flex items-center gap-3 mb-4">
               <button
                 onClick={() => switchMode("password")}
                 className="p-1.5 -ml-1 rounded-xl hover:bg-slate-100 transition-colors"
@@ -201,6 +202,20 @@ export function LoginScreen() {
                 <p className="text-xs text-slate-400 mt-0.5">We'll send a reset link to your email</p>
               </div>
             </div>
+
+            {urlError && !resetSent && (
+              <div className="flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 mb-4">
+                <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-xs font-bold text-amber-700">
+                    {urlError === "expired"
+                      ? "Your reset link has expired or was already used."
+                      : "This reset link is no longer valid."}
+                  </p>
+                  <p className="text-xs text-amber-600 mt-0.5">Enter your email below to receive a fresh link.</p>
+                </div>
+              </div>
+            )}
 
             {resetSent ? (
               <div className="bg-green-50 border border-green-200 rounded-2xl p-5 text-center space-y-2">

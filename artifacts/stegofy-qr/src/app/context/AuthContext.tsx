@@ -35,6 +35,7 @@ interface AuthContextType {
   step: AuthStep;
   user: User | null;
   authError: string | null;
+  urlError: string | null;
   loading: boolean;
   setStep: (step: AuthStep) => void;
   setUser: (user: User) => void;
@@ -66,15 +67,31 @@ const AuthContext = createContext<AuthContextType | null>(null);
 
 let _recoveryPending = false;   // implicit flow: #type=recovery detected
 let _codeParamPending = false;  // PKCE flow:     ?code= detected (may be recovery)
+let _urlError: string | null = null; // e.g. otp_expired from a bad/stale reset link
 
 try {
   const _h = new URLSearchParams(window.location.hash.slice(1));
   const _q = new URLSearchParams(window.location.search);
+
+  // Implicit flow recovery (#type=recovery in hash)
   if (_h.get("type") === "recovery" || _q.get("type") === "recovery") {
     _recoveryPending = true;
   }
-  if (_q.has("code")) {
-    _codeParamPending = true;   // PKCE: wait for PASSWORD_RECOVERY event
+  // Our own marker — added to redirectTo so it survives both PKCE and implicit redirects
+  if (_q.has("stego_reset")) {
+    _recoveryPending = true;
+  }
+  // PKCE flow — ?code= present but no type marker yet; wait for auth events
+  if (_q.has("code") && !_recoveryPending) {
+    _codeParamPending = true;
+  }
+  // Supabase error in hash (e.g. expired / already-used reset link)
+  if (_h.get("error")) {
+    const code = _h.get("error_code") || _h.get("error") || "unknown";
+    const desc = _h.get("error_description")?.replace(/\+/g, " ") || "The link is invalid or has expired.";
+    _urlError = code === "otp_expired"
+      ? "expired"
+      : desc;
   }
 } catch {}
 
@@ -109,6 +126,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [step, _setStep] = useState<AuthStep>(_recoveryPending ? "reset-password" : "login");
   const [user, setUser] = useState<User | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [urlError] = useState<string | null>(_urlError);
   const [loading, setLoading] = useState(true);
 
   const otpSignupInProgress = useRef(false);
@@ -280,7 +298,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/app`,
+      redirectTo: `${window.location.origin}/app?stego_reset=1`,
     });
     return error ? (error.message || "Could not send reset email. Try again.") : null;
   };
@@ -393,7 +411,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <AuthContext.Provider
       value={{
-        step, user, authError, loading,
+        step, user, authError, urlError, loading,
         setStep, setUser, setAuthError,
         signInWithEmail, signUpWithEmail,
         beginOtpVerification, completeOtpSignup,
