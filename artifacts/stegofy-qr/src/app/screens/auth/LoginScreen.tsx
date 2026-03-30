@@ -234,7 +234,20 @@ export function LoginScreen() {
                 {resetError && (
                   <div className="flex items-start gap-2.5 bg-rose-50 border border-rose-100 rounded-2xl px-4 py-3">
                     <AlertCircle className="w-4 h-4 text-rose-400 flex-shrink-0 mt-0.5" />
-                    <span className="text-xs font-semibold text-rose-600">{resetError}</span>
+                    {resetError.includes("No account found") ? (
+                      <span className="text-xs font-semibold text-rose-600">
+                        No account found with that email address. Please check the email or{" "}
+                        <button
+                          onClick={() => setStep("signup")}
+                          className="underline text-primary font-bold hover:text-violet-600 transition-colors"
+                        >
+                          create a new account
+                        </button>
+                        .
+                      </span>
+                    ) : (
+                      <span className="text-xs font-semibold text-rose-600">{resetError}</span>
+                    )}
                   </div>
                 )}
 
