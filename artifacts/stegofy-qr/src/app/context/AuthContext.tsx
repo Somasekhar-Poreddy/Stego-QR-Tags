@@ -229,6 +229,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // ── Forgot password: send reset email ────────────────────────────────────
   const sendPasswordReset = async (email: string): Promise<string | null> => {
+    // Check if the email is registered before asking Supabase to send a link.
+    // Supabase never reveals whether an address exists — we enforce it ourselves.
+    const { data: profile } = await supabase
+      .from("user_profiles")
+      .select("id")
+      .ilike("email", email.trim())
+      .maybeSingle();
+
+    if (!profile) {
+      return "No account found with that email address. Please check the email or create a new account.";
+    }
+
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/app`,
     });
