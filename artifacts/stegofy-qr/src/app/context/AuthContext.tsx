@@ -77,17 +77,32 @@ async function fetchAndBuildUser(supabaseUser: any): Promise<User> {
   };
 }
 
+// Synchronously detect password recovery from URL hash before any auth events fire
+function detectInitialStep(): AuthStep {
+  try {
+    const hash = window.location.hash.slice(1);
+    const params = new URLSearchParams(hash);
+    if (params.get("type") === "recovery") return "reset-password";
+  } catch {}
+  return "login";
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [step, _setStep] = useState<AuthStep>("login");
+  const [step, _setStep] = useState<AuthStep>(detectInitialStep);
   const [user, setUser] = useState<User | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const otpSignupInProgress = useRef(false);
+  // Track if we are in a password recovery flow so SIGNED_IN doesn't override it
+  const passwordRecoveryInProgress = useRef(detectInitialStep() === "reset-password");
 
   // Wrap setStep so navigating back to login always clears the OTP signup flag
   const setStep = (s: AuthStep) => {
-    if (s === "login") otpSignupInProgress.current = false;
+    if (s === "login") {
+      otpSignupInProgress.current = false;
+      passwordRecoveryInProgress.current = false;
+    }
     _setStep(s);
   };
 
@@ -102,6 +117,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!mounted) return;
       try {
+        // If we detected a recovery token in the URL, don't auto-login — show reset screen
+        if (passwordRecoveryInProgress.current) {
+          clearTimeout(loadingTimeout);
+          if (mounted) { _setStep("reset-password"); setLoading(false); }
+          return;
+        }
         if (session?.user && !otpSignupInProgress.current) {
           const built = await fetchAndBuildUser(session.user);
           if (mounted) { setUser(built); setStep("app"); }
@@ -122,10 +143,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (otpSignupInProgress.current) return;
 
       if (event === "PASSWORD_RECOVERY") {
+        passwordRecoveryInProgress.current = true;
         if (mounted) { setLoading(false); _setStep("reset-password"); }
         return;
       }
+      // Don't let SIGNED_IN override the reset-password screen
       if (event === "SIGNED_IN" && session?.user) {
+        if (passwordRecoveryInProgress.current) return;
         try {
           const built = await fetchAndBuildUser(session.user);
           if (mounted) { setUser(built); setStep("app"); setLoading(false); }
@@ -136,11 +160,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (event === "SIGNED_OUT") {
         setUser(null); setStep("login"); setLoading(false);
       }
-      if (event === "USER_UPDATED" && session?.user) {
-        try {
-          const built = await fetchAndBuildUser(session.user);
-          if (mounted) { setUser(built); setStep("app"); setLoading(false); }
-        } catch {
+      // After password is updated, clear recovery flag and go to login
+      if (event === "USER_UPDATED") {
+        passwordRecoveryInProgress.current = false;
+        if (session?.user) {
+          try {
+            const built = await fetchAndBuildUser(session.user);
+            if (mounted) { setUser(built); setLoading(false); }
+          } catch {
+            if (mounted) setLoading(false);
+          }
+        } else {
           if (mounted) setLoading(false);
         }
       }
