@@ -51,16 +51,30 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-// ─── Module-level recovery flag ───────────────────────────────────────────────
-// Set the instant this module is imported — before React renders and before the
-// Supabase client's async initialize() clears the URL hash. This is the earliest
-// possible moment and the only truly reliable way to detect a recovery page load.
-let _recoveryPending = false;
+// ─── Module-level recovery flags ──────────────────────────────────────────────
+// These run the instant this module is imported — before React renders and before
+// Supabase's async initialize() can clear the URL hash or query string.
+//
+// TWO flows must be handled:
+//   • Implicit flow  → Supabase puts #type=recovery&access_token=...  in the hash
+//   • PKCE flow      → Supabase puts ?code=<one-time-code>  in the query string
+//                      (no "type=recovery" visible in the URL)
+//
+// For PKCE we cannot know it's a recovery from the URL alone. Instead we:
+//   1. Set _codeParamPending = true so getSession() doesn't auto-login
+//   2. Briefly defer the SIGNED_IN handler so PASSWORD_RECOVERY can arrive first
+
+let _recoveryPending = false;   // implicit flow: #type=recovery detected
+let _codeParamPending = false;  // PKCE flow:     ?code= detected (may be recovery)
+
 try {
   const _h = new URLSearchParams(window.location.hash.slice(1));
   const _q = new URLSearchParams(window.location.search);
   if (_h.get("type") === "recovery" || _q.get("type") === "recovery") {
     _recoveryPending = true;
+  }
+  if (_q.has("code")) {
+    _codeParamPending = true;   // PKCE: wait for PASSWORD_RECOVERY event
   }
 } catch {}
 
@@ -108,6 +122,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       otpSignupInProgress.current = false;
       passwordRecoveryInProgress.current = false;
       _recoveryPending = false;
+      _codeParamPending = false;
     }
     _setStep(s);
   };
@@ -123,11 +138,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!mounted) return;
       try {
-        // Recovery flow: never auto-login. The recovery session (set by Supabase from the
-        // URL hash) is kept intact so the user can call updateUser({ password }) later.
+        // Implicit recovery (#type=recovery in hash) — show reset screen immediately.
         if (passwordRecoveryInProgress.current) {
           clearTimeout(loadingTimeout);
           if (mounted) { _setStep("reset-password"); setLoading(false); }
+          return;
+        }
+        // PKCE flow: a ?code= param is in the URL. Supabase is exchanging it for a session
+        // in the background. Do NOT auto-login yet — wait for auth events (SIGNED_IN /
+        // PASSWORD_RECOVERY) to tell us whether this is a recovery or a normal sign-in.
+        if (_codeParamPending) {
+          clearTimeout(loadingTimeout);
+          if (mounted) setLoading(false);
           return;
         }
         if (session?.user && !otpSignupInProgress.current) {
@@ -149,14 +171,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!mounted) return;
       if (otpSignupInProgress.current) return;
 
+      // PASSWORD_RECOVERY fires for BOTH implicit and PKCE flows.
+      // In PKCE, it arrives just after SIGNED_IN — this handler must win.
       if (event === "PASSWORD_RECOVERY") {
+        _recoveryPending = true;
+        _codeParamPending = false;
         passwordRecoveryInProgress.current = true;
         if (mounted) { setLoading(false); _setStep("reset-password"); }
         return;
       }
-      // Don't let SIGNED_IN override the reset-password screen
+
       if (event === "SIGNED_IN" && session?.user) {
+        // Always skip if we already know this is recovery (implicit flow).
         if (passwordRecoveryInProgress.current) return;
+
+        // PKCE flow: SIGNED_IN fires *before* PASSWORD_RECOVERY. Wait up to 400 ms
+        // so PASSWORD_RECOVERY has a chance to arrive and set the flag above.
+        // If it does, we bail out. If not (normal sign-in/email confirm), we navigate.
+        if (_codeParamPending) {
+          await new Promise<void>((r) => setTimeout(r, 400));
+          _codeParamPending = false;
+          if (passwordRecoveryInProgress.current) return; // recovery won — stay on reset screen
+        }
+
         try {
           const built = await fetchAndBuildUser(session.user);
           if (mounted) { setUser(built); setStep("app"); setLoading(false); }
@@ -164,14 +201,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (mounted) setLoading(false);
         }
       }
+
       if (event === "SIGNED_OUT") {
-        // Don't navigate to login if we forced sign-out as part of the recovery flow
+        // Don't navigate to login if we are in the recovery flow
         if (passwordRecoveryInProgress.current) return;
         setUser(null); setStep("login"); setLoading(false);
       }
-      // USER_UPDATED fires both during recovery session creation AND after password update.
-      // Do NOT clear passwordRecoveryInProgress here — that flag is only cleared by
-      // setStep("login") when the user taps "Back to Sign In" on the success screen.
+
+      // USER_UPDATED fires during recovery session creation AND after password update.
+      // Do NOT clear passwordRecoveryInProgress here — only setStep("login") clears it.
       if (event === "USER_UPDATED") {
         if (mounted) setLoading(false);
       }
