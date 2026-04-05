@@ -1,0 +1,135 @@
+Enhance my existing React + Tailwind mobile app (PWA style) by adding a smart, dynamic banner system to the Home screen.
+
+-----------------------------------
+GOAL:
+-----------------------------------
+Create a modern, minimal, and context-aware banner system (NOT a carousel slider).
+
+Banners should:
+- Be clean and premium
+- Show only 1 primary banner at a time
+- Be based on user state and activity
+- Drive actions, not just display information
+
+-----------------------------------
+DESIGN STYLE:
+-----------------------------------
+- Use gradient backgrounds (blue → purple: #2563EB → #7C3AED)
+- Rounded corners (16–20px)
+- Soft shadow
+- Clean typography (Poppins)
+- Minimal text, strong CTA button
+- Add subtle icon or illustration (optional)
+
+-----------------------------------
+PLACEMENT:
+-----------------------------------
+Home screen:
+Place banner BELOW primary actions and ABOVE QR profiles section.
+
+-----------------------------------
+BANNER TYPES (LOGIC-BASED):
+-----------------------------------
+
+Create a function that decides which banner to show based on conditions:
+
+1. NEW USER (no QR profiles)
+Show:
+Title: "Get Started in 2 Minutes"
+Subtitle: "Create your first QR and protect what matters"
+CTA: "Create QR"
+
+-----------------------------------
+
+2. INCOMPLETE SETUP
+Condition:
+- QR exists but missing contact or not activated
+
+Show:
+Title: "Complete Your Setup"
+Subtitle: "Add contact details to make your QR functional"
+CTA: "Complete Now"
+
+-----------------------------------
+
+3. ACTIVITY ALERT
+Condition:
+- New contact request OR recent scan
+
+Show:
+Title: "Someone tried to reach you"
+Subtitle: "Check recent activity now"
+CTA: "View Activity"
+
+-----------------------------------
+
+4. SAFETY FEATURE (DEFAULT)
+Condition:
+- No urgent actions
+
+Show:
+Title: "Stay Protected Always"
+Subtitle: "Enable strict mode to avoid unwanted contact"
+CTA: "Enable Now"
+
+-----------------------------------
+
+5. SHOP PROMOTION (LOW PRIORITY)
+Condition:
+- User has QR but no physical tag
+
+Show:
+Title: "Get Your QR Tag"
+Subtitle: "Attach it to your car, pet or belongings"
+CTA: "Shop Now"
+
+-----------------------------------
+
+LOGIC PRIORITY ORDER:
+-----------------------------------
+1. Activity Alert
+2. Incomplete Setup
+3. New User
+4. Safety Feature
+5. Shop
+
+Only show ONE banner at a time.
+
+-----------------------------------
+COMPONENT REQUIREMENTS:
+-----------------------------------
+
+Create:
+- <SmartBanner />
+
+Props:
+- user
+- profiles
+- activity
+- settings
+
+-----------------------------------
+
+Inside component:
+- Determine which banner to show
+- Render correct UI dynamically
+
+-----------------------------------
+INTERACTIONS:
+-----------------------------------
+- CTA button should navigate to correct screen
+- Banner should be dismissible (optional)
+- Add smooth fade/slide animation
+
+-----------------------------------
+UX RULES:
+-----------------------------------
+- No auto-sliding carousel
+- No more than 1 banner visible
+- Must feel calm, not noisy
+- Must drive action
+
+-----------------------------------
+GOAL:
+-----------------------------------
+Make the homepage feel intelligent, helpful, and modern by showing the right message at the right time.

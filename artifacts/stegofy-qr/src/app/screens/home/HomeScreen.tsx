@@ -1,7 +1,8 @@
-import { Plus, ScanLine, ShoppingBag, QrCode, Bell, Eye, Edit, Share2, ChevronRight, Shield, ToggleRight } from "lucide-react";
+import { Plus, ScanLine, ShoppingBag, QrCode, Bell, Eye, ChevronRight, Shield, ToggleRight } from "lucide-react";
 import { useAuth } from "@/app/context/AuthContext";
 import { useQR } from "@/app/context/QRContext";
 import { AppHeader } from "@/app/components/AppHeader";
+import { SmartBanner } from "@/app/components/SmartBanner";
 import { useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 
@@ -22,6 +23,8 @@ const ACTIVITY = [
   { msg: "QR scanned 2 times today", time: "1 hr ago", icon: QrCode, color: "bg-violet-100 text-violet-600" },
   { msg: "Bruno's tag scanned near Park", time: "3 hr ago", icon: Eye, color: "bg-green-100 text-green-600" },
 ];
+
+const BANNER_ACTIVITY = ACTIVITY.map(({ msg, time }) => ({ msg, time }));
 
 const SHOP_ITEMS = [
   { name: "Pet Tag", price: "₹299", tag: "Popular", color: "from-rose-400 to-pink-400" },
@@ -56,6 +59,15 @@ export function HomeScreen() {
             </button>
           ))}
         </div>
+
+        {/* Smart Banner */}
+        <SmartBanner
+          user={user}
+          profiles={profiles}
+          activity={BANNER_ACTIVITY}
+          settings={{ strictMode: false, hasPhysicalTag: false }}
+          onNavigate={navigate}
+        />
 
         {/* QR Profiles */}
         <section>
