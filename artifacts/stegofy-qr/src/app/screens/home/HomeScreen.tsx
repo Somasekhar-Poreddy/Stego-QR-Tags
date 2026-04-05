@@ -1,4 +1,4 @@
-import { Plus, ScanLine, QrCode, Bell, ChevronRight, Shield, CheckCircle2, AlertTriangle, AlertCircle, Zap, Tag, HelpCircle, ToggleRight } from "lucide-react";
+import { Plus, ScanLine, QrCode, Bell, Eye, ChevronRight, Shield, CheckCircle2, AlertTriangle, AlertCircle, Zap, Tag, HelpCircle, ToggleRight } from "lucide-react";
 import { useAuth } from "@/app/context/AuthContext";
 import { useQR } from "@/app/context/QRContext";
 import { AppHeader } from "@/app/components/AppHeader";
@@ -19,11 +19,12 @@ const TYPE_COLORS: Record<string, string> = {
 };
 
 const ACTIVITY = [
-  { msg: "Someone tried to contact you", time: "2 min ago" },
-  { msg: "QR scanned 2 times today", time: "1 hr ago" },
+  { msg: "Someone tried to contact you", time: "2 min ago", icon: Bell, color: "bg-primary/10 text-primary" },
+  { msg: "QR scanned 2 times today", time: "1 hr ago", icon: QrCode, color: "bg-violet-100 text-violet-600" },
+  { msg: "Bruno's tag scanned near Park", time: "3 hr ago", icon: Eye, color: "bg-green-100 text-green-600" },
 ];
 
-const BANNER_ACTIVITY = ACTIVITY;
+const BANNER_ACTIVITY = ACTIVITY.map(({ msg, time }) => ({ msg, time }));
 
 // ── Protection status derived from profiles ───────────────────────────────────
 type ProtectionState = "protected" | "attention" | "action";
@@ -57,7 +58,7 @@ function getProtectionState(profiles: ReturnType<typeof useQR>["profiles"]): {
   return {
     state: "protected",
     title: "All Protected",
-    subtitle: "Your items are सुरक्षित and active",
+    subtitle: "Your items are Safe and active",
     cta: "View",
     href: "/app/qr",
   };
@@ -224,6 +225,24 @@ export function HomeScreen() {
             >
               <Plus className="w-4 h-4" /> Add New QR
             </button>
+          </div>
+        </section>
+
+        {/* Recent Activity */}
+        <section>
+          <h2 className="text-sm font-bold text-slate-900 mb-3">Recent Activity</h2>
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 divide-y divide-slate-50">
+            {ACTIVITY.map((a, i) => (
+              <div key={i} className="flex items-center gap-3 px-4 py-3">
+                <div className={cn("w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0", a.color)}>
+                  <a.icon className="w-4 h-4" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-slate-800 leading-tight">{a.msg}</p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">{a.time}</p>
+                </div>
+              </div>
+            ))}
           </div>
         </section>
 
