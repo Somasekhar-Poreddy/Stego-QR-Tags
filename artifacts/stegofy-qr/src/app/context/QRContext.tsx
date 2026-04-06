@@ -14,6 +14,9 @@ export interface QRProfile {
   privacyMode: "show" | "mask" | "whatsapp" | "emergency";
   scans: number;
   createdAt: string;
+  formData?: Record<string, string | boolean>;
+  qrUrl?: string;
+  qrId?: string;
 }
 
 interface QRContextType {

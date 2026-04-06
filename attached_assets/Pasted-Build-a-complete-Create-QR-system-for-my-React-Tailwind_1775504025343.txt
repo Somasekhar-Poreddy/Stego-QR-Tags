@@ -1,0 +1,324 @@
+Build a complete "Create QR" system for my React + Tailwind mobile-first PWA app (Stegofy).
+
+-----------------------------------
+GOAL:
+-----------------------------------
+Create a modern, scalable QR creation flow where users:
+
+Home → Click "Create QR" → Select type → Fill details → Generate QR → Save → Success screen
+
+This system must support 9 use cases with a dynamic form system and excellent UX.
+
+-----------------------------------
+TECH STACK:
+-----------------------------------
+- React (functional components)
+- Tailwind CSS
+- Supabase (already connected)
+- UUID for unique IDs
+- QRCode library
+
+Install:
+npm install uuid qrcode
+
+-----------------------------------
+FLOW OVERVIEW:
+-----------------------------------
+
+STEP 1: SELECT WHAT TO PROTECT
+
+Screen Title:
+"What would you like to protect?"
+
+Display 9 options as modern cards (grid):
+
+- Vehicle
+- Pet
+- Child
+- Medical
+- Home / Visitor
+- Luggage
+- Wallet / Key
+- Event / Souvenir
+- NFC Business Card
+
+UI:
+- Rounded cards
+- Icon + label
+- Clean spacing
+- Subtle animations
+- Mobile-first
+
+On click → go to dynamic form
+
+-----------------------------------
+STEP 2: DYNAMIC FORM SYSTEM
+
+Create ONE reusable form component that changes based on selected type.
+
+FORM STRUCTURE:
+
+1. Essential Info (required)
+2. Important Info (visible but optional)
+3. Advanced Info (collapsed under "Add more details")
+
+-----------------------------------
+FIELDS BY TYPE:
+
+---------------------
+VEHICLE:
+---------------------
+Essential:
+- vehicle_type (dropdown: Car, Bike, Scooter, Auto Rickshaw, Truck, Bus)
+- vehicle_number
+- vehicle_name
+- primary_phone
+
+Important:
+- color
+- emergency_contact_1
+- emergency_contact_2
+
+Advanced:
+- blood_group
+- health_insurance (text or yes/no + provider)
+- notes
+
+---------------------
+PET:
+---------------------
+Essential:
+- pet_name
+- photo
+- owner_phone
+
+Important:
+- breed
+- color
+- gender (dropdown)
+- vaccinated (yes/no toggle)
+
+Advanced:
+- owner_name
+- address (text + optional map link)
+- medical_notes
+- special_instructions
+
+---------------------
+CHILD:
+---------------------
+Essential:
+- child_name
+- photo
+- parent_phone
+
+Important:
+- backup_contact
+- school_name
+- age
+
+Advanced:
+- address
+- medical_notes
+- instructions
+
+---------------------
+MEDICAL:
+---------------------
+Essential:
+- name
+- emergency_contact
+
+Important:
+- blood_group
+- conditions
+- allergies
+
+Advanced:
+- medications
+- doctor_contact
+- insurance_details
+
+---------------------
+HOME / VISITOR:
+---------------------
+Essential:
+- house_name
+- contact_number
+
+Important:
+- instructions
+
+Advanced:
+- alternate_contact
+- availability_notes
+
+---------------------
+LUGGAGE:
+---------------------
+Essential:
+- bag_name
+- contact_number
+
+Important:
+- destination
+- travel_date
+
+Advanced:
+- notes
+- reward_message
+
+---------------------
+WALLET / KEY:
+---------------------
+Essential:
+- item_name
+- contact_number
+
+Important:
+- reward_note
+
+Advanced:
+- alternate_contact
+- instructions
+
+---------------------
+EVENT / SOUVENIR:
+---------------------
+Essential:
+- event_name
+
+Important:
+- message
+- link
+
+Advanced:
+- media_upload
+- contact_info
+
+---------------------
+NFC BUSINESS CARD:
+---------------------
+Essential:
+- name
+- phone
+
+Important:
+- company
+- email
+
+Advanced:
+- website
+- social_links
+- address
+
+-----------------------------------
+FORM UX RULES:
+-----------------------------------
+
+- Show only Essential fields first
+- Important fields visible but light
+- Advanced fields under expandable section
+- Use sections with headings
+- Show "Optional" labels clearly
+- Use toggles, dropdowns, and inputs appropriately
+- Pre-fill user data (phone, name)
+- Mobile-first spacing
+- Add progress indicator (Step 1 → Step 2 → Step 3)
+
+-----------------------------------
+STEP 3: PRIVACY SETTINGS
+
+Common for all types:
+
+- Mask phone number (toggle)
+- WhatsApp only (toggle)
+- Emergency priority (toggle)
+- Strict mode (toggle)
+
+-----------------------------------
+STEP 4: GENERATE QR + UNIQUE ID
+
+On form submit:
+
+1. Generate unique ID:
+
+import { v4 as uuidv4 } from 'uuid';
+const qr_id = uuidv4();
+
+2. Create QR URL:
+
+const qr_url = `https://yourdomain.com/qr/${qr_id}`;
+
+3. Generate QR image using qrcode library
+
+-----------------------------------
+STEP 5: SAVE TO SUPABASE
+
+Table: qr_codes
+
+Fields:
+- id (uuid)
+- user_id (from auth session)
+- type (vehicle, pet, etc.)
+- data (JSON object of all fields)
+- qr_url
+- created_at
+
+-----------------------------------
+STEP 6: SUCCESS SCREEN
+
+Display:
+
+- QR code preview
+- Name/title
+- Type
+
+Buttons:
+
+- Download QR
+- Share QR
+- Go to My QR
+
+Optional CTA:
+- Order Physical Tag
+
+-----------------------------------
+NAVIGATION:
+
+- Step-based flow
+- Back button support
+- Smooth transitions
+- Maintain state between steps
+
+-----------------------------------
+DESIGN SYSTEM:
+
+- Font: Poppins
+- Colors:
+  - Primary: #2563EB
+  - Gradient: #2563EB → #7C3AED
+  - Background: #F8FAFC
+- Rounded corners: 16–20px
+- Soft shadows
+- Clean minimal UI
+- Modern mobile-first design
+
+-----------------------------------
+VALIDATION:
+
+- Only Essential fields required
+- Show inline validation errors
+- Prevent submission if required fields missing
+
+-----------------------------------
+UX GOAL:
+
+- Complete QR creation in under 2 minutes
+- Feel guided, not overwhelming
+- Same system works for all 9 types
+
+-----------------------------------
+FINAL GOAL:
+
+Build a scalable QR creation engine that feels simple for users but supports complex real-world data across all use cases.
