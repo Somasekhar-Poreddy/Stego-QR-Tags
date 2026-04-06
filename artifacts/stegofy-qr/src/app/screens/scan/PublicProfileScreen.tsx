@@ -67,7 +67,7 @@ export function PublicProfileScreen() {
           <p className="text-xs text-green-600 text-center mt-0.5">Owner's contact number</p>
         </div>
         <button
-          onClick={() => navigate("/")}
+          onClick={() => navigate("/app")}
           className="w-full bg-gradient-to-r from-primary to-violet-600 text-white font-semibold py-4 rounded-2xl"
         >
           Done
@@ -84,7 +84,7 @@ export function PublicProfileScreen() {
         </div>
         <h2 className="text-xl font-bold text-slate-900 mb-2">Request Rejected</h2>
         <p className="text-sm text-slate-500 text-center mb-6">The owner has declined your request.</p>
-        <button onClick={() => navigate("/")} className="w-full border-2 border-slate-200 text-slate-700 font-semibold py-4 rounded-2xl">
+        <button onClick={() => navigate("/app")} className="w-full border-2 border-slate-200 text-slate-700 font-semibold py-4 rounded-2xl">
           Go Back
         </button>
       </div>
@@ -94,7 +94,7 @@ export function PublicProfileScreen() {
   return (
     <div className="min-h-full bg-white flex flex-col">
       <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-100 sticky top-0 bg-white z-10">
-        <button onClick={() => step === "profile" ? navigate("/scan") : setStep("profile")} className="p-1.5 rounded-xl hover:bg-slate-100">
+        <button onClick={() => step === "profile" ? navigate("/app/scan") : setStep("profile")} className="p-1.5 rounded-xl hover:bg-slate-100">
           <ChevronLeft className="w-5 h-5 text-slate-600" />
         </button>
         <h1 className="text-base font-bold text-slate-900">

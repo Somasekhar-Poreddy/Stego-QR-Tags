@@ -3,11 +3,11 @@ import { useLocation, Link } from "wouter";
 import { cn } from "@/lib/utils";
 
 const TABS = [
-  { label: "Home", icon: Home, href: "/" },
-  { label: "Scan", icon: ScanLine, href: "/scan" },
-  { label: "My QR", icon: QrCode, href: "/qr" },
-  { label: "Shop", icon: ShoppingBag, href: "/shop" },
-  { label: "Profile", icon: User, href: "/profile" },
+  { label: "Home", icon: Home, href: "/app" },
+  { label: "Scan", icon: ScanLine, href: "/app/scan" },
+  { label: "My QR", icon: QrCode, href: "/app/qr" },
+  { label: "Shop", icon: ShoppingBag, href: "/app/shop" },
+  { label: "Profile", icon: User, href: "/app/profile" },
 ];
 
 export function BottomNav() {
@@ -17,8 +17,8 @@ export function BottomNav() {
     <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-slate-100 shadow-[0_-4px_20px_rgba(0,0,0,0.06)]">
       <div className="flex items-stretch h-16 max-w-lg mx-auto px-2">
         {TABS.map((tab) => {
-          const isActive = tab.href === "/"
-            ? location === "/" || location === ""
+          const isActive = tab.href === "/app"
+            ? location === "/app" || location === "/app/"
             : location.startsWith(tab.href);
 
           return (

@@ -9,14 +9,14 @@ export function ScanScreen() {
 
   const simulateScan = () => {
     setScanned(true);
-    setTimeout(() => navigate("/scan/profile"), 1000);
+    setTimeout(() => navigate("/app/scan/profile"), 1000);
   };
 
   return (
     <div className="min-h-full bg-black flex flex-col">
       <div className="absolute top-0 left-0 right-0 z-20 bg-gradient-to-b from-black/70 to-transparent px-4 pt-10 pb-6">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate("/")} className="p-2 rounded-xl bg-white/10 backdrop-blur-sm">
+          <button onClick={() => navigate("/app")} className="p-2 rounded-xl bg-white/10 backdrop-blur-sm">
             <ChevronLeft className="w-5 h-5 text-white" />
           </button>
           <h1 className="text-base font-bold text-white">Scan QR Code</h1>

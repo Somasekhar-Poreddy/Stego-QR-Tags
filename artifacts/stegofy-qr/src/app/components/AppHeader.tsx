@@ -23,7 +23,7 @@ export function AppHeader({ title, showBack, onBack, showNotification = true }: 
       <div className="flex items-center gap-3">
         {showBack && (
           <button
-            onClick={onBack || (() => navigate("/"))}
+            onClick={onBack || (() => navigate("/app"))}
             className="p-1.5 rounded-xl hover:bg-slate-100 transition-colors"
           >
             <ChevronLeft className="w-5 h-5 text-slate-600" />
