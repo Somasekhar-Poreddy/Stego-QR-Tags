@@ -99,7 +99,7 @@ export function MyQRScreen() {
         )}
 
         <button
-          onClick={() => navigate("/app/qr/create")}
+          onClick={() => navigate("/qr/create")}
           className="w-full border-2 border-dashed border-primary/30 rounded-2xl py-4 text-sm text-primary font-semibold flex items-center justify-center gap-2 hover:bg-primary/5 transition-colors active:scale-[0.98]"
         >
           <Plus className="w-4 h-4" /> Create New QR

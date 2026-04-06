@@ -130,7 +130,7 @@ export function QRSuccessScreen() {
 
       <div className="w-full max-w-xs space-y-3">
         <button
-          onClick={() => navigate("/app/shop")}
+          onClick={() => navigate("/shop")}
           className="w-full bg-gradient-to-r from-primary to-violet-600 text-white font-semibold py-4 rounded-2xl shadow-lg shadow-primary/30 flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
         >
           <ShoppingBag className="w-4 h-4" />
@@ -138,7 +138,7 @@ export function QRSuccessScreen() {
         </button>
 
         <button
-          onClick={() => navigate("/app/qr/create")}
+          onClick={() => navigate("/qr/create")}
           className="w-full border-2 border-slate-200 text-slate-700 font-semibold py-4 rounded-2xl flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
         >
           <Plus className="w-4 h-4" />
@@ -146,7 +146,7 @@ export function QRSuccessScreen() {
         </button>
 
         <button
-          onClick={() => navigate("/app")}
+          onClick={() => navigate("/")}
           className="w-full text-sm text-slate-400 py-2 text-center"
         >
           Back to Home

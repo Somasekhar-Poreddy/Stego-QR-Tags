@@ -1,4 +1,4 @@
-import { Switch, Route, useLocation } from "wouter";
+import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { useEffect } from "react";
 import { AppLayout } from "@/app/AppLayout";
 import { useAuth } from "@/app/context/AuthContext";
@@ -59,22 +59,24 @@ export function AppRouter() {
   if (step === "reset-password") return <ResetPasswordScreen />;
   if (step === "onboarding") return <OnboardingScreen />;
 
-  // Authenticated app
+  // Authenticated app — nested Router strips the /app prefix so inner routes are short
   return (
-    <AppLayout>
-      <Switch>
-        <Route path="/app" component={HomeScreen} />
-        <Route path="/app/login" component={HomeScreen} />
-        <Route path="/app/signup" component={HomeScreen} />
-        <Route path="/app/qr" component={MyQRScreen} />
-        <Route path="/app/qr/create" component={CreateQRScreen} />
-        <Route path="/app/qr/success" component={QRSuccessScreen} />
-        <Route path="/app/scan" component={ScanScreen} />
-        <Route path="/app/scan/profile" component={PublicProfileScreen} />
-        <Route path="/app/shop" component={ShopScreen} />
-        <Route path="/app/profile" component={ProfileScreen} />
-        <Route component={HomeScreen} />
-      </Switch>
-    </AppLayout>
+    <WouterRouter base="/app">
+      <AppLayout>
+        <Switch>
+          <Route path="/" component={HomeScreen} />
+          <Route path="/login" component={HomeScreen} />
+          <Route path="/signup" component={HomeScreen} />
+          <Route path="/qr" component={MyQRScreen} />
+          <Route path="/qr/create" component={CreateQRScreen} />
+          <Route path="/qr/success" component={QRSuccessScreen} />
+          <Route path="/scan" component={ScanScreen} />
+          <Route path="/scan/profile" component={PublicProfileScreen} />
+          <Route path="/shop" component={ShopScreen} />
+          <Route path="/profile" component={ProfileScreen} />
+          <Route component={HomeScreen} />
+        </Switch>
+      </AppLayout>
+    </WouterRouter>
   );
 }

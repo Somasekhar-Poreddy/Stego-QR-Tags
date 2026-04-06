@@ -43,7 +43,7 @@ function getProtectionState(profiles: ReturnType<typeof useQR>["profiles"]): {
       title: "Action Required",
       subtitle: "You haven't set up any QR yet",
       cta: "Fix Now",
-      href: "/app/qr/create",
+      href: "/qr/create",
     };
   }
   const incomplete = profiles.filter((p) => p.status === "inactive" || !p.primaryContact);
@@ -53,7 +53,7 @@ function getProtectionState(profiles: ReturnType<typeof useQR>["profiles"]): {
       title: "Needs Attention",
       subtitle: `${incomplete.length} QR ${incomplete.length === 1 ? "needs" : "need"} setup`,
       cta: "Fix Now",
-      href: "/app/qr",
+      href: "/qr",
     };
   }
   return {
@@ -61,7 +61,7 @@ function getProtectionState(profiles: ReturnType<typeof useQR>["profiles"]): {
     title: "All Protected",
     subtitle: "Your items are Safe and active",
     cta: "View",
-    href: "/app/qr",
+    href: "/qr",
   };
 }
 
@@ -144,7 +144,7 @@ export function HomeScreen() {
         {/* 3 ── Primary Actions ───────────────────────────────────────────── */}
         <div className="grid grid-cols-3 gap-3">
           <button
-            onClick={() => navigate("/app/qr/create")}
+            onClick={() => navigate("/qr/create")}
             className="flex flex-col items-center gap-2.5 py-5 rounded-2xl bg-gradient-to-br from-primary to-violet-600 text-white shadow-lg shadow-primary/25 transition-all active:scale-95"
           >
             <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
@@ -154,7 +154,7 @@ export function HomeScreen() {
           </button>
 
           <button
-            onClick={() => navigate("/app/scan")}
+            onClick={() => navigate("/scan")}
             className="flex flex-col items-center gap-2.5 py-5 rounded-2xl bg-white border border-slate-100 text-slate-700 shadow-sm transition-all active:scale-95"
           >
             <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center">
@@ -164,7 +164,7 @@ export function HomeScreen() {
           </button>
 
           <button
-            onClick={() => navigate("/app/qr")}
+            onClick={() => navigate("/qr")}
             className="flex flex-col items-center gap-2.5 py-5 rounded-2xl bg-white border border-slate-100 text-slate-700 shadow-sm transition-all active:scale-95"
           >
             <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center">
@@ -177,10 +177,10 @@ export function HomeScreen() {
         {/* 4 ── Secondary Action Strip ────────────────────────────────────── */}
         <div className="flex gap-2.5 overflow-x-auto pb-0.5 -mx-4 px-4 scrollbar-none">
           {[
-            { label: "Activate QR", icon: Zap, href: "/app/qr", color: "text-violet-600 bg-violet-50 border-violet-100" },
-            { label: "Create Free Tag", icon: Tag, href: "/app/qr/create", color: "text-blue-600 bg-blue-50 border-blue-100" },
-            { label: "How it Works", icon: HelpCircle, href: "/app/scan", color: "text-slate-600 bg-slate-100 border-slate-200" },
-            { label: "Safety Tips", icon: Shield, href: "/app/profile", color: "text-green-600 bg-green-50 border-green-100" },
+            { label: "Activate QR", icon: Zap, href: "/qr", color: "text-violet-600 bg-violet-50 border-violet-100" },
+            { label: "Create Free Tag", icon: Tag, href: "/qr/create", color: "text-blue-600 bg-blue-50 border-blue-100" },
+            { label: "How it Works", icon: HelpCircle, href: "/scan", color: "text-slate-600 bg-slate-100 border-slate-200" },
+            { label: "Safety Tips", icon: Shield, href: "/profile", color: "text-green-600 bg-green-50 border-green-100" },
           ].map((item) => (
             <button
               key={item.label}
@@ -200,7 +200,7 @@ export function HomeScreen() {
         <section>
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-bold text-slate-900">Your QR Profiles</h2>
-            <button onClick={() => navigate("/app/qr")} className="text-xs text-primary font-semibold flex items-center gap-0.5">
+            <button onClick={() => navigate("/qr")} className="text-xs text-primary font-semibold flex items-center gap-0.5">
               See all <ChevronRight className="w-3.5 h-3.5" />
             </button>
           </div>
@@ -221,7 +221,7 @@ export function HomeScreen() {
               </div>
             ))}
             <button
-              onClick={() => navigate("/app/qr/create")}
+              onClick={() => navigate("/qr/create")}
               className="w-full border-2 border-dashed border-primary/30 rounded-2xl py-3 text-sm text-primary font-semibold flex items-center justify-center gap-2 hover:bg-primary/5 transition-colors"
             >
               <Plus className="w-4 h-4" /> Add New QR

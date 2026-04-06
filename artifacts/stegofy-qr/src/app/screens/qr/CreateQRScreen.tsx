@@ -291,7 +291,7 @@ export function CreateQRScreen() {
         });
       }
 
-      navigate("/app/qr/success");
+      navigate("/qr/success");
     } finally {
       setSaving(false);
     }
@@ -304,7 +304,7 @@ export function CreateQRScreen() {
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-100 sticky top-0 bg-white z-10">
         <button
-          onClick={() => (step === 1 ? navigate("/app/qr") : setStep((s) => s - 1))}
+          onClick={() => (step === 1 ? navigate("/qr") : setStep((s) => s - 1))}
           className="p-1.5 rounded-xl hover:bg-slate-100 active:scale-90 transition-all"
         >
           <ChevronLeft className="w-5 h-5 text-slate-600" />
