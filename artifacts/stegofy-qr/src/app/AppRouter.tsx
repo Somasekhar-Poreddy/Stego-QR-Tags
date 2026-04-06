@@ -18,6 +18,17 @@ import { PublicProfileScreen } from "@/app/screens/scan/PublicProfileScreen";
 import { ShopScreen } from "@/app/screens/shop/ShopScreen";
 import { ProfileScreen } from "@/app/screens/profile/ProfileScreen";
 
+// Simple container for screens that don't need bottom nav (e.g. unauthenticated Create QR)
+function PlainLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="min-h-screen bg-slate-50 flex flex-col max-w-lg mx-auto relative">
+      <div className="flex-1 overflow-y-auto">
+        {children}
+      </div>
+    </div>
+  );
+}
+
 function SessionLoader() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-primary to-violet-600 gap-4">
@@ -49,6 +60,25 @@ export function AppRouter() {
     }
   }, [location]);
 
+  // Create QR and Success flows are accessible without authentication
+  // so users can generate a QR immediately before being asked to sign up
+  if (location === "/app/qr/create" || location === "/app/qr/success") {
+    if (step === "app") {
+      // Authenticated — show with full app layout (BottomNav etc.)
+      return (
+        <AppLayout>
+          {location === "/app/qr/create" ? <CreateQRScreen /> : <QRSuccessScreen />}
+        </AppLayout>
+      );
+    }
+    // Not authenticated — show without BottomNav (clean focused flow)
+    return (
+      <PlainLayout>
+        {location === "/app/qr/create" ? <CreateQRScreen /> : <QRSuccessScreen />}
+      </PlainLayout>
+    );
+  }
+
   if (loading) return <SessionLoader />;
 
   // Auth gate — step drives which screen to show
@@ -58,12 +88,10 @@ export function AppRouter() {
   if (step === "reset-password") return <ResetPasswordScreen />;
   if (step === "onboarding") return <OnboardingScreen />;
 
-  // Authenticated app — use full /app/xxx paths (no nested router needed)
+  // Authenticated app
   return (
     <AppLayout>
       <Switch>
-        <Route path="/app/qr/create" component={CreateQRScreen} />
-        <Route path="/app/qr/success" component={QRSuccessScreen} />
         <Route path="/app/qr" component={MyQRScreen} />
         <Route path="/app/scan/profile" component={PublicProfileScreen} />
         <Route path="/app/scan" component={ScanScreen} />
