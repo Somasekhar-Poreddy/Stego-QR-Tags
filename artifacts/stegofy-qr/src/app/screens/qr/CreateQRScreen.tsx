@@ -1,19 +1,31 @@
 import { useState } from "react";
-import { ChevronLeft, Camera, User, Phone, AlertCircle, FileText, Check, QrCode } from "lucide-react";
+import { ChevronLeft, Camera, User, Phone, AlertCircle, FileText, Check, QrCode, ChevronDown, ChevronUp } from "lucide-react";
 import { useLocation } from "wouter";
 import { useQR, QRType } from "@/app/context/QRContext";
 import { cn } from "@/lib/utils";
 
-const TYPES: { id: QRType; label: string; emoji: string }[] = [
-  { id: "pet", label: "Pet", emoji: "🐾" },
-  { id: "vehicle", label: "Vehicle", emoji: "🚗" },
-  { id: "child", label: "Child", emoji: "👦" },
-  { id: "medical", label: "Medical", emoji: "🏥" },
-  { id: "luggage", label: "Luggage", emoji: "🧳" },
-  { id: "wallet", label: "Wallet", emoji: "👜" },
-  { id: "home", label: "Home QR", emoji: "🏠" },
-  { id: "event", label: "Event", emoji: "🎪" },
-  { id: "business", label: "Business", emoji: "💼" },
+interface TypeDef {
+  id: QRType;
+  label: string;
+  emoji: string;
+  desc: string;
+  bg: string;
+  ring: string;
+}
+
+const PRIMARY_TYPES: TypeDef[] = [
+  { id: "vehicle",    label: "Vehicle",     emoji: "🚗", desc: "Car, bike, truck",    bg: "bg-blue-50",   ring: "ring-blue-400" },
+  { id: "pet",        label: "Pet",         emoji: "🐾", desc: "Dog, cat, bird",      bg: "bg-rose-50",   ring: "ring-rose-400" },
+  { id: "child",      label: "Child",       emoji: "👦", desc: "School bag, ID card", bg: "bg-green-50",  ring: "ring-green-400" },
+  { id: "medical",    label: "Medical",     emoji: "🏥", desc: "Health records, ID",  bg: "bg-red-50",    ring: "ring-red-400" },
+  { id: "belongings", label: "Belongings",  emoji: "🎒", desc: "Bag, gadget, item",   bg: "bg-amber-50",  ring: "ring-amber-400" },
+  { id: "home",       label: "Home",        emoji: "🏠", desc: "Gate, door, mailbox", bg: "bg-teal-50",   ring: "ring-teal-400" },
+];
+
+const SECONDARY_TYPES: TypeDef[] = [
+  { id: "luggage", label: "Luggage",      emoji: "🧳", desc: "Travel bags, cases",  bg: "bg-indigo-50",  ring: "ring-indigo-400" },
+  { id: "wallet",  label: "Wallet / Key", emoji: "👛", desc: "Wallet, keys, purse",  bg: "bg-violet-50",  ring: "ring-violet-400" },
+  { id: "event",   label: "Event / NFC",  emoji: "🎫", desc: "Events, NFC tags",    bg: "bg-fuchsia-50", ring: "ring-fuchsia-400" },
 ];
 
 const PRIVACY_OPTIONS = [
@@ -28,6 +40,7 @@ export function CreateQRScreen() {
   const { addProfile } = useQR();
   const [step, setStep] = useState(1);
   const [type, setType] = useState<QRType | null>(null);
+  const [showMore, setShowMore] = useState(false);
   const [form, setForm] = useState({ name: "", primaryContact: "", emergencyContact: "", notes: "" });
   const [privacy, setPrivacy] = useState<string>("mask");
 
@@ -69,23 +82,89 @@ export function CreateQRScreen() {
         {/* Step 1: Select type */}
         {step === 1 && (
           <div>
-            <h2 className="text-lg font-bold text-slate-900 mb-1">Select QR type</h2>
-            <p className="text-sm text-slate-500 mb-5">What are you creating this tag for?</p>
-            <div className="grid grid-cols-3 gap-3">
-              {TYPES.map((t) => (
-                <button
-                  key={t.id}
-                  onClick={() => setType(t.id)}
-                  className={cn(
-                    "flex flex-col items-center gap-2 py-4 rounded-2xl border-2 transition-all active:scale-95",
-                    type === t.id ? "border-primary bg-primary/5" : "border-slate-100 bg-slate-50"
-                  )}
-                >
-                  <span className="text-2xl">{t.emoji}</span>
-                  <span className={cn("text-xs font-semibold", type === t.id ? "text-primary" : "text-slate-600")}>{t.label}</span>
-                </button>
-              ))}
+            <h2 className="text-lg font-bold text-slate-900 mb-1">What are you protecting?</h2>
+            <p className="text-sm text-slate-500 mb-5">Choose the type that best fits your item</p>
+
+            {/* Primary 6 */}
+            <div className="grid grid-cols-3 gap-3 mb-3">
+              {PRIMARY_TYPES.map((t) => {
+                const selected = type === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => setType(t.id)}
+                    className={cn(
+                      "flex flex-col items-center gap-2 pt-4 pb-3.5 px-2 rounded-2xl border-2 transition-all active:scale-95 text-left",
+                      selected
+                        ? `border-primary bg-primary/5 ring-2 ring-primary/20`
+                        : "border-slate-100 bg-white shadow-sm"
+                    )}
+                  >
+                    <div className={cn(
+                      "w-12 h-12 rounded-2xl flex items-center justify-center text-2xl transition-all",
+                      selected ? "bg-primary/10" : t.bg
+                    )}>
+                      {t.emoji}
+                    </div>
+                    <div className="text-center">
+                      <p className={cn("text-xs font-bold leading-tight", selected ? "text-primary" : "text-slate-800")}>{t.label}</p>
+                      <p className="text-[10px] text-slate-400 mt-0.5 leading-tight">{t.desc}</p>
+                    </div>
+                    {selected && (
+                      <div className="w-4 h-4 rounded-full bg-primary flex items-center justify-center">
+                        <Check className="w-2.5 h-2.5 text-white" />
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
             </div>
+
+            {/* More toggle */}
+            <button
+              onClick={() => setShowMore((v) => !v)}
+              className="w-full flex items-center justify-center gap-2 py-2.5 text-xs font-semibold text-slate-500 hover:text-primary transition-colors"
+            >
+              {showMore ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              {showMore ? "Show less" : "More types"}
+            </button>
+
+            {/* Secondary 3 — expandable */}
+            {showMore && (
+              <div className="grid grid-cols-3 gap-3 mt-1 animate-in fade-in slide-in-from-top-2 duration-200">
+                {SECONDARY_TYPES.map((t) => {
+                  const selected = type === t.id;
+                  return (
+                    <button
+                      key={t.id}
+                      onClick={() => setType(t.id)}
+                      className={cn(
+                        "flex flex-col items-center gap-2 pt-4 pb-3.5 px-2 rounded-2xl border-2 transition-all active:scale-95",
+                        selected
+                          ? "border-primary bg-primary/5 ring-2 ring-primary/20"
+                          : "border-slate-100 bg-white shadow-sm"
+                      )}
+                    >
+                      <div className={cn(
+                        "w-12 h-12 rounded-2xl flex items-center justify-center text-2xl",
+                        selected ? "bg-primary/10" : t.bg
+                      )}>
+                        {t.emoji}
+                      </div>
+                      <div className="text-center">
+                        <p className={cn("text-xs font-bold leading-tight", selected ? "text-primary" : "text-slate-800")}>{t.label}</p>
+                        <p className="text-[10px] text-slate-400 mt-0.5 leading-tight">{t.desc}</p>
+                      </div>
+                      {selected && (
+                        <div className="w-4 h-4 rounded-full bg-primary flex items-center justify-center">
+                          <Check className="w-2.5 h-2.5 text-white" />
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 

@@ -16,6 +16,7 @@ const TYPE_COLORS: Record<string, string> = {
   home: "bg-teal-100 text-teal-600",
   event: "bg-fuchsia-100 text-fuchsia-600",
   business: "bg-slate-100 text-slate-600",
+  belongings: "bg-amber-100 text-amber-600",
 };
 
 const ACTIVITY = [
