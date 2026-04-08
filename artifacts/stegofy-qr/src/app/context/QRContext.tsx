@@ -104,17 +104,18 @@ export function QRProvider({ children }: { children: ReactNode }) {
         .eq("user_id", userId)
         .order("created_at", { ascending: false });
 
-      if (error || !data) {
-        console.warn("Could not load QR profiles from Supabase:", error?.message);
+      if (error) {
+        // Supabase reachable but query failed — keep local state as fallback
+        console.warn("Could not load QR profiles from Supabase:", error.message);
         return;
       }
 
-      if (data.length > 0) {
-        const loaded = data.map(rowToProfile);
-        setProfiles(loaded);
-      }
-      // If no Supabase rows, keep current localStorage state (don't overwrite with mock)
+      // Query succeeded: always replace local state with server truth.
+      // This clears any stale or mock data from a previous user session.
+      const loaded = (data ?? []).map(rowToProfile);
+      setProfiles(loaded);
     } catch (err) {
+      // Network unreachable — silently keep current localStorage state
       console.warn("QR profile load failed, using local data:", err);
     }
   }, []);

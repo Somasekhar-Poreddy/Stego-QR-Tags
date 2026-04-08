@@ -245,12 +245,13 @@ function EditModal({
       onSave(updates);
 
       // Persist to Supabase if this profile was synced from the server
-      const rowId = profile.qrId;
-      if (rowId && !rowId.startsWith("mock-")) {
+      const rowId = profile.qrId ?? profile.id;
+      if (rowId && !rowId.startsWith("mock-") && !/^\d+$/.test(rowId)) {
         const { error } = await supabase.from("qr_codes").update({
           name: derivedName,
           status,
           primary_contact: derivedContact,
+          notes: (formData.notes as string) || null,
           data: formData,
         }).eq("id", rowId);
         if (error) console.warn("Supabase update failed:", error.message);
