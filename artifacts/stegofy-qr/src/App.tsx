@@ -7,6 +7,7 @@ import LandingPage from "@/pages/LandingPage";
 import { AuthProvider } from "@/app/context/AuthContext";
 import { QRProvider } from "@/app/context/QRContext";
 import { AppRouter } from "@/app/AppRouter";
+import { PublicProfileScreen } from "@/app/screens/scan/PublicProfileScreen";
 
 const queryClient = new QueryClient();
 
@@ -52,6 +53,11 @@ function Router() {
 
   if (pathname.startsWith("/app")) {
     return <AppRouter />;
+  }
+
+  // Public QR contact page — no auth required, no providers needed
+  if (pathname.startsWith("/qr/")) {
+    return <PublicProfileScreen />;
   }
 
   return <NotFound />;
