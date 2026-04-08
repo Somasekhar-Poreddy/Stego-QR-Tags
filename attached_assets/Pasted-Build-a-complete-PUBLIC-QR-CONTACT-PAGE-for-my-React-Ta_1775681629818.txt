@@ -1,0 +1,255 @@
+Build a complete PUBLIC QR CONTACT PAGE for my React + Tailwind + Supabase PWA app.
+
+-----------------------------------
+GOAL:
+-----------------------------------
+When a QR is scanned:
+
+User lands on:
+https://yourdomain.com/qr/:id
+
+This page should:
+
+1. Show limited info (privacy safe)
+2. Ask user intent (why contacting)
+3. Verify user using:
+   - Last digits (if applicable)
+   - 4-digit PIN (mandatory)
+4. Allow contact request (NOT direct calling)
+5. Notify owner
+
+-----------------------------------
+STEP 1: FETCH QR DATA
+
+From Supabase table: qr_codes
+
+Fields needed:
+- id
+- type
+- data (JSON)
+- pin_code
+- is_active
+- allow_contact
+- strict_mode
+- emergency_contact
+
+-----------------------------------
+STEP 2: HEADER UI
+
+Show:
+
+- Title:
+  Dynamic:
+  "Contact Vehicle Owner"
+  "Help this Pet get Home"
+  "Contact Parent"
+  etc.
+
+- Masked Identifier:
+
+Vehicle:
+KA01****  
+
+Pet:
+"Golden Retriever"
+
+Child:
+"Child Safety Profile"
+
+-----------------------------------
+STEP 3: INTENT SELECTION (VERY IMPORTANT 🔥)
+
+Instead of direct call, show:
+
+"Why are you trying to contact?"
+
+-----------------------------------
+
+For VEHICLE:
+
+- Lights are ON
+- Wrong Parking
+- Getting Towed
+- Window Open
+- Something Wrong
+- Emergency 🚨
+
+-----------------------------------
+
+For PET:
+
+- Found your pet
+- Pet injured
+- Pet roaming
+- Emergency 🚨
+
+-----------------------------------
+
+For CHILD:
+
+- Found child
+- Needs help
+- Emergency 🚨
+
+-----------------------------------
+
+UI:
+
+- Card-based selection
+- Icons + text
+- Single select
+
+-----------------------------------
+STEP 4: ACTION OPTIONS
+
+After selecting intent:
+
+Show:
+
+- Request Contact (PRIMARY CTA 🔥)
+- Message (Secondary)
+
+DO NOT show direct call initially
+
+-----------------------------------
+STEP 5: VERIFICATION LAYER (VERY IMPORTANT 🔥)
+
+On clicking action:
+
+Open modal:
+
+-----------------------------------
+
+Title:
+"Verify to Continue"
+
+Fields:
+
+1. PIN (MANDATORY)
+- Input 4-digit PIN printed on QR
+
+2. Conditional field:
+
+For VEHICLE:
+- Last 4 digits of vehicle number
+
+For others:
+- Optional skip or simple captcha
+
+3. Phone number input (for callback)
+
+-----------------------------------
+
+VALIDATION:
+
+- PIN must match Supabase
+- If vehicle → last digits must match stored data
+
+-----------------------------------
+STEP 6: CONTACT REQUEST SYSTEM (CORE 🔥)
+
+If verified:
+
+Insert into Supabase table: contact_requests
+
+Fields:
+
+- id (uuid)
+- qr_id
+- intent (wrong_parking, emergency, etc.)
+- requester_phone
+- status (pending, accepted, rejected)
+- created_at
+
+-----------------------------------
+STEP 7: OWNER FLOW (IMPORTANT)
+
+Owner receives:
+
+- Notification (in app later)
+- See:
+
+"Someone requested contact"
+Intent: Wrong Parking
+
+Owner can:
+- Accept
+- Reject
+- Ignore
+
+-----------------------------------
+STEP 8: STRICT MODE LOGIC
+
+If strict_mode = true:
+
+Only show:
+- Emergency option
+
+Hide others
+
+-----------------------------------
+STEP 9: EMERGENCY FLOW 🚨
+
+If Emergency selected:
+
+Show modal:
+
+- Warning message
+- Checkbox:
+"I confirm this is a real emergency"
+
+CTA:
+"View Emergency Contacts"
+
+-----------------------------------
+
+Show:
+
+- Owner emergency contact (if available)
+- OR fallback:
+
+India helplines:
+- 112
+- 100
+- 101
+- 102
+
+-----------------------------------
+STEP 10: UI DESIGN
+
+- Clean mobile-first layout
+- Gradient highlights (#2563EB → #7C3AED)
+- Rounded cards
+- Minimal text
+- Clear CTA hierarchy
+
+-----------------------------------
+STEP 11: SECURITY FEATURES
+
+- Rate limit requests (basic)
+- Block repeated spam
+- Validate PIN before any action
+
+-----------------------------------
+STEP 12: EMPTY STATES
+
+If QR disabled:
+
+"This QR is inactive"
+
+-----------------------------------
+GOAL:
+
+Build a privacy-first, intent-based contact system where:
+
+Users cannot directly access phone numbers  
+All interactions are controlled by the owner  
+PIN ensures physical access  
+Intent ensures meaningful communication  
+
+-----------------------------------
+IMPORTANT:
+
+This is NOT a contact page.
+
+This is a CONTROLLED COMMUNICATION SYSTEM.
