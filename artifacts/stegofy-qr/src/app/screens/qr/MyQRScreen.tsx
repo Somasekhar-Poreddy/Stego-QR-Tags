@@ -244,9 +244,10 @@ function EditModal({
 
       onSave(updates);
 
-      // Persist to Supabase if this profile was synced from the server
+      // Persist to Supabase if this profile was synced from the server.
+      // Skip only explicit mock placeholders; numeric Date.now() ids are harmless no-ops.
       const rowId = profile.qrId ?? profile.id;
-      if (rowId && !rowId.startsWith("mock-") && !/^\d+$/.test(rowId)) {
+      if (rowId && !rowId.startsWith("mock-")) {
         const { error } = await supabase.from("qr_codes").update({
           name: derivedName,
           status,
