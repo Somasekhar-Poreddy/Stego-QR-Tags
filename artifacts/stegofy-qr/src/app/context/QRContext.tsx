@@ -20,6 +20,14 @@ export interface QRProfile {
   qrId?: string;
   pinCode?: string;
   displayCode?: string;
+  // ── Manage QR settings ───────────────────────────────────
+  isActive?: boolean;
+  allowContact?: boolean;
+  strictMode?: boolean;
+  whatsappEnabled?: boolean;
+  allowVideoCall?: boolean;
+  secondaryPhone?: string;
+  manageEmergencyContact?: string;
 }
 
 interface QRContextType {
@@ -88,6 +96,13 @@ function rowToProfile(row: Record<string, unknown>): QRProfile {
     createdAt: (row.created_at as string) || new Date().toISOString().split("T")[0],
     pinCode: (row.pin_code as string) || undefined,
     displayCode: (row.display_code as string) || undefined,
+    isActive: row.is_active != null ? (row.is_active as boolean) : true,
+    allowContact: row.allow_contact != null ? (row.allow_contact as boolean) : true,
+    strictMode: row.strict_mode != null ? (row.strict_mode as boolean) : false,
+    whatsappEnabled: row.whatsapp_enabled != null ? (row.whatsapp_enabled as boolean) : false,
+    allowVideoCall: row.allow_video_call != null ? (row.allow_video_call as boolean) : false,
+    secondaryPhone: (row.secondary_phone as string) || undefined,
+    manageEmergencyContact: (row.emergency_contact as string) || undefined,
   };
 }
 

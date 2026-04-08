@@ -1,0 +1,171 @@
+Enhance my existing React + Tailwind + Supabase app (Stegofy) by building a complete QR Management system.
+
+-----------------------------------
+GOAL:
+-----------------------------------
+After QR creation, users should be able to:
+
+- View all their QRs (My QRs)
+- Click "Manage" for each QR
+- Control settings (like competitor but more modern & clean)
+- Save all settings in Supabase per QR
+
+-----------------------------------
+STEP 1: UPDATE "MY QRs" SCREEN
+
+For each QR card:
+
+Display:
+- Name (Vehicle / Pet name)
+- QR type
+- Status badge (Active / Disabled)
+- Calls status (Enabled / Disabled)
+
+Actions:
+- Edit
+- Manage (NEW BUTTON)
+
+Design:
+- Modern card UI
+- Rounded
+- Clean spacing
+- Minimal icons
+
+-----------------------------------
+STEP 2: CREATE "MANAGE QR" SCREEN
+
+When user clicks "Manage":
+
+Show detailed control panel for that QR.
+
+-----------------------------------
+TOP SECTION:
+
+- QR Name (e.g., KA01AB1234)
+- QR ID
+- Status badge (Active / Disabled)
+- Toggle: Enable / Disable QR
+
+-----------------------------------
+SECTION 1: CONTACT & ACCESS
+
+- View Contact Page (CTA)
+- Add Secondary Number
+- Add Emergency Contact
+
+-----------------------------------
+SECTION 2: SAFETY CONTROLS (VERY IMPORTANT)
+
+- Toggle: Enable/Disable Contact Requests
+- Toggle: Strict Mode (only emergency allowed)
+- Toggle: Masked Contact (future use)
+- Toggle: WhatsApp Notifications
+
+-----------------------------------
+SECTION 3: ACTIVITY
+
+- View Notifications
+- View Scan Locations
+
+-----------------------------------
+SECTION 4: FILES & MEDIA
+
+- Upload Files (optional)
+- Enable Video Call (future toggle)
+
+-----------------------------------
+SECTION 5: QR ACTIONS
+
+- Download QR (eTag)
+- Disable QR
+- Delete QR
+
+-----------------------------------
+UX DESIGN:
+
+- Use grouped sections (cards)
+- Use toggles for controls
+- Use icons + labels
+- Keep layout minimal, not cluttered
+- Mobile-first design
+- Smooth transitions
+
+-----------------------------------
+STEP 3: SUPABASE DATABASE UPDATE
+
+Modify "qr_codes" table:
+
+Add new columns:
+
+- is_active (boolean, default true)
+- allow_contact (boolean, default true)
+- strict_mode (boolean, default false)
+- whatsapp_enabled (boolean, default false)
+- secondary_phone (text)
+- emergency_contact (text)
+- allow_video_call (boolean, default false)
+- notes (text)
+
+-----------------------------------
+OPTIONAL (ADVANCED):
+
+Create new table: qr_activity
+
+Fields:
+- id
+- qr_id
+- type (scan, request, etc.)
+- location
+- created_at
+
+-----------------------------------
+STEP 4: SAVE SETTINGS
+
+When user toggles any setting:
+
+- Update Supabase instantly
+- Use debounce (optional)
+- Show success toast
+
+Example:
+
+update qr_codes set strict_mode = true where id = qr_id
+
+-----------------------------------
+STEP 5: FETCH SETTINGS
+
+When opening Manage screen:
+
+- Fetch QR data from Supabase
+- Populate toggles and fields
+
+-----------------------------------
+STEP 6: STATE MANAGEMENT
+
+- Maintain local state for toggles
+- Sync with Supabase
+- Handle loading states
+
+-----------------------------------
+STEP 7: SECURITY
+
+- Ensure user can only manage their own QRs
+- Use user_id from Supabase auth
+
+-----------------------------------
+STEP 8: UX IMPROVEMENTS
+
+- Add confirmation for:
+  - Delete QR
+  - Disable QR
+
+- Add status indicator:
+  - Green = Active
+  - Red = Disabled
+
+-----------------------------------
+GOAL:
+
+Build a clean, powerful QR control panel that gives users full control over their QR tags.
+
+This should feel like a modern safety dashboard, not a cluttered settings page.

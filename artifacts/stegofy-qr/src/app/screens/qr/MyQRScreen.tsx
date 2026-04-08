@@ -330,36 +330,42 @@ function QRCard({
 }) {
   const [showView, setShowView] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
-  const [shareCopied, setShareCopied] = useState(false);
+  const [, navigate] = useLocation();
 
-  const handleShare = async () => {
-    const qrUrl = profile.qrUrl ?? `${window.location.origin}/qr/${profile.qrId ?? profile.id}`;
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: `Stegofy QR — ${profile.name}`, text: "Scan to contact me safely", url: qrUrl });
-        return;
-      } catch (_) {}
-    }
-    await navigator.clipboard.writeText(qrUrl);
-    setShareCopied(true);
-    setTimeout(() => setShareCopied(false), 2000);
-  };
+  const isActive = profile.isActive !== false && profile.status === "active";
+  const callsOn = profile.allowContact !== false;
 
   return (
     <>
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+        {/* Colour header */}
         <div className={cn("bg-gradient-to-br h-16 relative flex items-center px-4", TYPE_COLORS[profile.type] || "from-slate-400 to-slate-300")}>
           <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
             <QrCode className="w-5 h-5 text-white" />
           </div>
-          <div className="ml-3">
-            <p className="text-sm font-bold text-white">{profile.name}</p>
+          <div className="ml-3 flex-1 min-w-0">
+            <p className="text-sm font-bold text-white truncate">{profile.name}</p>
             <p className="text-xs text-white/70 capitalize">{profile.type}</p>
           </div>
-          <div className={cn("ml-auto w-2 h-2 rounded-full", profile.status === "active" ? "bg-green-300" : "bg-white/50")} />
+          {/* Status + calls pills */}
+          <div className="flex flex-col items-end gap-1 ml-2">
+            <span className={cn(
+              "text-[10px] font-bold px-2 py-0.5 rounded-full",
+              isActive ? "bg-green-400/30 text-white" : "bg-white/20 text-white/70"
+            )}>
+              {isActive ? "ACTIVE" : "INACTIVE"}
+            </span>
+            <span className={cn(
+              "text-[10px] font-semibold px-2 py-0.5 rounded-full",
+              callsOn ? "bg-white/20 text-white/90" : "bg-white/10 text-white/50"
+            )}>
+              {callsOn ? "Calls on" : "Calls off"}
+            </span>
+          </div>
         </div>
 
-        <div className="px-4 py-2.5 flex items-center gap-4 border-b border-slate-50">
+        {/* Stats strip */}
+        <div className="px-4 py-2 flex items-center gap-4 border-b border-slate-50">
           <div>
             <p className="text-[10px] text-slate-400">Scans</p>
             <p className="text-sm font-bold text-slate-800">{profile.scans}</p>
@@ -368,12 +374,15 @@ function QRCard({
             <p className="text-[10px] text-slate-400">Privacy</p>
             <p className="text-xs font-semibold text-slate-700 capitalize">{profile.privacyMode}</p>
           </div>
-          <div>
-            <p className="text-[10px] text-slate-400">Created</p>
-            <p className="text-xs font-semibold text-slate-700">{profile.createdAt}</p>
-          </div>
+          {profile.displayCode && (
+            <div className="ml-auto">
+              <p className="text-[10px] text-slate-400">Code</p>
+              <p className="text-[11px] font-mono font-semibold text-slate-600">{profile.displayCode}</p>
+            </div>
+          )}
         </div>
 
+        {/* Action row */}
         <div className="px-4 py-2.5 flex items-center gap-2">
           <button
             onClick={() => setShowView(true)}
@@ -388,14 +397,10 @@ function QRCard({
             <Edit className="w-3.5 h-3.5" /> Edit
           </button>
           <button
-            onClick={handleShare}
-            className={cn(
-              "flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold active:scale-95 transition-transform",
-              shareCopied ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-700"
-            )}
+            onClick={() => navigate(`/app/qr/${profile.id}/manage`)}
+            className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-violet-50 text-violet-700 rounded-xl text-xs font-semibold active:scale-95 transition-transform"
           >
-            {shareCopied ? <Check className="w-3.5 h-3.5" /> : <Share2 className="w-3.5 h-3.5" />}
-            {shareCopied ? "Copied!" : "Share"}
+            <Share2 className="w-3.5 h-3.5" /> Manage
           </button>
           <button
             onClick={onDelete}
