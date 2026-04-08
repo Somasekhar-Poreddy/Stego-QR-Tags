@@ -323,13 +323,15 @@ function QRCard({
   profile,
   onDelete,
   onUpdate,
+  defaultEditOpen = false,
 }: {
   profile: QRProfile;
   onDelete: () => void;
   onUpdate: (updates: Partial<QRProfile>) => void;
+  defaultEditOpen?: boolean;
 }) {
   const [showView, setShowView] = useState(false);
-  const [showEdit, setShowEdit] = useState(false);
+  const [showEdit, setShowEdit] = useState(defaultEditOpen);
   const [, navigate] = useLocation();
 
   const isActive = profile.isActive !== false && profile.status === "active";
@@ -427,6 +429,8 @@ function QRCard({
 export function MyQRScreen() {
   const { profiles, deleteProfile, updateProfile } = useQR();
   const [, navigate] = useLocation();
+  // When navigating from ManageQR "Edit and Rewrite Tag", the URL is /app/qr?edit=<id>
+  const [pendingEditId] = useState(() => new URLSearchParams(window.location.search).get("edit"));
 
   return (
     <div className="min-h-full bg-slate-50">
@@ -448,6 +452,7 @@ export function MyQRScreen() {
               profile={p}
               onDelete={() => deleteProfile(p.id)}
               onUpdate={(updates) => updateProfile(p.id, updates)}
+              defaultEditOpen={pendingEditId === p.id}
             />
           ))
         )}

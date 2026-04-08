@@ -301,16 +301,6 @@ export function ManageQRScreen({ profileId }: { profileId: string }) {
     }
   };
 
-  const handleShare = async () => {
-    if (!profile) return;
-    const url = profile.qrUrl ?? `${window.location.origin}/qr/${profile.qrId ?? profile.id}`;
-    if (navigator.share) {
-      try { await navigator.share({ title: `Stegofy — ${profile.name}`, url }); return; } catch (_) {}
-    }
-    await navigator.clipboard.writeText(url);
-    showToast("Link copied!");
-  };
-
   const handleUploadFiles = () => fileInputRef.current?.click();
   const handleFileSelected = () => showToast("File upload coming soon!");
 
@@ -324,7 +314,8 @@ export function ManageQRScreen({ profileId }: { profileId: string }) {
     showToast("Replacement email opened!");
   };
 
-  const handleEditTag = () => navigate("/app/qr");
+  // Navigate to My QR and auto-open the EditModal for this profile via query param
+  const handleEditTag = () => navigate(`/app/qr?edit=${profile?.id ?? ""}`);
 
   if (!profile) {
     return (
