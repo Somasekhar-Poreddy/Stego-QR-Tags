@@ -266,6 +266,10 @@ export function CreateQRScreen() {
         ? "mask"
         : "show";
 
+      // Generate unique display code and 4-digit security PIN
+      const pinCode = String(Math.floor(1000 + Math.random() * 9000));
+      const displayCode = "STG-" + Math.random().toString(36).substring(2, 10).toUpperCase();
+
       const profile = addProfile({
         name: displayName,
         type,
@@ -276,7 +280,11 @@ export function CreateQRScreen() {
         formData,
         qrUrl,
         qrId,
+        pinCode,
+        displayCode,
       });
+
+      void profile;
 
       if (user) {
         await supabase.from("qr_codes").insert({
@@ -287,6 +295,8 @@ export function CreateQRScreen() {
           status: "active",
           primary_contact: primaryContact,
           privacy_mode: privacyMode,
+          pin_code: pinCode,
+          display_code: displayCode,
           data: formData,
           qr_url: qrUrl,
           privacy,

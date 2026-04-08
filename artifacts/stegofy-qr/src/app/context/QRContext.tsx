@@ -18,6 +18,8 @@ export interface QRProfile {
   formData?: Record<string, string | boolean>;
   qrUrl?: string;
   qrId?: string;
+  pinCode?: string;
+  displayCode?: string;
 }
 
 interface QRContextType {
@@ -84,6 +86,8 @@ function rowToProfile(row: Record<string, unknown>): QRProfile {
     qrUrl: (row.qr_url as string) || `${window.location.origin}/qr/${row.id}`,
     scans: (row.scans as number) || 0,
     createdAt: (row.created_at as string) || new Date().toISOString().split("T")[0],
+    pinCode: (row.pin_code as string) || undefined,
+    displayCode: (row.display_code as string) || undefined,
   };
 }
 

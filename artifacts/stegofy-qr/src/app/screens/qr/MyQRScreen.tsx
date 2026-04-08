@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
-import { Plus, QrCode, Eye, Edit, Share2, Trash2, Download, X, Check, Save, ChevronDown, ChevronUp } from "lucide-react";
-import QRCode from "qrcode";
+import { useState } from "react";
+import { Plus, QrCode, Eye, Edit, Share2, Trash2, X, Check, Save, ChevronDown, ChevronUp } from "lucide-react";
 import { useQR, QRProfile } from "@/app/context/QRContext";
 import { AppHeader } from "@/app/components/AppHeader";
 import { FORM_SCHEMA, FieldDef, getFormLabel, getNameKey } from "@/app/lib/qrFormSchema";
+import { QRCardDesign } from "@/app/components/QRCardDesign";
 import { supabase } from "@/lib/supabase";
 import { useLocation } from "wouter";
 import { cn } from "@/lib/utils";
@@ -100,49 +100,14 @@ function EditField({
 
 /* ─── View Modal ─────────────────────────────────────────────────────────── */
 function ViewModal({ profile, onClose }: { profile: QRProfile; onClose: () => void }) {
-  const [dataUrl, setDataUrl] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
-  const qrUrl = profile.qrUrl ?? `${window.location.origin}/qr/${profile.qrId ?? profile.id}`;
-
-  useEffect(() => {
-    QRCode.toDataURL(qrUrl, {
-      width: 280,
-      margin: 2,
-      color: { dark: "#0F172A", light: "#FFFFFF" },
-      errorCorrectionLevel: "H",
-    })
-      .then(setDataUrl)
-      .catch(console.error);
-  }, [qrUrl]);
-
-  const handleDownload = () => {
-    if (!dataUrl) return;
-    const a = document.createElement("a");
-    a.href = dataUrl;
-    a.download = `stegofy-qr-${profile.name.replace(/\s+/g, "-")}.png`;
-    a.click();
-  };
-
-  const handleShare = async () => {
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: `Stegofy QR — ${profile.name}`, text: "Scan to contact me safely", url: qrUrl });
-        return;
-      } catch (_) {}
-    }
-    await navigator.clipboard.writeText(qrUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
   return (
     <div
       className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-t-3xl w-full max-w-lg flex flex-col animate-in slide-in-from-bottom-4 duration-300"
-        style={{ maxHeight: "90dvh" }}
+        className="bg-white rounded-t-3xl w-full max-w-2xl flex flex-col animate-in slide-in-from-bottom-4 duration-300"
+        style={{ maxHeight: "92dvh" }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Drag handle */}
@@ -163,43 +128,9 @@ function ViewModal({ profile, onClose }: { profile: QRProfile; onClose: () => vo
           </button>
         </div>
 
-        {/* Scrollable content */}
-        <div className="overflow-y-auto flex-1 px-6 py-5">
-          <div className="flex flex-col items-center">
-            {dataUrl ? (
-              <img src={dataUrl} alt="QR Code" className="w-52 h-52 rounded-2xl shadow-md mb-4" />
-            ) : (
-              <div className="w-52 h-52 bg-slate-100 rounded-2xl flex items-center justify-center animate-pulse mb-4">
-                <QrCode className="w-8 h-8 text-slate-300" />
-              </div>
-            )}
-
-            <div className="flex items-center gap-2 mb-1">
-              <div className={cn("w-2 h-2 rounded-full", profile.status === "active" ? "bg-green-400" : "bg-slate-300")} />
-              <span className="text-xs font-semibold text-slate-600 capitalize">{profile.status}</span>
-            </div>
-            <p className="text-xs text-slate-400">
-              Privacy: <span className="font-semibold capitalize">{profile.privacyMode}</span>
-            </p>
-          </div>
-        </div>
-
-        {/* Sticky footer with actions */}
-        <div className="px-6 pb-6 pt-3 border-t border-slate-100 flex gap-3 flex-shrink-0">
-          <button
-            onClick={handleDownload}
-            disabled={!dataUrl}
-            className="flex-1 flex items-center justify-center gap-2 py-3.5 bg-slate-100 text-slate-700 rounded-2xl text-sm font-semibold active:scale-95 transition-all disabled:opacity-40"
-          >
-            <Download className="w-4 h-4" /> Download
-          </button>
-          <button
-            onClick={handleShare}
-            className="flex-1 flex items-center justify-center gap-2 py-3.5 bg-primary/10 text-primary rounded-2xl text-sm font-semibold active:scale-95 transition-all"
-          >
-            <Share2 className="w-4 h-4" />
-            {copied ? "Copied!" : "Share"}
-          </button>
+        {/* Scrollable content — premium card + download */}
+        <div className="overflow-y-auto flex-1 px-4 py-5">
+          <QRCardDesign profile={profile} showActions={true} />
         </div>
       </div>
     </div>

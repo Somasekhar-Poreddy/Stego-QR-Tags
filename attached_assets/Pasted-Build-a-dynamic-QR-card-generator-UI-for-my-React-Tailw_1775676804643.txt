@@ -1,0 +1,167 @@
+Build a dynamic QR card generator UI for my React + Tailwind PWA app (Stegofy).
+
+-----------------------------------
+GOAL:
+-----------------------------------
+Create a visually stunning, printable QR card (like a physical tag design) with:
+
+- Stegofy branding (blue + gradient theme)
+- Dynamic content based on QR type (vehicle, pet, etc.)
+- QR code (generated dynamically)
+- Unique visible code under QR
+- Security PIN (4 or 6 digits)
+
+This card should be previewed in UI and downloadable as image (PNG).
+
+-----------------------------------
+DESIGN LAYOUT (INSPIRED BUT NOT COPYING):
+
+Split card into TWO sections:
+
+LEFT SIDE (Information)
+RIGHT SIDE (QR + Code)
+
+-----------------------------------
+LEFT SIDE:
+
+- Stegofy logo (top)
+- Small QR icon branding
+- Dynamic heading:
+
+Examples:
+- Vehicle: "Scan to contact the vehicle owner"
+- Pet: "Scan to help this pet get home"
+- Child: "Scan to contact parent"
+- Medical: "Scan for emergency info"
+- Luggage: "Scan to return this item"
+
+- Subtext:
+"Scan using phone camera or any QR scanner"
+
+- Clean typography (Poppins)
+- Light background (#F8FAFC)
+
+-----------------------------------
+RIGHT SIDE:
+
+- Gradient background (#2563EB → #7C3AED)
+- QR Code centered
+- Below QR:
+
+1. UNIQUE DISPLAY CODE
+Example: STG-AB12CD34
+
+2. SECURITY PIN (VERY IMPORTANT)
+Generate random 4 or 6 digit numeric PIN
+
+Display:
+"PIN: 4821"
+
+-----------------------------------
+PIN LOGIC:
+
+- Generate PIN when QR is created
+- Store in Supabase along with QR data
+- This PIN will be required later when someone tries to contact owner
+
+-----------------------------------
+QR VALUE:
+
+const qr_url = `https://yourdomain.com/qr/${qr_id}`;
+
+-----------------------------------
+DATA STORAGE (SUPABASE):
+
+Table: qr_codes
+
+Fields:
+- id (uuid)
+- user_id
+- type
+- data (JSON)
+- qr_url
+- display_code (human readable code)
+- pin_code (4 or 6 digit)
+- created_at
+
+-----------------------------------
+CODE GENERATION:
+
+1. Generate display code:
+
+Example format:
+STG + random alphanumeric (8 chars)
+
+2. Generate PIN:
+
+const pin = Math.floor(1000 + Math.random() * 9000); // 4 digit
+
+OR optional 6 digit:
+Math.floor(100000 + Math.random() * 900000)
+
+-----------------------------------
+UI FEATURES:
+
+- Show QR card preview after generation
+- Add button:
+  - Download as PNG
+  - Share
+- Responsive design (mobile first)
+
+-----------------------------------
+DYNAMIC CONTENT SYSTEM:
+
+Create mapping:
+
+vehicle → "Scan to contact the vehicle owner"
+pet → "Scan to help this pet get home"
+child → "Scan to contact parent"
+medical → "Scan for emergency info"
+home → "Scan to contact resident"
+luggage → "Scan to return this item"
+wallet → "Scan to return lost item"
+event → "Scan to view event details"
+business → "Scan to connect"
+
+-----------------------------------
+UX IMPROVEMENTS:
+
+- Add subtle icons under QR (optional):
+  🚗 wrong parking
+  🚨 emergency
+  📞 contact
+
+- Add micro text:
+"Privacy protected by Stegofy"
+
+-----------------------------------
+DOWNLOAD FEATURE:
+
+Allow user to download QR card as PNG using html-to-canvas or similar library.
+
+-----------------------------------
+DESIGN STYLE:
+
+- Premium, minimal
+- Rounded card (20px)
+- Soft shadows
+- Gradient glow
+- Clean spacing
+- Modern typography
+
+-----------------------------------
+GOAL:
+
+Create a premium QR card experience that can be:
+
+- Used digitally
+- Printed physically
+- Secured with PIN
+- Personalized dynamically
+
+-----------------------------------
+IMPORTANT:
+
+This is NOT just a QR generator.
+
+It is a "secure identity card system" for real-world objects.
