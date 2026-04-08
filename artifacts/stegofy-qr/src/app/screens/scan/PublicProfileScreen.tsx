@@ -40,21 +40,25 @@ const INTENTS: Record<string, IntentItem[]> = {
     { id: "getting_towed",  label: "The car is getting towed.",        Icon: Truck },
     { id: "window_open",    label: "The window or car is open.",       Icon: Wind },
     { id: "something_wrong",label: "Something wrong with this car.",   Icon: AlertTriangle },
+    EMERGENCY_INTENT,
   ],
   pet: [
     { id: "found_pet",   label: "I found your pet.",         Icon: MapPin },
     { id: "pet_injured", label: "Pet appears to be injured.", Icon: HeartPulse },
     { id: "pet_roaming", label: "Pet is roaming alone.",     Icon: Navigation },
+    EMERGENCY_INTENT,
   ],
   child: [
     { id: "found_child", label: "I found this child.", Icon: MapPin },
     { id: "needs_help",  label: "Child needs help.",   Icon: HelpCircle },
+    EMERGENCY_INTENT,
   ],
 };
 
 const GENERIC_INTENTS: IntentItem[] = [
   { id: "contact_owner", label: "I need to contact the owner.", Icon: Phone },
   { id: "general",       label: "General query.",               Icon: MessageCircle },
+  EMERGENCY_INTENT,
 ];
 
 /* ─── Helpers ───────────────────────────────────────────────────────────────── */

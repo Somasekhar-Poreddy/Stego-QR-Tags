@@ -16,7 +16,7 @@ import { CreateQRScreen } from "@/app/screens/qr/CreateQRScreen";
 import { QRSuccessScreen } from "@/app/screens/qr/QRSuccessScreen";
 import { ManageQRScreen } from "@/app/screens/qr/ManageQRScreen";
 import { ScanScreen } from "@/app/screens/scan/ScanScreen";
-import { PublicProfileScreen } from "@/app/screens/scan/PublicProfileScreen";
+import { ScanProfileScreen } from "@/app/screens/scan/ScanProfileScreen";
 import { ShopScreen } from "@/app/screens/shop/ShopScreen";
 import { ProfileScreen } from "@/app/screens/profile/ProfileScreen";
 
@@ -112,7 +112,7 @@ export function AppRouter() {
           {(params) => params ? <ManageQRScreen profileId={params.id} /> : null}
         </Route>
         <Route path="/app/qr" component={MyQRScreen} />
-        <Route path="/app/scan/profile" component={PublicProfileScreen} />
+        <Route path="/app/scan/profile" component={ScanProfileScreen} />
         <Route path="/app/scan" component={ScanScreen} />
         <Route path="/app/shop" component={ShopScreen} />
         <Route path="/app/profile" component={ProfileScreen} />
