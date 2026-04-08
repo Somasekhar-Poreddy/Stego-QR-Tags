@@ -200,7 +200,7 @@ function EmptySheet({
             <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center">
               {icon}
             </div>
-            <p className="text-sm font-semibold text-slate-700">Nothing here yet</p>
+            <p className="text-sm font-semibold text-slate-700">No scan events yet</p>
             <p className="text-xs text-slate-400 text-center max-w-xs">{subtitle}</p>
           </div>
           <button
@@ -397,13 +397,13 @@ export function ManageQRScreen({ profileId }: { profileId: string }) {
           <button
             onClick={() => setActiveTab("more")}
             className={cn(
-              "flex-1 py-3 text-sm font-bold transition-all tracking-wide",
+              "flex-1 py-3 text-sm font-bold transition-all",
               activeTab === "more"
                 ? "text-primary border-b-2 border-primary"
                 : "text-slate-400 border-b-2 border-transparent"
             )}
           >
-            MORE
+            More
           </button>
         </div>
 
@@ -416,7 +416,7 @@ export function ManageQRScreen({ profileId }: { profileId: string }) {
               {/* 1. View Contact Page */}
               <ArrowCard
                 icon={<MessageSquare className="w-4 h-4" />}
-                label="View Contact Page."
+                label="View Contact Page"
                 hint="How finders see your information"
                 onClick={() => window.open(`${window.location.origin}/qr/${profile.qrId ?? profile.id}`, "_blank")}
                 iconBg="bg-blue-50"
