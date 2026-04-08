@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 
 export type QRType = "pet" | "vehicle" | "child" | "medical" | "luggage" | "wallet" | "home" | "event" | "business" | "belongings";
 
@@ -28,9 +28,11 @@ interface QRContextType {
 
 const QRContext = createContext<QRContextType | null>(null);
 
+const STORAGE_KEY = "stegofy_qr_profiles_v1";
+
 const MOCK_PROFILES: QRProfile[] = [
   {
-    id: "1",
+    id: "mock-1",
     name: "Bruno (Labrador)",
     type: "pet",
     status: "active",
@@ -38,9 +40,11 @@ const MOCK_PROFILES: QRProfile[] = [
     privacyMode: "mask",
     scans: 3,
     createdAt: "2026-03-10",
+    qrUrl: `${window.location.origin}/qr/mock-1`,
+    qrId: "mock-1",
   },
   {
-    id: "2",
+    id: "mock-2",
     name: "Honda City · MH01AB1234",
     type: "vehicle",
     status: "active",
@@ -48,11 +52,30 @@ const MOCK_PROFILES: QRProfile[] = [
     privacyMode: "mask",
     scans: 7,
     createdAt: "2026-03-01",
+    qrUrl: `${window.location.origin}/qr/mock-2`,
+    qrId: "mock-2",
   },
 ];
 
+function loadProfiles(): QRProfile[] {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch {}
+  return MOCK_PROFILES;
+}
+
 export function QRProvider({ children }: { children: ReactNode }) {
-  const [profiles, setProfiles] = useState<QRProfile[]>(MOCK_PROFILES);
+  const [profiles, setProfiles] = useState<QRProfile[]>(loadProfiles);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(profiles));
+    } catch {}
+  }, [profiles]);
 
   const addProfile = (profile: Omit<QRProfile, "id" | "scans" | "createdAt">) => {
     const newProfile: QRProfile = {
