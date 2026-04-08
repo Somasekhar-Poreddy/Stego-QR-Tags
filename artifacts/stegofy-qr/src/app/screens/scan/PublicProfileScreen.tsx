@@ -27,6 +27,12 @@ interface IntentItem {
 }
 
 /* ─── Intent lists by QR type ──────────────────────────────────────────────── */
+const EMERGENCY_INTENT: IntentItem = {
+  id: "emergency",
+  label: "Emergency 🚨",
+  Icon: AlertOctagon,
+};
+
 const INTENTS: Record<string, IntentItem[]> = {
   vehicle: [
     { id: "lights_on",      label: "The lights of this car is on.",    Icon: Lightbulb },
@@ -36,13 +42,13 @@ const INTENTS: Record<string, IntentItem[]> = {
     { id: "something_wrong",label: "Something wrong with this car.",   Icon: AlertTriangle },
   ],
   pet: [
-    { id: "found_pet",   label: "I found your pet.",        Icon: MapPin },
-    { id: "pet_injured", label: "Pet appears to be injured.",Icon: HeartPulse },
-    { id: "pet_roaming", label: "Pet is roaming alone.",    Icon: Navigation },
+    { id: "found_pet",   label: "I found your pet.",         Icon: MapPin },
+    { id: "pet_injured", label: "Pet appears to be injured.", Icon: HeartPulse },
+    { id: "pet_roaming", label: "Pet is roaming alone.",     Icon: Navigation },
   ],
   child: [
-    { id: "found_child", label: "I found this child.",     Icon: MapPin },
-    { id: "needs_help",  label: "Child needs help.",       Icon: HelpCircle },
+    { id: "found_child", label: "I found this child.", Icon: MapPin },
+    { id: "needs_help",  label: "Child needs help.",   Icon: HelpCircle },
   ],
 };
 
@@ -53,7 +59,8 @@ const GENERIC_INTENTS: IntentItem[] = [
 
 /* ─── Helpers ───────────────────────────────────────────────────────────────── */
 function getIntents(type: string, strict: boolean): IntentItem[] {
-  if (strict) return [];
+  // strict_mode: only the Emergency intent is shown (as per spec)
+  if (strict) return [EMERGENCY_INTENT];
   return INTENTS[type] ?? GENERIC_INTENTS;
 }
 
@@ -162,7 +169,8 @@ interface VerifyModalProps {
   qrType: string;
   vehicleNumberHint: string;
   onClose: () => void;
-  onVerified: (phone: string) => void;
+  /** Returns null on success, or an error message string on failure */
+  onVerified: (phone: string) => Promise<string | null>;
   pinCode: string | null;
   vehicleNumber: string;
 }
@@ -210,7 +218,11 @@ function VerifyModal({ qrType, vehicleNumberHint, onClose, onVerified, pinCode, 
       }
     }
     setSubmitting(true);
-    onVerified(phone);
+    const insertError = await onVerified(phone);
+    if (insertError) {
+      setError(insertError);
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -468,17 +480,33 @@ export function PublicProfileScreen() {
     })();
   }, [qrId]);
 
-  const handleVerified = async (phone: string) => {
+  /** Returns null on success, or an error message on DB failure */
+  const handleVerified = async (phone: string): Promise<string | null> => {
     if (qrData) {
-      await supabase.from("contact_requests").insert({
+      const { error } = await supabase.from("contact_requests").insert({
         qr_id: qrData.id,
         intent: selectedIntent,
         requester_phone: phone || null,
         status: "pending",
       });
+      if (error) {
+        console.error("contact_requests insert failed:", error);
+        return "Failed to send request. Please check your connection and try again.";
+      }
     }
     setShowVerify(false);
     setSubmitted(true);
+    return null;
+  };
+
+  /** Opens Emergency flow or Verify modal based on selected intent */
+  const handleCTA = (type: "contact" | "message") => {
+    if (selectedIntent === "emergency") {
+      setShowEmergencyWarning(true);
+    } else {
+      setActionType(type);
+      setShowVerify(true);
+    }
   };
 
   if (loading) return <LoadingState />;
@@ -582,12 +610,14 @@ export function PublicProfileScreen() {
         )}
 
         {/* CTA buttons */}
-        {contactAllowed && !qrData.strict_mode && (
+        {contactAllowed && (
           <div className="mb-4">
-            <p className="text-sm text-slate-600 mb-3">Would you like to call or text the owner?</p>
+            {!qrData.strict_mode && (
+              <p className="text-sm text-slate-600 mb-3">Would you like to call or text the owner?</p>
+            )}
             <div className="flex gap-3">
               <button
-                onClick={() => { setActionType("contact"); setShowVerify(true); }}
+                onClick={() => handleCTA("contact")}
                 disabled={!selectedIntent && intents.length > 0}
                 className="flex-1 flex flex-col items-center gap-2 py-4 rounded-2xl border-2 border-amber-400 text-amber-600 font-semibold text-sm disabled:opacity-40 active:scale-[0.97] transition-all hover:bg-amber-50"
               >
@@ -595,7 +625,7 @@ export function PublicProfileScreen() {
                 Masked Call
               </button>
               <button
-                onClick={() => { setActionType("message"); setShowVerify(true); }}
+                onClick={() => handleCTA("message")}
                 disabled={!selectedIntent && intents.length > 0}
                 className="flex-1 flex flex-col items-center gap-2 py-4 rounded-2xl border-2 border-blue-400 text-blue-600 font-semibold text-sm disabled:opacity-40 active:scale-[0.97] transition-all hover:bg-blue-50"
               >

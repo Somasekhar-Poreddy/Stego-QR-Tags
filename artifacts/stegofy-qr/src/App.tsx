@@ -55,15 +55,23 @@ function Router() {
     return <AppRouter />;
   }
 
-  // Public QR contact page — no auth required, no providers needed
-  if (pathname.startsWith("/qr/")) {
-    return <PublicProfileScreen />;
-  }
-
   return <NotFound />;
 }
 
 function App() {
+  // /qr/* pages are fully public — render outside AuthProvider / QRProvider.
+  // QR tags are always opened directly via scan (fresh page load), so a
+  // static pathname check at mount time is correct and sufficient.
+  if (window.location.pathname.startsWith("/qr/")) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <PublicProfileScreen />
+        </TooltipProvider>
+      </QueryClientProvider>
+    );
+  }
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
