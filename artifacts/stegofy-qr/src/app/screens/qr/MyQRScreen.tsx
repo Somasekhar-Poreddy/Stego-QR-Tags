@@ -3,7 +3,8 @@ import { Plus, QrCode, Eye, Edit, Share2, Trash2, Download, X, Check, Save, Chev
 import QRCode from "qrcode";
 import { useQR, QRProfile } from "@/app/context/QRContext";
 import { AppHeader } from "@/app/components/AppHeader";
-import { FORM_SCHEMA, FieldDef, getFormLabel } from "@/app/lib/qrFormSchema";
+import { FORM_SCHEMA, FieldDef, getFormLabel, getNameKey } from "@/app/lib/qrFormSchema";
+import { supabase } from "@/lib/supabase";
 import { useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 
@@ -223,9 +224,41 @@ function EditModal({
   const setField = (key: string, val: string | boolean) =>
     setFormData((prev) => ({ ...prev, [key]: val }));
 
-  const handleSave = () => {
-    onSave({ formData, status });
-    onClose();
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const nameKey = getNameKey(profile.type);
+      const derivedName = (formData[nameKey] as string) || profile.name;
+
+      const contactKeys = ["primary_phone", "owner_phone", "parent_phone", "emergency_contact", "contact_number", "phone"];
+      const derivedContact = (contactKeys.map((k) => formData[k]).find(Boolean) as string) ?? profile.primaryContact;
+
+      const updates: Partial<import("@/app/context/QRContext").QRProfile> = {
+        formData,
+        status,
+        name: derivedName,
+        primaryContact: derivedContact,
+      };
+
+      onSave(updates);
+
+      // Persist to Supabase if this profile was synced from the server
+      const rowId = profile.qrId;
+      if (rowId && !rowId.startsWith("mock-")) {
+        const { error } = await supabase.from("qr_codes").update({
+          name: derivedName,
+          status,
+          primary_contact: derivedContact,
+          data: formData,
+        }).eq("id", rowId);
+        if (error) console.warn("Supabase update failed:", error.message);
+      }
+    } finally {
+      setSaving(false);
+      onClose();
+    }
   };
 
   const renderFields = (fields: FieldDef[]) =>
@@ -341,9 +374,10 @@ function EditModal({
         <div className="px-6 pb-6 pt-3 border-t border-slate-100 flex-shrink-0">
           <button
             onClick={handleSave}
-            className="w-full bg-gradient-to-r from-primary to-violet-600 text-white font-semibold py-4 rounded-2xl shadow-lg shadow-primary/25 flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
+            disabled={saving}
+            className="w-full bg-gradient-to-r from-primary to-violet-600 text-white font-semibold py-4 rounded-2xl shadow-lg shadow-primary/25 flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-70"
           >
-            <Save className="w-4 h-4" /> Save Changes
+            <Save className="w-4 h-4" /> {saving ? "Saving…" : "Save Changes"}
           </button>
         </div>
       </div>

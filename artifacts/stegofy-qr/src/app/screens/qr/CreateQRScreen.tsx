@@ -282,12 +282,16 @@ export function CreateQRScreen() {
         await supabase.from("qr_codes").insert({
           id: qrId,
           user_id: user.id,
+          name: displayName,
           type,
+          status: "active",
+          primary_contact: primaryContact,
+          privacy_mode: privacyMode,
           data: formData,
           qr_url: qrUrl,
           privacy,
         }).then(({ error }) => {
-          if (error) console.warn("Supabase save failed (table may not exist):", error.message);
+          if (error) console.warn("Supabase save failed:", error.message);
         });
       }
 

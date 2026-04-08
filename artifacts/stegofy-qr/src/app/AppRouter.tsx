@@ -1,7 +1,8 @@
 import { Switch, Route, useLocation } from "wouter";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { AppLayout } from "@/app/AppLayout";
 import { useAuth } from "@/app/context/AuthContext";
+import { useQR } from "@/app/context/QRContext";
 import { QrCode } from "lucide-react";
 
 import { LoginScreen } from "@/app/screens/auth/LoginScreen";
@@ -49,8 +50,10 @@ function SessionLoader() {
 }
 
 export function AppRouter() {
-  const { step, setStep, loading } = useAuth();
+  const { step, setStep, user, loading } = useAuth();
+  const { loadUserProfiles } = useQR();
   const [location] = useLocation();
+  const loadedForRef = useRef<string | null>(null);
 
   // When landing directly on /app/signup via URL (e.g. from Navbar "Sign Up"),
   // advance the step so the signup form shows immediately
@@ -60,18 +63,29 @@ export function AppRouter() {
     }
   }, [location]);
 
+  // Load QR profiles from Supabase once when user becomes authenticated.
+  // Guard with loadedForRef so we only fire once per user session, not on every render.
+  useEffect(() => {
+    if (step === "app" && user?.id && loadedForRef.current !== user.id) {
+      loadedForRef.current = user.id;
+      loadUserProfiles(user.id);
+    }
+    // Reset when user logs out so next login re-fetches
+    if (step === "login") {
+      loadedForRef.current = null;
+    }
+  }, [step, user?.id]);
+
   // Create QR and Success flows are accessible without authentication
   // so users can generate a QR immediately before being asked to sign up
   if (location === "/app/qr/create" || location === "/app/qr/success") {
     if (step === "app") {
-      // Authenticated — show with full app layout (BottomNav etc.)
       return (
         <AppLayout>
           {location === "/app/qr/create" ? <CreateQRScreen /> : <QRSuccessScreen />}
         </AppLayout>
       );
     }
-    // Not authenticated — show without BottomNav (clean focused flow)
     return (
       <PlainLayout>
         {location === "/app/qr/create" ? <CreateQRScreen /> : <QRSuccessScreen />}

@@ -1,4 +1,5 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
+import { supabase } from "@/lib/supabase";
 
 export type QRType = "pet" | "vehicle" | "child" | "medical" | "luggage" | "wallet" | "home" | "event" | "business" | "belongings";
 
@@ -24,6 +25,7 @@ interface QRContextType {
   addProfile: (profile: Omit<QRProfile, "id" | "scans" | "createdAt">) => QRProfile;
   updateProfile: (id: string, updates: Partial<QRProfile>) => void;
   deleteProfile: (id: string) => void;
+  loadUserProfiles: (userId: string) => Promise<void>;
 }
 
 const QRContext = createContext<QRContextType | null>(null);
@@ -68,6 +70,23 @@ function loadProfiles(): QRProfile[] {
   return MOCK_PROFILES;
 }
 
+function rowToProfile(row: Record<string, unknown>): QRProfile {
+  return {
+    id: row.id as string,
+    qrId: row.id as string,
+    name: (row.name as string) || "Unnamed",
+    type: (row.type as QRType) || "belongings",
+    status: (row.status as "active" | "inactive") || "active",
+    primaryContact: (row.primary_contact as string) || "",
+    privacyMode: (row.privacy_mode as QRProfile["privacyMode"]) || "mask",
+    notes: (row.notes as string) || undefined,
+    formData: (row.data as Record<string, string | boolean>) || {},
+    qrUrl: (row.qr_url as string) || `${window.location.origin}/qr/${row.id}`,
+    scans: (row.scans as number) || 0,
+    createdAt: (row.created_at as string) || new Date().toISOString().split("T")[0],
+  };
+}
+
 export function QRProvider({ children }: { children: ReactNode }) {
   const [profiles, setProfiles] = useState<QRProfile[]>(loadProfiles);
 
@@ -77,10 +96,33 @@ export function QRProvider({ children }: { children: ReactNode }) {
     } catch {}
   }, [profiles]);
 
+  const loadUserProfiles = useCallback(async (userId: string): Promise<void> => {
+    try {
+      const { data, error } = await supabase
+        .from("qr_codes")
+        .select("*")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false });
+
+      if (error || !data) {
+        console.warn("Could not load QR profiles from Supabase:", error?.message);
+        return;
+      }
+
+      if (data.length > 0) {
+        const loaded = data.map(rowToProfile);
+        setProfiles(loaded);
+      }
+      // If no Supabase rows, keep current localStorage state (don't overwrite with mock)
+    } catch (err) {
+      console.warn("QR profile load failed, using local data:", err);
+    }
+  }, []);
+
   const addProfile = (profile: Omit<QRProfile, "id" | "scans" | "createdAt">) => {
     const newProfile: QRProfile = {
       ...profile,
-      id: Date.now().toString(),
+      id: profile.qrId ?? Date.now().toString(),
       scans: 0,
       createdAt: new Date().toISOString().split("T")[0],
     };
@@ -97,7 +139,7 @@ export function QRProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <QRContext.Provider value={{ profiles, addProfile, updateProfile, deleteProfile }}>
+    <QRContext.Provider value={{ profiles, addProfile, updateProfile, deleteProfile, loadUserProfiles }}>
       {children}
     </QRContext.Provider>
   );
