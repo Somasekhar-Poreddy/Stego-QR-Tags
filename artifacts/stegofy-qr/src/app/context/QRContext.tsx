@@ -28,6 +28,7 @@ export interface QRProfile {
   allowVideoCall?: boolean;
   secondaryPhone?: string;
   manageEmergencyContact?: string;
+  callMaskingDisabled?: boolean;
 }
 
 interface QRContextType {
@@ -103,6 +104,7 @@ function rowToProfile(row: Record<string, unknown>): QRProfile {
     allowVideoCall: row.allow_video_call != null ? (row.allow_video_call as boolean) : false,
     secondaryPhone: (row.secondary_phone as string) || undefined,
     manageEmergencyContact: (row.emergency_contact as string) || undefined,
+    callMaskingDisabled: row.call_masking_disabled != null ? (row.call_masking_disabled as boolean) : false,
   };
 }
 

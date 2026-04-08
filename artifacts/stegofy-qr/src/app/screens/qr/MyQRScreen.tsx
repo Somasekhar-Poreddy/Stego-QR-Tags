@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, QrCode, Eye, Edit, Share2, Trash2, X, Check, Save, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, QrCode, Eye, Edit, SlidersHorizontal, Trash2, X, Check, Save, ChevronDown, ChevronUp } from "lucide-react";
 import { useQR, QRProfile } from "@/app/context/QRContext";
 import { AppHeader } from "@/app/components/AppHeader";
 import { FORM_SCHEMA, FieldDef, getFormLabel, getNameKey } from "@/app/lib/qrFormSchema";
@@ -400,7 +400,7 @@ function QRCard({
             onClick={() => navigate(`/app/qr/${profile.id}/manage`)}
             className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-violet-50 text-violet-700 rounded-xl text-xs font-semibold active:scale-95 transition-transform"
           >
-            <Share2 className="w-3.5 h-3.5" /> Manage
+            <SlidersHorizontal className="w-3.5 h-3.5" /> Manage
           </button>
           <button
             onClick={onDelete}

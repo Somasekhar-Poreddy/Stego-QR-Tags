@@ -1,9 +1,13 @@
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect, useState, forwardRef, useImperativeHandle } from "react";
 import { toPng } from "html-to-image";
 import { Download, Share2, QrCode, Shield } from "lucide-react";
 import QRCodeLib from "qrcode";
 import { QRProfile } from "@/app/context/QRContext";
 import { cn } from "@/lib/utils";
+
+export interface QRCardDesignHandle {
+  download: () => Promise<void>;
+}
 
 /* ─── Per-type card content ───────────────────────────────────────────────── */
 const TYPE_CONTENT: Record<string, {
@@ -134,7 +138,7 @@ export interface QRCardDesignProps {
   showActions?: boolean;
 }
 
-export function QRCardDesign({ profile, qrUrl, showActions = true }: QRCardDesignProps) {
+export const QRCardDesign = forwardRef<QRCardDesignHandle, QRCardDesignProps>(function QRCardDesignInner({ profile, qrUrl, showActions = true }, imperativeRef) {
   const cardRef = useRef<HTMLDivElement>(null!);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
@@ -189,6 +193,10 @@ export function QRCardDesign({ profile, qrUrl, showActions = true }: QRCardDesig
     setTimeout(() => setCopied(false), 2000);
   };
 
+  useImperativeHandle(imperativeRef, () => ({
+    download: handleDownloadPng,
+  }));
+
   return (
     <div className="flex flex-col items-center gap-4 w-full">
       {/* Scrollable card preview */}
@@ -237,4 +245,4 @@ export function QRCardDesign({ profile, qrUrl, showActions = true }: QRCardDesig
       )}
     </div>
   );
-}
+});
