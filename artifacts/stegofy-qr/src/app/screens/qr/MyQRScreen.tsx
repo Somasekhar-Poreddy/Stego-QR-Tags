@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from "react";
-import { Plus, QrCode, Eye, Edit, Share2, Trash2, Download, X, Check, Save } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Plus, QrCode, Eye, Edit, Share2, Trash2, Download, X, Check, Save, ChevronDown, ChevronUp } from "lucide-react";
 import QRCode from "qrcode";
 import { useQR, QRProfile } from "@/app/context/QRContext";
 import { AppHeader } from "@/app/components/AppHeader";
+import { FORM_SCHEMA, FieldDef, getFormLabel } from "@/app/lib/qrFormSchema";
 import { useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 
@@ -18,6 +19,83 @@ const TYPE_COLORS: Record<string, string> = {
   business: "from-slate-500 to-slate-400",
   belongings: "from-amber-400 to-orange-400",
 };
+
+const INPUT_CLASS =
+  "w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm text-slate-900 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-slate-400";
+
+/* ─── Reusable field renderer ─────────────────────────────────────────────── */
+function EditField({
+  def,
+  value,
+  onChange,
+}: {
+  def: FieldDef;
+  value: string | boolean;
+  onChange: (v: string | boolean) => void;
+}) {
+  if (def.type === "photo") {
+    return null;
+  }
+
+  if (def.type === "toggle") {
+    const on = !!value;
+    return (
+      <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+        <div>
+          <p className="text-sm font-semibold text-slate-800">{def.label}</p>
+          {def.hint && <p className="text-xs text-slate-400 mt-0.5">{def.hint}</p>}
+        </div>
+        <button
+          type="button"
+          onClick={() => onChange(!on)}
+          className={cn(
+            "w-12 h-6 rounded-full transition-all flex items-center px-1 flex-shrink-0",
+            on ? "bg-primary justify-end" : "bg-slate-200 justify-start"
+          )}
+        >
+          <div className="w-4 h-4 bg-white rounded-full shadow-sm" />
+        </button>
+      </div>
+    );
+  }
+
+  if (def.type === "dropdown") {
+    return (
+      <select
+        value={value as string}
+        onChange={(e) => onChange(e.target.value)}
+        className={cn(INPUT_CLASS, "appearance-none cursor-pointer")}
+      >
+        <option value="">Select {def.label}</option>
+        {def.options?.map((o) => (
+          <option key={o} value={o}>{o}</option>
+        ))}
+      </select>
+    );
+  }
+
+  if (def.type === "textarea") {
+    return (
+      <textarea
+        placeholder={def.placeholder}
+        rows={3}
+        value={value as string}
+        onChange={(e) => onChange(e.target.value)}
+        className={cn(INPUT_CLASS, "resize-none")}
+      />
+    );
+  }
+
+  return (
+    <input
+      type={def.type === "tel" ? "tel" : def.type === "email" ? "email" : "text"}
+      placeholder={def.placeholder}
+      value={value as string}
+      onChange={(e) => onChange(e.target.value)}
+      className={INPUT_CLASS}
+    />
+  );
+}
 
 /* ─── View Modal ─────────────────────────────────────────────────────────── */
 function ViewModal({ profile, onClose }: { profile: QRProfile; onClose: () => void }) {
@@ -47,11 +125,7 @@ function ViewModal({ profile, onClose }: { profile: QRProfile; onClose: () => vo
   const handleShare = async () => {
     if (navigator.share) {
       try {
-        await navigator.share({
-          title: `Stegofy QR — ${profile.name}`,
-          text: "Scan this QR code to contact me safely",
-          url: qrUrl,
-        });
+        await navigator.share({ title: `Stegofy QR — ${profile.name}`, text: "Scan to contact me safely", url: qrUrl });
         return;
       } catch (_) {}
     }
@@ -61,52 +135,70 @@ function ViewModal({ profile, onClose }: { profile: QRProfile; onClose: () => vo
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60 backdrop-blur-sm"
+      onClick={onClose}
+    >
       <div
-        className="bg-white rounded-t-3xl w-full max-w-lg px-6 pt-5 pb-8 animate-in slide-in-from-bottom-4 duration-300"
+        className="bg-white rounded-t-3xl w-full max-w-lg flex flex-col animate-in slide-in-from-bottom-4 duration-300"
+        style={{ maxHeight: "90dvh" }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between mb-5">
+        {/* Drag handle */}
+        <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
+          <div className="w-10 h-1 bg-slate-200 rounded-full" />
+        </div>
+
+        {/* Header */}
+        <div className="flex items-start justify-between px-6 pt-2 pb-3 border-b border-slate-100 flex-shrink-0">
           <div>
             <h2 className="text-base font-bold text-slate-900">{profile.name}</h2>
-            <p className="text-xs text-slate-400 capitalize">{profile.type} · {profile.scans} scans · Created {profile.createdAt}</p>
+            <p className="text-xs text-slate-400 capitalize mt-0.5">
+              {profile.type} · {profile.scans} scans · Created {profile.createdAt}
+            </p>
           </div>
-          <button onClick={onClose} className="p-2 rounded-xl hover:bg-slate-100 transition-colors">
+          <button onClick={onClose} className="p-2 rounded-xl hover:bg-slate-100 transition-colors -mr-1">
             <X className="w-5 h-5 text-slate-500" />
           </button>
         </div>
 
-        <div className="flex flex-col items-center">
-          {dataUrl ? (
-            <img src={dataUrl} alt="QR Code" className="w-52 h-52 rounded-2xl shadow-md mb-4" />
-          ) : (
-            <div className="w-52 h-52 bg-slate-100 rounded-2xl flex items-center justify-center animate-pulse mb-4">
-              <QrCode className="w-8 h-8 text-slate-300" />
+        {/* Scrollable content */}
+        <div className="overflow-y-auto flex-1 px-6 py-5">
+          <div className="flex flex-col items-center">
+            {dataUrl ? (
+              <img src={dataUrl} alt="QR Code" className="w-52 h-52 rounded-2xl shadow-md mb-4" />
+            ) : (
+              <div className="w-52 h-52 bg-slate-100 rounded-2xl flex items-center justify-center animate-pulse mb-4">
+                <QrCode className="w-8 h-8 text-slate-300" />
+              </div>
+            )}
+
+            <div className="flex items-center gap-2 mb-1">
+              <div className={cn("w-2 h-2 rounded-full", profile.status === "active" ? "bg-green-400" : "bg-slate-300")} />
+              <span className="text-xs font-semibold text-slate-600 capitalize">{profile.status}</span>
             </div>
-          )}
-
-          <div className="flex items-center gap-2 mb-1">
-            <div className={cn("w-2 h-2 rounded-full", profile.status === "active" ? "bg-green-400" : "bg-slate-300")} />
-            <span className="text-xs font-semibold text-slate-600 capitalize">{profile.status}</span>
+            <p className="text-xs text-slate-400">
+              Privacy: <span className="font-semibold capitalize">{profile.privacyMode}</span>
+            </p>
           </div>
-          <p className="text-xs text-slate-400 mb-5">Privacy: <span className="font-semibold capitalize">{profile.privacyMode}</span></p>
+        </div>
 
-          <div className="flex gap-3 w-full">
-            <button
-              onClick={handleDownload}
-              disabled={!dataUrl}
-              className="flex-1 flex items-center justify-center gap-2 py-3 bg-slate-100 text-slate-700 rounded-2xl text-sm font-semibold active:scale-95 transition-all disabled:opacity-40"
-            >
-              <Download className="w-4 h-4" /> Download
-            </button>
-            <button
-              onClick={handleShare}
-              className="flex-1 flex items-center justify-center gap-2 py-3 bg-primary/10 text-primary rounded-2xl text-sm font-semibold active:scale-95 transition-all"
-            >
-              <Share2 className="w-4 h-4" />
-              {copied ? "Copied!" : "Share"}
-            </button>
-          </div>
+        {/* Sticky footer with actions */}
+        <div className="px-6 pb-6 pt-3 border-t border-slate-100 flex gap-3 flex-shrink-0">
+          <button
+            onClick={handleDownload}
+            disabled={!dataUrl}
+            className="flex-1 flex items-center justify-center gap-2 py-3.5 bg-slate-100 text-slate-700 rounded-2xl text-sm font-semibold active:scale-95 transition-all disabled:opacity-40"
+          >
+            <Download className="w-4 h-4" /> Download
+          </button>
+          <button
+            onClick={handleShare}
+            className="flex-1 flex items-center justify-center gap-2 py-3.5 bg-primary/10 text-primary rounded-2xl text-sm font-semibold active:scale-95 transition-all"
+          >
+            <Share2 className="w-4 h-4" />
+            {copied ? "Copied!" : "Share"}
+          </button>
         </div>
       </div>
     </div>
@@ -123,74 +215,120 @@ function EditModal({
   onSave: (updates: Partial<QRProfile>) => void;
   onClose: () => void;
 }) {
-  const [name, setName] = useState(profile.name);
-  const [contact, setContact] = useState(profile.primaryContact);
-  const [notes, setNotes] = useState(profile.notes ?? "");
+  const schema = FORM_SCHEMA[profile.type];
+  const [formData, setFormData] = useState<Record<string, string | boolean>>(profile.formData ?? {});
   const [status, setStatus] = useState<"active" | "inactive">(profile.status);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
+  const setField = (key: string, val: string | boolean) =>
+    setFormData((prev) => ({ ...prev, [key]: val }));
 
   const handleSave = () => {
-    onSave({ name: name.trim() || profile.name, primaryContact: contact.trim(), notes: notes.trim() || undefined, status });
+    onSave({ formData, status });
     onClose();
   };
 
-  const inputClass = "w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm text-slate-900 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-slate-400";
+  const renderFields = (fields: FieldDef[]) =>
+    fields
+      .filter((f) => f.type !== "photo")
+      .map((f) => (
+        <div key={f.key}>
+          {f.type !== "toggle" && (
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-semibold text-slate-700">{f.label}</label>
+              {!f.required && <span className="text-[10px] text-slate-400">Optional</span>}
+            </div>
+          )}
+          <EditField
+            def={f}
+            value={formData[f.key] ?? (f.type === "toggle" ? false : "")}
+            onChange={(v) => setField(f.key, v)}
+          />
+        </div>
+      ));
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60 backdrop-blur-sm"
+      onClick={onClose}
+    >
       <div
-        className="bg-white rounded-t-3xl w-full max-w-lg px-6 pt-5 pb-8 animate-in slide-in-from-bottom-4 duration-300"
+        className="bg-white rounded-t-3xl w-full max-w-lg flex flex-col animate-in slide-in-from-bottom-4 duration-300"
+        style={{ maxHeight: "92dvh" }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between mb-5">
-          <h2 className="text-base font-bold text-slate-900">Edit Profile</h2>
-          <button onClick={onClose} className="p-2 rounded-xl hover:bg-slate-100 transition-colors">
+        {/* Drag handle */}
+        <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
+          <div className="w-10 h-1 bg-slate-200 rounded-full" />
+        </div>
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 pt-2 pb-3 border-b border-slate-100 flex-shrink-0">
+          <div>
+            <h2 className="text-base font-bold text-slate-900">Edit Profile</h2>
+            <p className="text-xs text-slate-400 mt-0.5">{getFormLabel(profile.type)}</p>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-xl hover:bg-slate-100 transition-colors -mr-1">
             <X className="w-5 h-5 text-slate-500" />
           </button>
         </div>
 
-        <div className="space-y-4">
-          <div>
-            <label className="text-xs font-semibold text-slate-700 block mb-1.5">Name</label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className={inputClass}
-              placeholder="Profile name"
-            />
-          </div>
+        {/* Scrollable fields */}
+        <div className="overflow-y-auto flex-1 px-6 py-5 space-y-4">
+          {schema ? (
+            <>
+              {/* Essential fields */}
+              <div className="space-y-4">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Essential</p>
+                {renderFields(schema.essential)}
+              </div>
 
-          <div>
-            <label className="text-xs font-semibold text-slate-700 block mb-1.5">Primary Contact</label>
-            <input
-              type="tel"
-              value={contact}
-              onChange={(e) => setContact(e.target.value)}
-              className={inputClass}
-              placeholder="+91 98765 43210"
-            />
-          </div>
+              {/* Important fields */}
+              {schema.important.filter((f) => f.type !== "photo").length > 0 && (
+                <div className="space-y-4 pt-2">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    Additional Info <span className="text-slate-300 font-normal normal-case">Optional</span>
+                  </p>
+                  {renderFields(schema.important)}
+                </div>
+              )}
 
-          <div>
-            <label className="text-xs font-semibold text-slate-700 block mb-1.5">Notes <span className="text-slate-400 font-normal">Optional</span></label>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={3}
-              className={cn(inputClass, "resize-none")}
-              placeholder="Any additional info for the finder..."
-            />
-          </div>
+              {/* Advanced — collapsible */}
+              {schema.advanced.filter((f) => f.type !== "photo").length > 0 && (
+                <div className="pt-2">
+                  <button
+                    onClick={() => setShowAdvanced((v) => !v)}
+                    className="w-full flex items-center justify-between py-3 border-t border-slate-100"
+                  >
+                    <span className="text-sm font-semibold text-slate-600">
+                      {showAdvanced ? "Hide advanced details" : "Show advanced details"}
+                    </span>
+                    {showAdvanced ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+                  </button>
+                  {showAdvanced && (
+                    <div className="space-y-4 mt-2">
+                      {renderFields(schema.advanced)}
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          ) : (
+            <p className="text-sm text-slate-400 text-center py-4">No fields available for this type.</p>
+          )}
 
-          <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+          {/* Status toggle — always shown */}
+          <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 mt-2">
             <div>
-              <p className="text-sm font-semibold text-slate-800">Status</p>
-              <p className="text-xs text-slate-400">{status === "active" ? "QR is live and scannable" : "QR is paused"}</p>
+              <p className="text-sm font-semibold text-slate-800">QR Status</p>
+              <p className="text-xs text-slate-400 mt-0.5">
+                {status === "active" ? "Live and scannable" : "Paused — not scannable"}
+              </p>
             </div>
             <button
-              onClick={() => setStatus((s) => s === "active" ? "inactive" : "active")}
+              onClick={() => setStatus((s) => (s === "active" ? "inactive" : "active"))}
               className={cn(
-                "w-12 h-6 rounded-full transition-all flex items-center px-1",
+                "w-12 h-6 rounded-full transition-all flex items-center px-1 flex-shrink-0",
                 status === "active" ? "bg-green-500 justify-end" : "bg-slate-200 justify-start"
               )}
             >
@@ -199,12 +337,15 @@ function EditModal({
           </div>
         </div>
 
-        <button
-          onClick={handleSave}
-          className="mt-5 w-full bg-gradient-to-r from-primary to-violet-600 text-white font-semibold py-4 rounded-2xl shadow-lg shadow-primary/25 flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
-        >
-          <Save className="w-4 h-4" /> Save Changes
-        </button>
+        {/* Sticky Save button */}
+        <div className="px-6 pb-6 pt-3 border-t border-slate-100 flex-shrink-0">
+          <button
+            onClick={handleSave}
+            className="w-full bg-gradient-to-r from-primary to-violet-600 text-white font-semibold py-4 rounded-2xl shadow-lg shadow-primary/25 flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
+          >
+            <Save className="w-4 h-4" /> Save Changes
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -228,11 +369,7 @@ function QRCard({
     const qrUrl = profile.qrUrl ?? `${window.location.origin}/qr/${profile.qrId ?? profile.id}`;
     if (navigator.share) {
       try {
-        await navigator.share({
-          title: `Stegofy QR — ${profile.name}`,
-          text: "Scan this QR code to contact me safely",
-          url: qrUrl,
-        });
+        await navigator.share({ title: `Stegofy QR — ${profile.name}`, text: "Scan to contact me safely", url: qrUrl });
         return;
       } catch (_) {}
     }
@@ -255,20 +392,18 @@ function QRCard({
           <div className={cn("ml-auto w-2 h-2 rounded-full", profile.status === "active" ? "bg-green-300" : "bg-white/50")} />
         </div>
 
-        <div className="px-4 py-2.5 flex items-center justify-between border-b border-slate-50">
-          <div className="flex items-center gap-4">
-            <div>
-              <p className="text-[10px] text-slate-400">Scans</p>
-              <p className="text-sm font-bold text-slate-800">{profile.scans}</p>
-            </div>
-            <div>
-              <p className="text-[10px] text-slate-400">Privacy</p>
-              <p className="text-xs font-semibold text-slate-700 capitalize">{profile.privacyMode}</p>
-            </div>
-            <div>
-              <p className="text-[10px] text-slate-400">Created</p>
-              <p className="text-xs font-semibold text-slate-700">{profile.createdAt}</p>
-            </div>
+        <div className="px-4 py-2.5 flex items-center gap-4 border-b border-slate-50">
+          <div>
+            <p className="text-[10px] text-slate-400">Scans</p>
+            <p className="text-sm font-bold text-slate-800">{profile.scans}</p>
+          </div>
+          <div>
+            <p className="text-[10px] text-slate-400">Privacy</p>
+            <p className="text-xs font-semibold text-slate-700 capitalize">{profile.privacyMode}</p>
+          </div>
+          <div>
+            <p className="text-[10px] text-slate-400">Created</p>
+            <p className="text-xs font-semibold text-slate-700">{profile.createdAt}</p>
           </div>
         </div>
 
