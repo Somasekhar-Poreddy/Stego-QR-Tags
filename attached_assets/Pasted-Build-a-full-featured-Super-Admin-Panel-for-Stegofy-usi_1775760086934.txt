@@ -1,0 +1,387 @@
+Build a full-featured Super Admin Panel for Stegofy using React + Tailwind + Supabase.
+
+-----------------------------------
+GOAL:
+-----------------------------------
+Create a centralized control system to manage:
+
+- Users
+- QR Codes
+- Contact Requests
+- Products & Shop
+- Orders
+- QR Inventory (pre-generated)
+- Admin roles & permissions
+- Analytics
+- Activity logs
+- Notifications
+- Support system
+
+-----------------------------------
+TECH:
+-----------------------------------
+- React (functional components)
+- Tailwind CSS
+- Supabase (DB + Auth)
+- Use existing Supabase client
+- Use modular architecture
+
+-----------------------------------
+LAYOUT:
+-----------------------------------
+- Left Sidebar Navigation
+- Top Header (search + admin profile)
+- Main content area
+
+-----------------------------------
+SIDEBAR MENU:
+-----------------------------------
+
+1. Dashboard
+2. Users
+3. QR Codes
+4. Contact Requests
+5. Products
+6. Orders
+7. QR Inventory
+8. Analytics
+9. Team / Admin Users
+10. Notifications
+11. Support
+12. Settings
+
+-----------------------------------
+1. DASHBOARD
+-----------------------------------
+
+Show cards:
+
+- Total Users
+- Active Users
+- Total QR Codes
+- Active vs Disabled QRs
+- Contact Requests (Today / Total)
+- Emergency Requests count
+- Orders Count
+- Revenue (future placeholder)
+
+Charts:
+
+- QR Scans per day
+- Requests by type
+- Top QR categories
+
+-----------------------------------
+2. USERS MODULE
+-----------------------------------
+
+List fields:
+
+- id
+- name
+- email
+- phone
+- signup_date
+- last_active
+- status (active / blocked)
+
+-----------------------------------
+
+USER DETAIL VIEW:
+
+Sections:
+
+A. Profile Info
+- name
+- email
+- phone
+- created_at
+
+B. QR Codes
+- list of all user QR codes
+
+C. Contact History
+- all contact requests received
+
+D. Activity Timeline
+- login times
+- QR creation
+- scans
+
+E. Order History
+- list of orders
+
+-----------------------------------
+
+ACTIONS:
+
+- Edit user
+- Block / Unblock
+- Delete user
+- Login as user (impersonation)
+
+-----------------------------------
+3. QR CODES MODULE
+-----------------------------------
+
+List fields:
+
+- id
+- type
+- owner_id
+- display_code
+- pin_code
+- status (active / disabled)
+- created_at
+
+-----------------------------------
+
+QR DETAIL VIEW:
+
+- Full QR data (JSON view)
+- Owner details
+- Activity logs
+
+-----------------------------------
+
+ACTIONS:
+
+- Edit QR
+- Disable QR
+- Delete QR
+
+-----------------------------------
+4. CONTACT REQUESTS MODULE
+-----------------------------------
+
+Fields:
+
+- id
+- qr_id
+- owner_id
+- requester_phone
+- intent
+- status (pending / accepted / rejected)
+- created_at
+
+-----------------------------------
+
+Filters:
+
+- Emergency
+- Pending
+- Resolved
+
+-----------------------------------
+5. PRODUCTS MODULE
+-----------------------------------
+
+CREATE / EDIT PRODUCT:
+
+Fields:
+
+- product_id
+- product_name
+- images (multiple upload slider)
+- price
+- discount_price
+- rating (manual)
+- review_count (manual)
+- description (rich text editor)
+- category (dropdown)
+
+-----------------------------------
+
+UI:
+
+- Image preview slider
+- Rich text editor for description
+
+-----------------------------------
+6. ORDERS MODULE
+-----------------------------------
+
+Fields:
+
+- order_id
+- customer_name
+- phone
+- alternate_phone
+- email
+- address_line_1
+- address_line_2
+- landmark
+- pincode
+- city
+- state
+- product_id
+- order_status (pending, packed, shipped, delivered, cancelled)
+- created_at
+
+-----------------------------------
+
+ACTIONS:
+
+- Update order status
+- View order details
+- Cancel order
+
+-----------------------------------
+7. QR INVENTORY (PRE-GENERATED)
+-----------------------------------
+
+Fields:
+
+- inventory_id
+- qr_id
+- type
+- category
+- status (unclaimed / claimed)
+- created_at
+
+-----------------------------------
+
+FEATURES:
+
+- Bulk generate QR codes
+- Assign to product categories
+
+-----------------------------------
+8. ANALYTICS MODULE
+-----------------------------------
+
+Show:
+
+- QR scans count
+- Contact requests trends
+- Most used QR types
+- Peak usage time
+
+-----------------------------------
+9. TEAM / ADMIN USERS
+-----------------------------------
+
+Fields:
+
+- admin_id
+- name
+- email
+- role
+- permissions (JSON)
+- created_at
+
+-----------------------------------
+
+ROLES:
+
+- Super Admin
+- Ops Manager
+- Support
+- Marketing
+
+-----------------------------------
+
+PERMISSIONS:
+
+- manage_users
+- manage_qr
+- manage_orders
+- manage_products
+- view_analytics
+
+-----------------------------------
+10. NOTIFICATIONS MODULE
+-----------------------------------
+
+Fields:
+
+- id
+- title
+- message
+- target (all users / specific)
+- created_at
+
+-----------------------------------
+
+FEATURES:
+
+- Send broadcast messages
+- Send alerts
+
+-----------------------------------
+11. SUPPORT MODULE
+-----------------------------------
+
+Fields:
+
+- ticket_id
+- user_id
+- issue
+- status (open / resolved)
+- created_at
+
+-----------------------------------
+
+ACTIONS:
+
+- Respond
+- Mark resolved
+
+-----------------------------------
+12. SETTINGS MODULE
+-----------------------------------
+
+- Manage system texts
+- Manage FAQs
+- Toggle features
+
+-----------------------------------
+SUPABASE TABLES REQUIRED:
+-----------------------------------
+
+users
+qr_codes
+contact_requests
+products
+orders
+qr_inventory
+admin_users
+notifications
+support_tickets
+activity_logs
+
+-----------------------------------
+ACTIVITY LOGS TABLE:
+-----------------------------------
+
+- id
+- user_id
+- qr_id
+- action_type (scan, request, login)
+- location
+- created_at
+
+-----------------------------------
+UX DESIGN RULES:
+-----------------------------------
+
+- Clean modern UI
+- Table-based lists
+- Filters + search
+- Modal-based editing
+- Pagination
+- Mobile responsive (basic)
+
+-----------------------------------
+SECURITY:
+-----------------------------------
+
+- Only admin users can access panel
+- Role-based access control
+- Protect routes
+
+-----------------------------------
+GOAL:
+-----------------------------------
+
+Build a production-grade Super Admin Panel that can scale as a full operational backend for Stegofy.

@@ -1,0 +1,160 @@
+Refactor and organize my existing React + Tailwind + Supabase project into a clean modular architecture.
+
+-----------------------------------
+GOAL:
+-----------------------------------
+Create a scalable "modular monolith" structure where:
+
+- Consumer app
+- Admin panel
+- Shared logic
+
+are clearly separated but live in the same project.
+
+-----------------------------------
+FOLDER STRUCTURE:
+-----------------------------------
+
+Organize code into:
+
+/src
+  /app              → Consumer app (user-facing)
+  /admin            → Super Admin panel
+  /components       → Shared reusable components
+  /lib              → Supabase client, utilities
+  /services         → API calls / business logic
+  /hooks            → Custom React hooks
+  /types            → Type definitions (if needed)
+  /utils            → Helper functions
+
+-----------------------------------
+ROUTING STRUCTURE:
+-----------------------------------
+
+Implement routing using React Router:
+
+Public routes:
+- /                → Landing page
+- /qr/:id          → Public QR contact page
+
+Consumer routes:
+- /app             → Home dashboard
+- /app/my-qrs
+- /app/create-qr
+- /app/profile
+
+Admin routes:
+- /admin           → Admin dashboard
+- /admin/users
+- /admin/qrs
+- /admin/orders
+- /admin/products
+- /admin/analytics
+
+-----------------------------------
+ROUTE PROTECTION:
+-----------------------------------
+
+Implement route guards:
+
+1. Require login for /app
+2. Require admin role for /admin
+
+Logic:
+
+- Get user from Supabase auth
+- Check role from database (admin_users table or user role field)
+- Redirect if unauthorized
+
+-----------------------------------
+AUTH STRUCTURE:
+-----------------------------------
+
+- Use Supabase auth for login
+- Store user role (user/admin) in database
+- Create helper:
+
+/lib/auth.js
+
+Functions:
+- getCurrentUser()
+- isAdmin()
+
+-----------------------------------
+LAYOUT STRUCTURE:
+-----------------------------------
+
+Create separate layouts:
+
+/app/layout/AppLayout.jsx
+- Bottom navigation
+- Mobile-first UI
+
+/admin/layout/AdminLayout.jsx
+- Sidebar navigation
+- Top header
+
+-----------------------------------
+COMPONENT STRUCTURE:
+-----------------------------------
+
+/components/ui
+- Button
+- Card
+- Modal
+- Input
+- Toggle
+
+/components/common
+- Header
+- Loader
+- EmptyState
+
+-----------------------------------
+SERVICES LAYER:
+-----------------------------------
+
+/services/
+
+Create files:
+
+- userService.js
+- qrService.js
+- orderService.js
+- productService.js
+
+Each handles Supabase queries
+
+-----------------------------------
+SUPABASE CLIENT:
+-----------------------------------
+
+Move Supabase client into:
+
+/lib/supabase.js
+
+-----------------------------------
+CODE QUALITY:
+-----------------------------------
+
+- Avoid duplicate logic
+- Reuse components
+- Keep files small and modular
+- Use clean naming conventions
+
+-----------------------------------
+GOAL:
+-----------------------------------
+
+Transform the project into a scalable, maintainable architecture where:
+
+- Consumer app and Admin panel are clearly separated
+- Code is reusable and organized
+- Future scaling is easy
+
+-----------------------------------
+IMPORTANT:
+-----------------------------------
+
+Do NOT break existing functionality.
+Only reorganize and improve structure.
