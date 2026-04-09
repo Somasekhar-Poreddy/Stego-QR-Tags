@@ -21,13 +21,13 @@ export async function isAdmin(userId: string): Promise<boolean> {
     .from("admin_users")
     .select("id")
     .eq("user_id", userId)
-    .maybeSingle();
+    .limit(1);
 
   if (error) {
     console.warn("Admin check failed:", error.message);
     return false;
   }
-  return !!data;
+  return Array.isArray(data) && data.length > 0;
 }
 
 export async function getAdminUser(userId: string): Promise<AdminUser | null> {
@@ -35,8 +35,8 @@ export async function getAdminUser(userId: string): Promise<AdminUser | null> {
     .from("admin_users")
     .select("*")
     .eq("user_id", userId)
-    .maybeSingle();
+    .limit(1);
 
-  if (error || !data) return null;
-  return data as AdminUser;
+  if (error || !data || data.length === 0) return null;
+  return data[0] as AdminUser;
 }

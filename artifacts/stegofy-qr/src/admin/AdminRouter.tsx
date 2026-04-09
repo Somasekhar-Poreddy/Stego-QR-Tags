@@ -69,6 +69,10 @@ export function AdminRouter() {
   useEffect(() => {
     let mounted = true;
 
+    const timeout = setTimeout(() => {
+      if (mounted) setAdminState("denied");
+    }, 10000);
+
     async function checkAccess() {
       try {
         const { data: { user } } = await supabase.auth.getUser();
@@ -90,11 +94,16 @@ export function AdminRouter() {
         }
       } catch {
         if (mounted) setAdminState("denied");
+      } finally {
+        clearTimeout(timeout);
       }
     }
 
     checkAccess();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+      clearTimeout(timeout);
+    };
   }, []);
 
   if (adminState === "loading") return <AdminLoader />;
