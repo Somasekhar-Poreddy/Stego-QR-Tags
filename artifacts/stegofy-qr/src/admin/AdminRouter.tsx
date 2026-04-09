@@ -2,9 +2,21 @@ import { useState, useEffect } from "react";
 import { Switch, Route, useLocation } from "wouter";
 import { Shield } from "lucide-react";
 import { AdminLayout } from "@/admin/layout/AdminLayout";
-import { AdminDashboard } from "@/admin/screens/AdminDashboard";
 import { isAdmin, getAdminUser } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
+
+import { DashboardScreen }       from "@/admin/screens/DashboardScreen";
+import { UsersScreen }           from "@/admin/screens/UsersScreen";
+import { QRCodesScreen }         from "@/admin/screens/QRCodesScreen";
+import { ContactRequestsScreen } from "@/admin/screens/ContactRequestsScreen";
+import { ProductsScreen }        from "@/admin/screens/ProductsScreen";
+import { OrdersScreen }          from "@/admin/screens/OrdersScreen";
+import { InventoryScreen }       from "@/admin/screens/InventoryScreen";
+import { AnalyticsScreen }       from "@/admin/screens/AnalyticsScreen";
+import { TeamScreen }            from "@/admin/screens/TeamScreen";
+import { NotificationsScreen }   from "@/admin/screens/NotificationsScreen";
+import { SupportScreen }         from "@/admin/screens/SupportScreen";
+import { SettingsScreen }        from "@/admin/screens/SettingsScreen";
 
 type AdminState = "loading" | "denied" | "ready";
 
@@ -45,15 +57,6 @@ function AccessDenied() {
       >
         Go to Homepage
       </a>
-    </div>
-  );
-}
-
-function PlaceholderScreen({ title }: { title: string }) {
-  return (
-    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-8 text-center">
-      <p className="text-lg font-bold text-slate-800 mb-2">{title}</p>
-      <p className="text-sm text-slate-500">This module will be built in Task #4 (Super Admin Panel).</p>
     </div>
   );
 }
@@ -100,18 +103,18 @@ export function AdminRouter() {
   return (
     <AdminLayout adminName={adminName}>
       <Switch>
-        <Route path="/admin/users"         component={() => <PlaceholderScreen title="Users" />} />
-        <Route path="/admin/qr-codes"      component={() => <PlaceholderScreen title="QR Codes" />} />
-        <Route path="/admin/requests"      component={() => <PlaceholderScreen title="Contact Requests" />} />
-        <Route path="/admin/products"      component={() => <PlaceholderScreen title="Products" />} />
-        <Route path="/admin/orders"        component={() => <PlaceholderScreen title="Orders" />} />
-        <Route path="/admin/inventory"     component={() => <PlaceholderScreen title="QR Inventory" />} />
-        <Route path="/admin/analytics"     component={() => <PlaceholderScreen title="Analytics" />} />
-        <Route path="/admin/team"          component={() => <PlaceholderScreen title="Team" />} />
-        <Route path="/admin/notifications" component={() => <PlaceholderScreen title="Notifications" />} />
-        <Route path="/admin/support"       component={() => <PlaceholderScreen title="Support" />} />
-        <Route path="/admin/settings"      component={() => <PlaceholderScreen title="Settings" />} />
-        <Route                             component={AdminDashboard} />
+        <Route path="/admin/users"         component={UsersScreen} />
+        <Route path="/admin/qr-codes"      component={QRCodesScreen} />
+        <Route path="/admin/requests"      component={ContactRequestsScreen} />
+        <Route path="/admin/products"      component={ProductsScreen} />
+        <Route path="/admin/orders"        component={OrdersScreen} />
+        <Route path="/admin/inventory"     component={InventoryScreen} />
+        <Route path="/admin/analytics"     component={AnalyticsScreen} />
+        <Route path="/admin/team"          component={TeamScreen} />
+        <Route path="/admin/notifications" component={NotificationsScreen} />
+        <Route path="/admin/support"       component={SupportScreen} />
+        <Route path="/admin/settings"      component={SettingsScreen} />
+        <Route                             component={DashboardScreen} />
       </Switch>
     </AdminLayout>
   );
