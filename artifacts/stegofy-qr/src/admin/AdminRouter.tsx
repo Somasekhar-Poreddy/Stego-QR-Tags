@@ -75,13 +75,15 @@ export function AdminRouter() {
 
     async function checkAccess() {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { session } } = await supabase.auth.getSession();
+        const user = session?.user ?? null;
         if (!user) {
           if (mounted) navigate("/");
           return;
         }
 
-        const ok = await isAdmin(user.id);
+        const appRole = (user.app_metadata as Record<string, string> | undefined)?.role;
+        const ok = await isAdmin(user.id, appRole);
         if (!ok) {
           if (mounted) setAdminState("denied");
           return;
