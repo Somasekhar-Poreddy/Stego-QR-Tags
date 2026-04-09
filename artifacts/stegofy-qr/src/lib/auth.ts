@@ -24,8 +24,19 @@ function withTimeout<T>(promise: PromiseLike<T>, ms: number): Promise<T> {
   ]);
 }
 
-export async function isAdmin(userId: string): Promise<boolean> {
+function isEmailAllowlisted(email: string): boolean {
+  const raw = import.meta.env.VITE_ADMIN_EMAILS as string | undefined;
+  if (!raw) return false;
+  return raw.split(",").map((e) => e.trim().toLowerCase()).includes(email.toLowerCase());
+}
+
+export async function isAdmin(userId: string, userEmail?: string): Promise<boolean> {
   if (!userId) return false;
+
+  if (userEmail && isEmailAllowlisted(userEmail)) {
+    return true;
+  }
+
   try {
     const { data, error } = await withTimeout(
       supabase
