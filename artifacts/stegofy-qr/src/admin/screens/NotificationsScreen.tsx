@@ -25,7 +25,7 @@ export function NotificationsScreen() {
   const filteredUsers = users.filter((u) => {
     if (!userSearch) return true;
     const q = userSearch.toLowerCase();
-    return [u.first_name, u.last_name, u.email, u.mobile].some((v) => v?.toLowerCase().includes(q));
+    return [u.first_name, u.last_name, u.email].some((v) => v?.toLowerCase().includes(q));
   }).slice(0, 8);
 
   const handleSend = async () => {

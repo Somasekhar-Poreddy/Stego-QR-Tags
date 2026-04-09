@@ -15,27 +15,17 @@ export async function getCurrentUser() {
   return user;
 }
 
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+function withTimeout<T>(promise: PromiseLike<T>, ms: number): Promise<T> {
   return Promise.race([
-    promise,
+    Promise.resolve(promise),
     new Promise<T>((_, reject) =>
       setTimeout(() => reject(new Error(`Query timed out after ${ms}ms`)), ms)
     ),
   ]);
 }
 
-export async function isAdmin(
-  userId: string,
-  appMetadataRole?: string
-): Promise<boolean> {
+export async function isAdmin(userId: string): Promise<boolean> {
   if (!userId) return false;
-
-  const adminRoles = ["super_admin", "admin", "ops_manager", "support", "marketing", "viewer"];
-
-  if (appMetadataRole && adminRoles.includes(appMetadataRole)) {
-    return true;
-  }
-
   try {
     const { data, error } = await withTimeout(
       supabase

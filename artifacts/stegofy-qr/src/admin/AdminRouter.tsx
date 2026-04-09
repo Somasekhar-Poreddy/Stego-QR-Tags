@@ -82,8 +82,7 @@ export function AdminRouter() {
           return;
         }
 
-        const appRole = (user.app_metadata as Record<string, string> | undefined)?.role;
-        const ok = await isAdmin(user.id, appRole);
+        const ok = await isAdmin(user.id);
         if (!ok) {
           if (mounted) setAdminState("denied");
           return;
