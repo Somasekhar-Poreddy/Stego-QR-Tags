@@ -3,6 +3,7 @@ import {
   ChevronLeft, Shield, AlertTriangle, AlertOctagon,
   Lightbulb, Truck, Wind, MapPin, HeartPulse, Navigation,
   HelpCircle, Phone, MessageCircle, X, Check, QrCode,
+  PenLine, Video,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
@@ -18,6 +19,7 @@ interface QRPublicData {
   strict_mode: boolean;
   emergency_contact: string | null;
   name: string | null;
+  privacy?: Record<string, boolean>;
 }
 
 interface IntentItem {
@@ -26,46 +28,75 @@ interface IntentItem {
   Icon: React.ElementType;
 }
 
-/* ─── Intent lists by QR type ──────────────────────────────────────────────── */
+/* ─── Intent lists ──────────────────────────────────────────────────────────── */
 const EMERGENCY_INTENT: IntentItem = {
   id: "emergency",
   label: "Emergency 🚨",
   Icon: AlertOctagon,
 };
 
-const INTENTS: Record<string, IntentItem[]> = {
-  vehicle: [
-    { id: "lights_on",      label: "The lights of this car is on.",    Icon: Lightbulb },
-    { id: "wrong_parking",  label: "The car is in no parking.",        Icon: MapPin },
-    { id: "getting_towed",  label: "The car is getting towed.",        Icon: Truck },
-    { id: "window_open",    label: "The window or car is open.",       Icon: Wind },
-    { id: "something_wrong",label: "Something wrong with this car.",   Icon: AlertTriangle },
-    EMERGENCY_INTENT,
-  ],
-  pet: [
-    { id: "found_pet",   label: "I found your pet.",         Icon: MapPin },
-    { id: "pet_injured", label: "Pet appears to be injured.", Icon: HeartPulse },
-    { id: "pet_roaming", label: "Pet is roaming alone.",     Icon: Navigation },
-    EMERGENCY_INTENT,
-  ],
-  child: [
-    { id: "found_child", label: "I found this child.", Icon: MapPin },
-    { id: "needs_help",  label: "Child needs help.",   Icon: HelpCircle },
-    EMERGENCY_INTENT,
-  ],
+const OTHERS_INTENT: IntentItem = {
+  id: "others",
+  label: "Others ✏️",
+  Icon: PenLine,
 };
+
+/* Resolve a display noun from the dropdown value stored in data.vehicle_type */
+function vehicleNoun(vehicleType: string | undefined): string {
+  const t = (vehicleType || "").toLowerCase();
+  if (t === "car") return "car";
+  if (t === "bike") return "bike";
+  if (t === "scooter") return "scooter";
+  if (t === "auto rickshaw") return "auto";
+  if (t === "truck") return "truck";
+  if (t === "bus") return "bus";
+  return "vehicle";
+}
+
+function getVehicleIntents(vehicleType: string | undefined): IntentItem[] {
+  const noun = vehicleNoun(vehicleType);
+  const cap = noun.charAt(0).toUpperCase() + noun.slice(1);
+  return [
+    { id: "lights_on",       label: `The lights of this ${noun} are on.`,    Icon: Lightbulb },
+    { id: "wrong_parking",   label: `The ${noun} is in no parking.`,          Icon: MapPin },
+    { id: "getting_towed",   label: `The ${noun} is getting towed.`,          Icon: Truck },
+    { id: "window_open",     label: `The window or ${noun} is open.`,         Icon: Wind },
+    { id: "something_wrong", label: `Something wrong with this ${noun}.`,     Icon: AlertTriangle },
+    OTHERS_INTENT,
+    EMERGENCY_INTENT,
+  ];
+  void cap;
+}
+
+const PET_INTENTS: IntentItem[] = [
+  { id: "found_pet",   label: "I found your pet.",          Icon: MapPin },
+  { id: "pet_injured", label: "Pet appears to be injured.", Icon: HeartPulse },
+  { id: "pet_roaming", label: "Pet is roaming alone.",      Icon: Navigation },
+  OTHERS_INTENT,
+  EMERGENCY_INTENT,
+];
+
+const CHILD_INTENTS: IntentItem[] = [
+  { id: "found_child", label: "I found this child.", Icon: MapPin },
+  { id: "needs_help",  label: "Child needs help.",   Icon: HelpCircle },
+  OTHERS_INTENT,
+  EMERGENCY_INTENT,
+];
 
 const GENERIC_INTENTS: IntentItem[] = [
   { id: "contact_owner", label: "I need to contact the owner.", Icon: Phone },
   { id: "general",       label: "General query.",               Icon: MessageCircle },
+  OTHERS_INTENT,
   EMERGENCY_INTENT,
 ];
 
 /* ─── Helpers ───────────────────────────────────────────────────────────────── */
-function getIntents(type: string, strict: boolean): IntentItem[] {
-  // strict_mode: only the Emergency intent is shown (as per spec)
+function getIntents(type: string, strict: boolean, data: Record<string, string | boolean>): IntentItem[] {
   if (strict) return [EMERGENCY_INTENT];
-  return INTENTS[type] ?? GENERIC_INTENTS;
+  if (type === "vehicle") return getVehicleIntents(data.vehicle_type as string | undefined);
+  if (type === "pet") return PET_INTENTS;
+  if (type === "child") return CHILD_INTENTS;
+  return GENERIC_INTENTS;
 }
 
 function getPageTitle(type: string): string {
@@ -370,7 +401,17 @@ function EmergencyWarningModal({ onClose, onConfirm }: { onClose: () => void; on
 }
 
 /* ─── Emergency Contacts Modal ────────────────────────────────────────────────── */
-function EmergencyContactsModal({ emergencyContact, onBack }: { emergencyContact: string | null; onBack: () => void }) {
+interface EmergencyContactsModalProps {
+  emergencyContact: string | null;
+  data: Record<string, string | boolean>;
+  onBack: () => void;
+}
+
+function EmergencyContactsModal({ emergencyContact, data, onBack }: EmergencyContactsModalProps) {
+  const ec1 = (data.emergency_contact_1 as string) || null;
+  const ec2 = (data.emergency_contact_2 as string) || null;
+  const hasOwnerContacts = !!(emergencyContact || ec1 || ec2);
+
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 px-4">
       <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl max-h-[85vh] overflow-y-auto">
@@ -381,17 +422,39 @@ function EmergencyContactsModal({ emergencyContact, onBack }: { emergencyContact
           </button>
         </div>
 
-        {/* Owner's emergency contact */}
-        {emergencyContact ? (
-          <div className="bg-green-50 border border-green-200 rounded-2xl p-4 mb-4">
-            <p className="text-xs font-semibold text-green-700 mb-1.5">Owner's Emergency Contact</p>
-            <a
-              href={`tel:${emergencyContact}`}
-              className="flex items-center gap-2 text-green-800 font-bold text-lg"
-            >
-              <Phone className="w-5 h-5" />
-              {emergencyContact}
-            </a>
+        {/* Owner's emergency contacts */}
+        {hasOwnerContacts ? (
+          <div className="bg-green-50 border border-green-200 rounded-2xl p-4 mb-4 space-y-3">
+            <p className="text-xs font-semibold text-green-700">Owner's Emergency Contacts</p>
+            {emergencyContact && (
+              <a
+                href={`tel:${emergencyContact}`}
+                className="flex items-center gap-2 text-green-800 font-bold text-base"
+              >
+                <Phone className="w-5 h-5 flex-shrink-0" />
+                {emergencyContact}
+              </a>
+            )}
+            {ec1 && (
+              <a
+                href={`tel:${ec1}`}
+                className="flex items-center gap-2 text-green-800 font-bold text-base"
+              >
+                <Phone className="w-5 h-5 flex-shrink-0" />
+                <span>{ec1}</span>
+                <span className="text-xs text-green-600 font-normal">(Contact 1)</span>
+              </a>
+            )}
+            {ec2 && (
+              <a
+                href={`tel:${ec2}`}
+                className="flex items-center gap-2 text-green-800 font-bold text-base"
+              >
+                <Phone className="w-5 h-5 flex-shrink-0" />
+                <span>{ec2}</span>
+                <span className="text-xs text-green-600 font-normal">(Contact 2)</span>
+              </a>
+            )}
           </div>
         ) : (
           <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 mb-4">
@@ -455,8 +518,9 @@ export function PublicProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [selectedIntent, setSelectedIntent] = useState<string | null>(null);
+  const [customMessage, setCustomMessage] = useState("");
   const [showVerify, setShowVerify] = useState(false);
-  const [actionType, setActionType] = useState<"contact" | "message">("contact");
+  const [actionType, setActionType] = useState<"contact" | "message" | "video">("contact");
   const [showEmergencyWarning, setShowEmergencyWarning] = useState(false);
   const [showEmergencyContacts, setShowEmergencyContacts] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -472,7 +536,7 @@ export function PublicProfileScreen() {
     (async () => {
       const { data, error } = await supabase
         .from("qr_codes")
-        .select("id, type, data, pin_code, is_active, allow_contact, strict_mode, emergency_contact, name")
+        .select("id, type, data, pin_code, is_active, allow_contact, strict_mode, emergency_contact, name, privacy")
         .eq("id", qrId)
         .single();
       if (error || !data) {
@@ -490,6 +554,8 @@ export function PublicProfileScreen() {
       const { error } = await supabase.from("contact_requests").insert({
         qr_id: qrData.id,
         intent: selectedIntent,
+        message: selectedIntent === "others" ? (customMessage || null) : null,
+        action_type: actionType,
         requester_phone: phone || null,
         status: "pending",
       });
@@ -504,7 +570,7 @@ export function PublicProfileScreen() {
   };
 
   /** Opens Emergency flow or Verify modal based on selected intent */
-  const handleCTA = (type: "contact" | "message") => {
+  const handleCTA = (type: "contact" | "message" | "video") => {
     if (selectedIntent === "emergency") {
       setShowEmergencyWarning(true);
     } else {
@@ -519,13 +585,14 @@ export function PublicProfileScreen() {
   if (!qrData.is_active) return <ErrorState message="This QR is inactive" />;
   if (submitted) return <SuccessScreen />;
 
-  const intents = getIntents(qrData.type, qrData.strict_mode);
+  const intents = getIntents(qrData.type, qrData.strict_mode, qrData.data);
   const maskedLabel = getMaskedLabel(qrData.type, qrData.data);
   const subLabel = getSubLabel(qrData.type, qrData.data);
   const pageTitle = getPageTitle(qrData.type);
   const vehicleNumber = (qrData.data?.vehicle_number as string) || "";
   const vehicleHint = vehicleNumber ? `${vehicleNumber.slice(0, 4).toUpperCase()}####` : "";
   const contactAllowed = qrData.allow_contact;
+  const videoCallEnabled = qrData.privacy?.videoCall === true;
 
   return (
     <div className="min-h-screen bg-white flex flex-col max-w-lg mx-auto">
@@ -582,7 +649,10 @@ export function PublicProfileScreen() {
               {intents.map((intent) => (
                 <button
                   key={intent.id}
-                  onClick={() => setSelectedIntent(intent.id)}
+                  onClick={() => {
+                    setSelectedIntent(intent.id);
+                    if (intent.id !== "others") setCustomMessage("");
+                  }}
                   className={cn(
                     "w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl border transition-all active:scale-[0.98] text-left",
                     selectedIntent === intent.id
@@ -603,6 +673,19 @@ export function PublicProfileScreen() {
                 </button>
               ))}
             </div>
+
+            {/* Custom message input for "Others" */}
+            {selectedIntent === "others" && (
+              <div className="mt-3">
+                <textarea
+                  value={customMessage}
+                  onChange={(e) => setCustomMessage(e.target.value)}
+                  placeholder="Describe your reason for contacting the owner..."
+                  rows={3}
+                  className="w-full bg-slate-50 border-2 border-primary/30 rounded-2xl px-4 py-3 text-sm text-slate-900 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all resize-none placeholder:text-slate-400"
+                />
+              </div>
+            )}
           </div>
         )}
 
@@ -619,23 +702,37 @@ export function PublicProfileScreen() {
             {!qrData.strict_mode && (
               <p className="text-sm text-slate-600 mb-3">Would you like to call or text the owner?</p>
             )}
-            <div className="flex gap-3">
+            <div className={cn("grid gap-3", videoCallEnabled ? "grid-cols-3" : "grid-cols-2")}>
+              {/* Masked Call — always enabled, no message selection required */}
               <button
                 onClick={() => handleCTA("contact")}
-                disabled={!selectedIntent && intents.length > 0}
-                className="flex-1 flex flex-col items-center gap-2 py-4 rounded-2xl border-2 border-amber-400 text-amber-600 font-semibold text-sm disabled:opacity-40 active:scale-[0.97] transition-all hover:bg-amber-50"
+                className="flex flex-col items-center gap-2 py-4 rounded-2xl border-2 border-amber-400 text-amber-600 font-semibold text-sm active:scale-[0.97] transition-all hover:bg-amber-50"
               >
                 <Phone className="w-6 h-6" />
                 Masked Call
               </button>
+
+              {/* Message — requires intent selection */}
               <button
                 onClick={() => handleCTA("message")}
                 disabled={!selectedIntent && intents.length > 0}
-                className="flex-1 flex flex-col items-center gap-2 py-4 rounded-2xl border-2 border-blue-400 text-blue-600 font-semibold text-sm disabled:opacity-40 active:scale-[0.97] transition-all hover:bg-blue-50"
+                className="flex flex-col items-center gap-2 py-4 rounded-2xl border-2 border-blue-400 text-blue-600 font-semibold text-sm disabled:opacity-40 active:scale-[0.97] transition-all hover:bg-blue-50"
               >
                 <MessageCircle className="w-6 h-6" />
                 Message
               </button>
+
+              {/* Video Call — only shown if owner enabled it */}
+              {videoCallEnabled && (
+                <button
+                  onClick={() => handleCTA("video")}
+                  disabled={!selectedIntent && intents.length > 0}
+                  className="flex flex-col items-center gap-2 py-4 rounded-2xl border-2 border-violet-400 text-violet-600 font-semibold text-sm disabled:opacity-40 active:scale-[0.97] transition-all hover:bg-violet-50"
+                >
+                  <Video className="w-6 h-6" />
+                  Video Call
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -703,6 +800,7 @@ export function PublicProfileScreen() {
       {showEmergencyContacts && (
         <EmergencyContactsModal
           emergencyContact={qrData.emergency_contact}
+          data={qrData.data}
           onBack={() => setShowEmergencyContacts(false)}
         />
       )}

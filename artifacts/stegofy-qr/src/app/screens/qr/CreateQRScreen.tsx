@@ -1,7 +1,7 @@
 import { useState } from "react";
 import {
   ChevronLeft, Check, ChevronDown, ChevronUp,
-  Camera, Phone, Shield, Eye, MessageCircle, Zap, Lock,
+  Camera, Phone, Shield, Eye, MessageCircle, Zap, Lock, Video,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { v4 as uuidv4 } from "uuid";
@@ -39,10 +39,11 @@ interface PrivacyToggle {
   key: string; label: string; desc: string; icon: React.ElementType; color: string;
 }
 const PRIVACY_TOGGLES: PrivacyToggle[] = [
-  { key: "maskPhone",         label: "Mask Phone Number",   desc: "Finder calls via anonymous bridge", icon: Eye,           color: "text-blue-500 bg-blue-50" },
-  { key: "whatsappOnly",      label: "WhatsApp Only",       desc: "Finder can only message, not call", icon: MessageCircle, color: "text-green-500 bg-green-50" },
-  { key: "emergencyPriority", label: "Emergency Priority",  desc: "Immediate connection when scanned",  icon: Zap,           color: "text-amber-500 bg-amber-50" },
-  { key: "strictMode",        label: "Strict Mode",         desc: "Only verified users can view info",  icon: Lock,          color: "text-violet-500 bg-violet-50" },
+  { key: "maskPhone",         label: "Mask Phone Number",   desc: "Finder calls via anonymous bridge",      icon: Eye,           color: "text-blue-500 bg-blue-50" },
+  { key: "whatsappOnly",      label: "WhatsApp Only",       desc: "Finder can only message, not call",      icon: MessageCircle, color: "text-green-500 bg-green-50" },
+  { key: "videoCall",         label: "Allow Video Call",    desc: "Finder can request a live video call",   icon: Video,         color: "text-violet-500 bg-violet-50" },
+  { key: "emergencyPriority", label: "Emergency Priority",  desc: "Immediate connection when scanned",      icon: Zap,           color: "text-amber-500 bg-amber-50" },
+  { key: "strictMode",        label: "Strict Mode",         desc: "Only verified users can view info",      icon: Lock,          color: "text-slate-500 bg-slate-50" },
 ];
 
 /* ─── Reusable input field ─── */
@@ -217,6 +218,7 @@ export function CreateQRScreen() {
   const [privacy, setPrivacy] = useState<Record<string, boolean>>({
     maskPhone: true,
     whatsappOnly: false,
+    videoCall: false,
     emergencyPriority: false,
     strictMode: false,
   });
