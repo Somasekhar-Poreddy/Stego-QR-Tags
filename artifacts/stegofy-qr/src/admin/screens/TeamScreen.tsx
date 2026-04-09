@@ -43,10 +43,7 @@ function Modal({ user, onClose, onSave }: { user: Partial<AdminUser> | null; onC
   };
 
   const togglePerm = (key: string) => {
-    setForm((f) => ({
-      ...f,
-      permissions: { ...(f.permissions ?? {}), [key]: !(f.permissions ?? {})[key] },
-    }));
+    setForm((f) => ({ ...f, permissions: { ...(f.permissions ?? {}), [key]: !(f.permissions ?? {})[key] } }));
   };
 
   return (
@@ -71,14 +68,14 @@ function Modal({ user, onClose, onSave }: { user: Partial<AdminUser> | null; onC
           </div>
           <div>
             <label className="text-xs font-semibold text-slate-500 mb-2 block">Permissions</label>
-            <div className="space-y-2">
+            <div className="space-y-2 bg-slate-50 rounded-xl p-3">
               {PERMISSION_LABELS.map((p) => {
                 const on = (form.permissions ?? {})[p.key] ?? false;
                 return (
-                  <div key={p.key} className="flex items-center justify-between py-1.5 border-b border-slate-50 last:border-0">
+                  <div key={p.key} className="flex items-center justify-between">
                     <span className="text-sm text-slate-700">{p.label}</span>
-                    <button onClick={() => togglePerm(p.key)} className={`w-10 h-5 rounded-full relative transition-all ${on ? "bg-primary" : "bg-slate-200"}`}>
-                      <span className={`w-4 h-4 bg-white rounded-full shadow absolute top-0.5 transition-all ${on ? "right-0.5" : "left-0.5"}`} />
+                    <button onClick={() => togglePerm(p.key)} className={`w-10 h-5 rounded-full relative transition-all ${on ? "bg-primary" : "bg-slate-300"}`}>
+                      <span className="w-4 h-4 bg-white rounded-full shadow absolute top-0.5 transition-all" style={{ left: on ? "calc(100% - 18px)" : "2px" }} />
                     </button>
                   </div>
                 );
@@ -133,39 +130,63 @@ export function TeamScreen() {
         </button>
       </div>
 
-      {loading ? (
-        <div className="p-8 text-center text-sm text-slate-400">Loading…</div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {members.length === 0 ? (
-            <div className="col-span-3 py-12 text-center text-slate-400">
-              <Shield className="w-10 h-10 mx-auto mb-3 text-slate-200" />
-              <p>No team members yet</p>
-            </div>
-          ) : members.map((m) => {
-            const permCount = Object.values(m.permissions ?? {}).filter(Boolean).length;
-            return (
-              <div key={m.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 group">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="w-11 h-11 bg-primary/10 rounded-2xl flex items-center justify-center">
-                    <span className="text-lg font-bold text-primary">{(m.name || m.email || "?")[0].toUpperCase()}</span>
-                  </div>
-                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={() => setEditing(m)} className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-500 transition-colors"><Pencil className="w-3.5 h-3.5" /></button>
-                    <button onClick={() => handleRemove(m.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-red-500 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
-                  </div>
-                </div>
-                <p className="font-bold text-slate-900 text-sm">{m.name || "—"}</p>
-                <p className="text-xs text-slate-400 mb-3 truncate">{m.email}</p>
-                <div className="flex items-center gap-2">
-                  <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${roleBadgeColor(m.role)}`}>{roleLabel(m.role)}</span>
-                  <span className="text-[11px] text-slate-400">{permCount}/{PERMISSION_LABELS.length} perms</span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+        {loading ? (
+          <div className="p-8 text-center text-sm text-slate-400">Loading…</div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 text-xs text-slate-500 font-semibold uppercase tracking-wide">
+              <tr>
+                <th className="px-4 py-3 text-left">Member</th>
+                <th className="px-4 py-3 text-left hidden md:table-cell">Role</th>
+                <th className="px-4 py-3 text-left hidden lg:table-cell">Permissions</th>
+                <th className="px-4 py-3 text-left hidden xl:table-cell">Added</th>
+                <th className="px-4 py-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {members.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-4 py-12 text-center">
+                    <Shield className="w-8 h-8 mx-auto mb-2 text-slate-200" />
+                    <p className="text-slate-400 text-sm">No team members yet</p>
+                  </td>
+                </tr>
+              ) : members.map((m) => {
+                const permCount = Object.values(m.permissions ?? {}).filter(Boolean).length;
+                return (
+                  <tr key={m.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 bg-primary/10 rounded-xl flex items-center justify-center flex-shrink-0">
+                          <span className="font-bold text-primary text-sm">{(m.name || m.email || "?")[0].toUpperCase()}</span>
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-semibold text-slate-800 truncate">{m.name || "—"}</p>
+                          <p className="text-[11px] text-slate-400 truncate">{m.email}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 hidden md:table-cell">
+                      <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${roleBadgeColor(m.role)}`}>{roleLabel(m.role)}</span>
+                    </td>
+                    <td className="px-4 py-3 text-slate-500 hidden lg:table-cell">
+                      <span className="text-xs">{permCount}/{PERMISSION_LABELS.length} permissions enabled</span>
+                    </td>
+                    <td className="px-4 py-3 text-slate-400 hidden xl:table-cell">{m.created_at?.slice(0, 10)}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-end gap-1">
+                        <button onClick={() => setEditing(m)} className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-500 transition-colors"><Pencil className="w-3.5 h-3.5" /></button>
+                        <button onClick={() => handleRemove(m.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-red-500 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
 
       {editing !== false && <Modal user={editing} onClose={() => setEditing(false)} onSave={handleSave} />}
     </div>

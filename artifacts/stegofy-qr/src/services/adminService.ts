@@ -1,7 +1,12 @@
 import { supabase } from "@/lib/supabase";
 import { v4 as uuidv4 } from "uuid";
 
-/* ─── Types ─── */
+/* ─── Re-exported types shared with other modules ─── */
+export type { UserProfile } from "@/services/userService";
+export type { QRCodeRow } from "@/services/qrService";
+export type { ContactRequest } from "@/services/contactRequestService";
+
+/* ─── Admin-specific types ─── */
 export interface AdminUser {
   id: string; user_id: string | null; email: string; name: string | null;
   role: string; permissions: Record<string, boolean>; created_at: string;
@@ -32,7 +37,62 @@ export interface SupportTicket {
 }
 export interface Setting { key: string; value: string | null; updated_at: string; }
 
-/* ─── Dashboard stats ─── */
+/* ═══════════════════════════════════════════════════
+   USERS (admin view)
+   ═══════════════════════════════════════════════════ */
+export async function adminGetAllUsers() {
+  const { data } = await supabase.from("user_profiles").select("*").order("created_at", { ascending: false });
+  return data ?? [];
+}
+export async function adminBlockUser(id: string) {
+  return supabase.from("user_profiles").update({ status: "blocked" }).eq("id", id);
+}
+export async function adminUnblockUser(id: string) {
+  return supabase.from("user_profiles").update({ status: "active" }).eq("id", id);
+}
+export async function adminDeleteUser(id: string) {
+  return supabase.from("user_profiles").delete().eq("id", id);
+}
+export async function adminGetUserQRCodes(userId: string) {
+  const { data } = await supabase.from("qr_codes").select("*").eq("user_id", userId).order("created_at", { ascending: false });
+  return data ?? [];
+}
+export async function adminGetContactRequestsByQR(qrId: string) {
+  const { data } = await supabase.from("contact_requests").select("*").eq("qr_id", qrId).order("created_at", { ascending: false });
+  return data ?? [];
+}
+
+/* ═══════════════════════════════════════════════════
+   QR CODES (admin view)
+   ═══════════════════════════════════════════════════ */
+export async function adminGetAllQRCodes() {
+  const { data } = await supabase.from("qr_codes").select("*").order("created_at", { ascending: false });
+  return data ?? [];
+}
+export async function adminDisableQRCode(id: string) {
+  return supabase.from("qr_codes").update({ status: "inactive", is_active: false }).eq("id", id);
+}
+export async function adminDeleteQRCode(id: string) {
+  return supabase.from("qr_codes").delete().eq("id", id);
+}
+
+/* ═══════════════════════════════════════════════════
+   CONTACT REQUESTS (admin view)
+   ═══════════════════════════════════════════════════ */
+export async function adminGetAllContactRequests() {
+  const { data } = await supabase.from("contact_requests").select("*").order("created_at", { ascending: false });
+  return data ?? [];
+}
+export async function adminResolveContactRequest(id: string) {
+  return supabase.from("contact_requests").update({ status: "resolved" }).eq("id", id);
+}
+export async function adminRejectContactRequest(id: string) {
+  return supabase.from("contact_requests").update({ status: "rejected" }).eq("id", id);
+}
+
+/* ═══════════════════════════════════════════════════
+   DASHBOARD
+   ═══════════════════════════════════════════════════ */
 export async function getDashboardStats() {
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const todayISO = today.toISOString();
@@ -75,10 +135,7 @@ export async function getScansPerDay(days = 7): Promise<{ date: string; scans: n
 }
 
 export async function getRequestsByType(): Promise<{ name: string; value: number }[]> {
-  const { data } = await supabase
-    .from("contact_requests")
-    .select("intent");
-
+  const { data } = await supabase.from("contact_requests").select("intent");
   const counts: Record<string, number> = {};
   (data ?? []).forEach((row) => {
     const key = (row.intent as string) || "unknown";
@@ -117,7 +174,9 @@ export async function getPeakHourData(): Promise<{ hour: number; count: number }
   return hours;
 }
 
-/* ─── Products ─── */
+/* ═══════════════════════════════════════════════════
+   PRODUCTS
+   ═══════════════════════════════════════════════════ */
 export async function getProducts(): Promise<Product[]> {
   const { data } = await supabase.from("products").select("*").order("created_at", { ascending: false });
   return (data ?? []) as Product[];
@@ -132,7 +191,9 @@ export async function deleteProduct(id: string) {
   return supabase.from("products").delete().eq("id", id);
 }
 
-/* ─── Orders ─── */
+/* ═══════════════════════════════════════════════════
+   ORDERS
+   ═══════════════════════════════════════════════════ */
 export async function getOrders(): Promise<Order[]> {
   const { data } = await supabase.from("orders").select("*").order("created_at", { ascending: false });
   return (data ?? []) as Order[];
@@ -141,7 +202,9 @@ export async function updateOrderStatus(id: string, status: string) {
   return supabase.from("orders").update({ order_status: status }).eq("id", id);
 }
 
-/* ─── QR Inventory ─── */
+/* ═══════════════════════════════════════════════════
+   QR INVENTORY
+   ═══════════════════════════════════════════════════ */
 export async function getInventory(): Promise<QRInventoryItem[]> {
   const { data } = await supabase.from("qr_inventory").select("*").order("created_at", { ascending: false });
   return (data ?? []) as QRInventoryItem[];
@@ -156,7 +219,9 @@ export async function bulkGenerateInventory(count: number, type: string, categor
   return supabase.from("qr_inventory").insert(rows);
 }
 
-/* ─── Team / Admin users ─── */
+/* ═══════════════════════════════════════════════════
+   TEAM / ADMIN USERS
+   ═══════════════════════════════════════════════════ */
 export async function getAdminUsers(): Promise<AdminUser[]> {
   const { data } = await supabase.from("admin_users").select("*").order("created_at", { ascending: false });
   return (data ?? []) as AdminUser[];
@@ -171,7 +236,9 @@ export async function removeAdminUser(id: string) {
   return supabase.from("admin_users").delete().eq("id", id);
 }
 
-/* ─── Notifications ─── */
+/* ═══════════════════════════════════════════════════
+   NOTIFICATIONS
+   ═══════════════════════════════════════════════════ */
 export async function getNotifications(): Promise<Notification[]> {
   const { data } = await supabase.from("notifications").select("*").order("created_at", { ascending: false });
   return (data ?? []) as Notification[];
@@ -180,7 +247,9 @@ export async function sendNotification(n: { title: string; message: string; targ
   return supabase.from("notifications").insert(n);
 }
 
-/* ─── Support ─── */
+/* ═══════════════════════════════════════════════════
+   SUPPORT
+   ═══════════════════════════════════════════════════ */
 export async function getSupportTickets(): Promise<SupportTicket[]> {
   const { data } = await supabase.from("support_tickets").select("*").order("created_at", { ascending: false });
   return (data ?? []) as SupportTicket[];
@@ -192,7 +261,9 @@ export async function resolveTicket(id: string) {
   return supabase.from("support_tickets").update({ status: "resolved" }).eq("id", id);
 }
 
-/* ─── Settings ─── */
+/* ═══════════════════════════════════════════════════
+   SETTINGS
+   ═══════════════════════════════════════════════════ */
 export async function getSettings(): Promise<Setting[]> {
   const { data } = await supabase.from("settings").select("*").order("key");
   return (data ?? []) as Setting[];

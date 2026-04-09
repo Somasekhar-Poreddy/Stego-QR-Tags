@@ -1,15 +1,17 @@
 import { useEffect, useState } from "react";
 import { Search, X, ChevronLeft, ChevronRight, Eye, Trash2, PauseCircle } from "lucide-react";
-import { getAllQRCodes, deleteQRCode, disableQRCode, type QRCodeRow } from "@/services/qrService";
-import { getAllUsers, type UserProfile } from "@/services/userService";
+import { adminGetAllQRCodes, adminDisableQRCode, adminDeleteQRCode, adminGetAllUsers } from "@/services/adminService";
 
 const PAGE_SIZE = 15;
+
+interface QRRow { id: string; user_id: string; name: string; type: string; status: string; display_code: string | null; is_active: boolean | null; created_at: string; [key: string]: unknown; }
+interface OwnerRow { id: string; first_name: string | null; last_name: string | null; email: string | null; }
 
 function Badge({ label, color }: { label: string; color: string }) {
   return <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${color}`}>{label}</span>;
 }
 
-function JSONModal({ qr, onClose }: { qr: QRCodeRow; onClose: () => void }) {
+function JSONModal({ qr, onClose }: { qr: QRRow; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
@@ -31,19 +33,19 @@ function JSONModal({ qr, onClose }: { qr: QRCodeRow; onClose: () => void }) {
 }
 
 export function QRCodesScreen() {
-  const [qrs, setQrs] = useState<QRCodeRow[]>([]);
-  const [filtered, setFiltered] = useState<QRCodeRow[]>([]);
-  const [userMap, setUserMap] = useState<Record<string, UserProfile>>({});
+  const [qrs, setQrs] = useState<QRRow[]>([]);
+  const [filtered, setFiltered] = useState<QRRow[]>([]);
+  const [userMap, setUserMap] = useState<Record<string, OwnerRow>>({});
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
-  const [viewing, setViewing] = useState<QRCodeRow | null>(null);
+  const [viewing, setViewing] = useState<QRRow | null>(null);
 
   const reload = () => {
-    Promise.all([getAllQRCodes(), getAllUsers()]).then(([codes, users]) => {
-      setQrs(codes);
-      const map: Record<string, UserProfile> = {};
-      users.forEach((u) => { map[u.id] = u; });
+    Promise.all([adminGetAllQRCodes(), adminGetAllUsers()]).then(([codes, users]) => {
+      setQrs(codes as QRRow[]);
+      const map: Record<string, OwnerRow> = {};
+      (users as OwnerRow[]).forEach((u) => { map[u.id] = u; });
       setUserMap(map);
       setLoading(false);
     });
@@ -52,11 +54,11 @@ export function QRCodesScreen() {
 
   useEffect(() => {
     const q = search.toLowerCase();
-    setFiltered(qrs.filter((r) => {
+    setFiltered((qrs).filter((r) => {
       if (!q) return true;
       const owner = userMap[r.user_id];
       const ownerStr = [owner?.first_name, owner?.last_name, owner?.email].filter(Boolean).join(" ");
-      return [r.name, r.type, r.display_code, r.id, ownerStr].some((v) => v?.toLowerCase().includes(q));
+      return [r.name, r.type, r.display_code, r.id, ownerStr].some((v) => (v as string)?.toLowerCase().includes(q));
     }));
     setPage(1);
   }, [search, qrs, userMap]);
@@ -64,8 +66,8 @@ export function QRCodesScreen() {
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageData = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  const handleDisable = async (id: string) => { await disableQRCode(id); reload(); };
-  const handleDelete = async (id: string) => { await deleteQRCode(id); reload(); };
+  const handleDisable = async (id: string) => { await adminDisableQRCode(id); reload(); };
+  const handleDelete = async (id: string) => { await adminDeleteQRCode(id); reload(); };
 
   return (
     <div className="space-y-4">
@@ -97,13 +99,15 @@ export function QRCodesScreen() {
                 <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400">No QR codes found</td></tr>
               ) : pageData.map((qr) => {
                 const owner = userMap[qr.user_id];
-                const ownerName = owner ? [owner.first_name, owner.last_name].filter(Boolean).join(" ") || owner.email || qr.user_id.slice(0, 8) : qr.user_id.slice(0, 8);
+                const ownerName = owner
+                  ? [owner.first_name, owner.last_name].filter(Boolean).join(" ") || owner.email || qr.user_id.slice(0, 8)
+                  : qr.user_id.slice(0, 8);
                 const inactive = qr.is_active === false || qr.status === "inactive";
                 return (
                   <tr key={qr.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-4 py-3 font-medium text-slate-800 max-w-[120px] truncate">{qr.name}</td>
-                    <td className="px-4 py-3 text-slate-500 hidden md:table-cell max-w-[140px] truncate">
-                      <p className="truncate">{ownerName}</p>
+                    <td className="px-4 py-3 hidden md:table-cell max-w-[150px]">
+                      <p className="text-slate-700 font-medium truncate">{ownerName}</p>
                       {owner?.email && <p className="text-[11px] text-slate-400 truncate">{owner.email}</p>}
                     </td>
                     <td className="px-4 py-3 text-slate-500 capitalize hidden lg:table-cell">{qr.type}</td>

@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
-import { Search, CheckCircle } from "lucide-react";
-import { getAllContactRequests, resolveContactRequest, type ContactRequest } from "@/services/contactRequestService";
+import { Search, CheckCircle, XCircle } from "lucide-react";
+import { adminGetAllContactRequests, adminResolveContactRequest, adminRejectContactRequest } from "@/services/adminService";
 import { cn } from "@/lib/utils";
 
 type Filter = "all" | "emergency" | "pending" | "resolved";
+
+interface RequestRow { id?: string; qr_id: string; intent: string | null; message: string | null; action_type: string | null; requester_phone: string | null; status: string; created_at?: string; }
 
 function Badge({ label, color }: { label: string; color: string }) {
   return <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${color}`}>{label}</span>;
@@ -22,12 +24,12 @@ function statusBadgeColor(status: string): string {
 }
 
 export function ContactRequestsScreen() {
-  const [all, setAll] = useState<ContactRequest[]>([]);
+  const [all, setAll] = useState<RequestRow[]>([]);
   const [filter, setFilter] = useState<Filter>("all");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
 
-  const reload = () => getAllContactRequests().then((d) => { setAll(d); setLoading(false); });
+  const reload = () => adminGetAllContactRequests().then((d) => { setAll(d as RequestRow[]); setLoading(false); });
   useEffect(() => { reload(); }, []);
 
   const filtered = all.filter((r) => {
@@ -41,7 +43,8 @@ export function ContactRequestsScreen() {
     return true;
   });
 
-  const handleResolve = async (id: string) => { await resolveContactRequest(id!); reload(); };
+  const handleResolve = async (id: string) => { await adminResolveContactRequest(id); reload(); };
+  const handleReject = async (id: string) => { await adminRejectContactRequest(id); reload(); };
 
   const TABS: { key: Filter; label: string }[] = [
     { key: "all", label: "All" },
@@ -52,13 +55,16 @@ export function ContactRequestsScreen() {
 
   return (
     <div className="space-y-4">
-      {/* Filter tabs */}
       <div className="flex gap-2 flex-wrap">
-        {TABS.map((t) => (
-          <button key={t.key} onClick={() => setFilter(t.key)} className={cn("px-4 py-2 rounded-xl text-sm font-semibold transition-all", filter === t.key ? "bg-primary text-white" : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50")}>
-            {t.label}
-          </button>
-        ))}
+        {TABS.map((t) => {
+          const c = t.key === "all" ? all.length : all.filter((r) => t.key === "emergency" ? r.intent === "emergency" : r.status === t.key).length;
+          return (
+            <button key={t.key} onClick={() => setFilter(t.key)} className={cn("px-4 py-2 rounded-xl text-sm font-semibold transition-all flex items-center gap-1.5", filter === t.key ? "bg-primary text-white" : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50")}>
+              {t.label}
+              <span className={cn("text-[11px] px-1.5 py-0.5 rounded-full", filter === t.key ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500")}>{c}</span>
+            </button>
+          );
+        })}
         <div className="flex-1 relative min-w-[180px]">
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search…" className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-primary transition-colors" />
@@ -77,14 +83,14 @@ export function ContactRequestsScreen() {
                 <th className="px-4 py-3 text-left hidden lg:table-cell">QR ID</th>
                 <th className="px-4 py-3 text-left hidden xl:table-cell">Date</th>
                 <th className="px-4 py-3 text-left">Status</th>
-                <th className="px-4 py-3 text-right">Action</th>
+                <th className="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
               {filtered.length === 0 ? (
                 <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400">No requests found</td></tr>
-              ) : filtered.map((r) => (
-                <tr key={r.id} className="hover:bg-slate-50 transition-colors">
+              ) : filtered.map((r, i) => (
+                <tr key={r.id ?? i} className="hover:bg-slate-50 transition-colors">
                   <td className="px-4 py-3">
                     <Badge label={r.intent || "unknown"} color={intentBadgeColor(r.intent)} />
                     {r.message && <p className="text-[11px] text-slate-400 mt-0.5 truncate max-w-[140px]">{r.message}</p>}
@@ -94,10 +100,15 @@ export function ContactRequestsScreen() {
                   <td className="px-4 py-3 text-slate-400 hidden xl:table-cell">{r.created_at?.slice(0, 10)}</td>
                   <td className="px-4 py-3"><Badge label={r.status} color={statusBadgeColor(r.status)} /></td>
                   <td className="px-4 py-3 text-right">
-                    {r.status === "pending" && (
-                      <button onClick={() => handleResolve(r.id!)} title="Mark resolved" className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-green-50 text-green-700 text-xs font-semibold hover:bg-green-100 transition-colors">
-                        <CheckCircle className="w-3.5 h-3.5" /> Resolve
-                      </button>
+                    {r.status === "pending" && r.id && (
+                      <div className="flex items-center justify-end gap-1">
+                        <button onClick={() => handleResolve(r.id!)} title="Mark resolved" className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg bg-green-50 text-green-700 text-xs font-semibold hover:bg-green-100 transition-colors">
+                          <CheckCircle className="w-3.5 h-3.5" /> Resolve
+                        </button>
+                        <button onClick={() => handleReject(r.id!)} title="Reject" className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg bg-red-50 text-red-600 text-xs font-semibold hover:bg-red-100 transition-colors">
+                          <XCircle className="w-3.5 h-3.5" /> Reject
+                        </button>
+                      </div>
                     )}
                   </td>
                 </tr>

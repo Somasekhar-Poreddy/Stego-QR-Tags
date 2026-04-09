@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 import {
   getScansPerDay, getRequestsByType, getTopQRCategories, getPeakHourData,
@@ -18,6 +18,55 @@ function ChartCard({ title, children, loading }: { title: string; children: Reac
     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
       <p className="text-sm font-bold text-slate-800 mb-4">{title}</p>
       {loading ? <Skeleton className="h-52" /> : children}
+    </div>
+  );
+}
+
+function PeakHourHeatmap({ data }: { data: { hour: number; count: number }[] }) {
+  const max = Math.max(...data.map((d) => d.count), 1);
+  const empty = data.every((d) => d.count === 0);
+
+  if (empty) {
+    return <div className="h-32 flex items-center justify-center text-sm text-slate-400">No scan data yet</div>;
+  }
+
+  const intensity = (count: number) => {
+    if (count === 0) return { bg: "#f8fafc", text: "#94a3b8" };
+    const ratio = count / max;
+    if (ratio < 0.2) return { bg: "#ede9fe", text: "#7c3aed" };
+    if (ratio < 0.4) return { bg: "#ddd6fe", text: "#6d28d9" };
+    if (ratio < 0.6) return { bg: "#c4b5fd", text: "#5b21b6" };
+    if (ratio < 0.8) return { bg: "#a78bfa", text: "#3b0764" };
+    return { bg: "#7c3aed", text: "#ffffff" };
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-12 gap-1">
+        {data.map((d) => {
+          const style = intensity(d.count);
+          return (
+            <div
+              key={d.hour}
+              title={`${d.hour}:00 — ${d.count} scans`}
+              className="aspect-square rounded-md flex flex-col items-center justify-center cursor-default select-none"
+              style={{ backgroundColor: style.bg }}
+            >
+              <span className="text-[9px] font-bold leading-none" style={{ color: style.text }}>{d.hour}</span>
+              <span className="text-[8px] leading-none mt-0.5" style={{ color: style.text }}>{d.count > 0 ? d.count : ""}</span>
+            </div>
+          );
+        })}
+      </div>
+      {/* Legend */}
+      <div className="flex items-center gap-2 text-xs text-slate-500">
+        <span>Low</span>
+        {["#ede9fe", "#ddd6fe", "#c4b5fd", "#a78bfa", "#7c3aed"].map((c) => (
+          <div key={c} className="w-4 h-4 rounded" style={{ backgroundColor: c }} />
+        ))}
+        <span>High</span>
+      </div>
+      <p className="text-[11px] text-slate-400">Each cell = 1 hour of the day (UTC). Hover for exact count.</p>
     </div>
   );
 }
@@ -65,14 +114,16 @@ export function AnalyticsScreen() {
           </ResponsiveContainer>
         </ChartCard>
 
-        {/* Request types */}
+        {/* Request types pie */}
         <ChartCard title="Contact Requests by Type" loading={loading}>
           {reqTypes.length === 0 ? (
             <div className="h-[210px] flex items-center justify-center text-sm text-slate-400">No data yet</div>
           ) : (
             <ResponsiveContainer width="100%" height={210}>
               <PieChart>
-                <Pie data={reqTypes} cx="50%" cy="50%" outerRadius={80} dataKey="value" nameKey="name" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false} fontSize={10}>
+                <Pie data={reqTypes} cx="50%" cy="50%" outerRadius={80} dataKey="value" nameKey="name"
+                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                  labelLine={false} fontSize={10}>
                   {reqTypes.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                 </Pie>
                 <Tooltip />
@@ -81,7 +132,7 @@ export function AnalyticsScreen() {
           )}
         </ChartCard>
 
-        {/* QR categories */}
+        {/* QR categories horizontal bar */}
         <ChartCard title="Top QR Code Categories" loading={loading}>
           {qrCats.length === 0 ? (
             <div className="h-[210px] flex items-center justify-center text-sm text-slate-400">No data yet</div>
@@ -98,21 +149,9 @@ export function AnalyticsScreen() {
           )}
         </ChartCard>
 
-        {/* Peak hour heatmap (bar) */}
-        <ChartCard title="Peak Scan Hours (by UTC hour)" loading={loading}>
-          {peakHours.every((h) => h.count === 0) ? (
-            <div className="h-[210px] flex items-center justify-center text-sm text-slate-400">No scan data yet</div>
-          ) : (
-            <ResponsiveContainer width="100%" height={210}>
-              <BarChart data={peakHours}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="hour" tick={{ fontSize: 9 }} tickFormatter={(h) => `${h}h`} />
-                <YAxis allowDecimals={false} tick={{ fontSize: 10 }} />
-                <Tooltip formatter={(v) => [`${v} scans`, "Count"]} labelFormatter={(h) => `Hour ${h}:00`} />
-                <Bar dataKey="count" fill="#6d28d9" radius={[2, 2, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
+        {/* Peak hour heatmap grid */}
+        <ChartCard title="Peak Scan Hours — 24-Hour Heatmap" loading={loading}>
+          <PeakHourHeatmap data={peakHours} />
         </ChartCard>
       </div>
     </div>

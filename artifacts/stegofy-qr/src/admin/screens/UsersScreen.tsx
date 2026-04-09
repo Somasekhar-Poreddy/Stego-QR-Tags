@@ -1,27 +1,32 @@
 import { useEffect, useState } from "react";
 import { Search, ChevronLeft, ChevronRight, X, User, QrCode, MessageSquare, Trash2, ShieldOff, ShieldCheck } from "lucide-react";
-import { getAllUsers, blockUser, unblockUser, deleteUser, type UserProfile } from "@/services/userService";
-import { getUserQRCodes, type QRCodeRow } from "@/services/qrService";
-import { getContactRequestsByQR, type ContactRequest } from "@/services/contactRequestService";
+import {
+  adminGetAllUsers, adminBlockUser, adminUnblockUser, adminDeleteUser,
+  adminGetUserQRCodes, adminGetContactRequestsByQR,
+} from "@/services/adminService";
 
 const PAGE_SIZE = 15;
+
+interface UserRow { id: string; first_name: string | null; last_name: string | null; email: string | null; mobile: string | null; age_group: string | null; gender: string | null; created_at?: string; status?: string | null; }
+interface QRRow { id: string; name: string; type: string; status: string; display_code: string | null; }
+interface RequestRow { id?: string; intent: string | null; status: string; created_at?: string; }
 
 function Badge({ label, color }: { label: string; color: string }) {
   return <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${color}`}>{label}</span>;
 }
 
-function DetailPanel({ user, onRefresh, onClose }: { user: UserProfile; onRefresh: () => void; onClose: () => void }) {
-  const [qrs, setQrs] = useState<QRCodeRow[]>([]);
-  const [reqs, setReqs] = useState<ContactRequest[]>([]);
+function DetailPanel({ user, onRefresh, onClose }: { user: UserRow; onRefresh: () => void; onClose: () => void }) {
+  const [qrs, setQrs] = useState<QRRow[]>([]);
+  const [reqs, setReqs] = useState<RequestRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
-      const userQrs = await getUserQRCodes(user.id);
+      const userQrs = (await adminGetUserQRCodes(user.id)) as QRRow[];
       setQrs(userQrs);
-      const allReqs: ContactRequest[] = [];
+      const allReqs: RequestRow[] = [];
       for (const qr of userQrs.slice(0, 5)) {
-        const r = await getContactRequestsByQR(qr.id);
+        const r = (await adminGetContactRequestsByQR(qr.id)) as RequestRow[];
         allReqs.push(...r);
       }
       setReqs(allReqs.sort((a, b) => ((b.created_at ?? "") > (a.created_at ?? "") ? 1 : -1)).slice(0, 10));
@@ -32,9 +37,9 @@ function DetailPanel({ user, onRefresh, onClose }: { user: UserProfile; onRefres
 
   const isBlocked = user.status === "blocked";
 
-  const handleBlock = async () => { await blockUser(user.id); onRefresh(); onClose(); };
-  const handleUnblock = async () => { await unblockUser(user.id); onRefresh(); onClose(); };
-  const handleDelete = async () => { await deleteUser(user.id); onRefresh(); onClose(); };
+  const handleBlock = async () => { await adminBlockUser(user.id); onRefresh(); onClose(); };
+  const handleUnblock = async () => { await adminUnblockUser(user.id); onRefresh(); onClose(); };
+  const handleDelete = async () => { await adminDeleteUser(user.id); onRefresh(); onClose(); };
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
@@ -45,7 +50,6 @@ function DetailPanel({ user, onRefresh, onClose }: { user: UserProfile; onRefres
         </div>
 
         <div className="p-5 space-y-5 flex-1">
-          {/* Profile */}
           <div className="bg-slate-50 rounded-2xl p-4">
             <div className="flex items-center gap-3 mb-3">
               <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center">
@@ -66,7 +70,6 @@ function DetailPanel({ user, onRefresh, onClose }: { user: UserProfile; onRefres
             </div>
           </div>
 
-          {/* QR Codes */}
           <div>
             <div className="flex items-center gap-2 mb-3">
               <QrCode className="w-4 h-4 text-slate-400" />
@@ -87,7 +90,6 @@ function DetailPanel({ user, onRefresh, onClose }: { user: UserProfile; onRefres
             )}
           </div>
 
-          {/* Contact History */}
           <div>
             <div className="flex items-center gap-2 mb-3">
               <MessageSquare className="w-4 h-4 text-slate-400" />
@@ -108,7 +110,6 @@ function DetailPanel({ user, onRefresh, onClose }: { user: UserProfile; onRefres
           </div>
         </div>
 
-        {/* Actions */}
         <div className="p-5 border-t border-slate-100 flex gap-3">
           {isBlocked ? (
             <button onClick={handleUnblock} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-green-200 text-green-700 hover:bg-green-50 text-sm font-semibold transition-colors">
@@ -129,19 +130,19 @@ function DetailPanel({ user, onRefresh, onClose }: { user: UserProfile; onRefres
 }
 
 export function UsersScreen() {
-  const [users, setUsers] = useState<UserProfile[]>([]);
-  const [filtered, setFiltered] = useState<UserProfile[]>([]);
+  const [users, setUsers] = useState<UserRow[]>([]);
+  const [filtered, setFiltered] = useState<UserRow[]>([]);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
-  const [selected, setSelected] = useState<UserProfile | null>(null);
+  const [selected, setSelected] = useState<UserRow | null>(null);
 
-  const reload = () => getAllUsers().then((u) => { setUsers(u); setLoading(false); });
+  const reload = () => adminGetAllUsers().then((u) => { setUsers(u as UserRow[]); setLoading(false); });
   useEffect(() => { reload(); }, []);
 
   useEffect(() => {
     const q = search.toLowerCase();
-    setFiltered(users.filter((u) =>
+    setFiltered((users as UserRow[]).filter((u) =>
       !q || [u.first_name, u.last_name, u.email, u.mobile].some((v) => v?.toLowerCase().includes(q))
     ));
     setPage(1);
@@ -193,7 +194,6 @@ export function UsersScreen() {
         )}
       </div>
 
-      {/* Pagination */}
       {pages > 1 && (
         <div className="flex items-center justify-between">
           <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} className="flex items-center gap-1 px-3 py-2 rounded-xl border border-slate-200 text-sm text-slate-600 disabled:opacity-40 hover:bg-slate-50 transition-colors">
