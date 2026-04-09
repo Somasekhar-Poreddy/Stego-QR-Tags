@@ -24,16 +24,16 @@ function withTimeout<T>(promise: PromiseLike<T>, ms: number): Promise<T> {
   ]);
 }
 
-function isEmailAllowlisted(email: string): boolean {
-  const raw = import.meta.env.VITE_ADMIN_EMAILS as string | undefined;
+function isUserIdAllowlisted(userId: string): boolean {
+  const raw = import.meta.env.VITE_ADMIN_USER_IDS as string | undefined;
   if (!raw) return false;
-  return raw.split(",").map((e) => e.trim().toLowerCase()).includes(email.toLowerCase());
+  return raw.split(",").map((id) => id.trim()).includes(userId.trim());
 }
 
-export async function isAdmin(userId: string, userEmail?: string): Promise<boolean> {
+export async function isAdmin(userId: string): Promise<boolean> {
   if (!userId) return false;
 
-  if (userEmail && isEmailAllowlisted(userEmail)) {
+  if (isUserIdAllowlisted(userId)) {
     return true;
   }
 

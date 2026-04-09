@@ -82,7 +82,7 @@ export function AdminRouter() {
           return;
         }
 
-        const ok = await isAdmin(user.id, user.email ?? undefined);
+        const ok = await isAdmin(user.id);
         if (!ok) {
           if (mounted) setAdminState("denied");
           return;
