@@ -4,6 +4,7 @@ import { getInventory, bulkGenerateInventory, type QRInventoryItem } from "@/ser
 import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 20;
+type StatusFilter = "all" | "unclaimed" | "claimed" | "activated";
 
 function Badge({ label, color }: { label: string; color: string }) {
   return <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${color}`}>{label}</span>;
@@ -53,8 +54,8 @@ function GenerateModal({ onClose, onGenerate }: { onClose: () => void; onGenerat
 
 export function InventoryScreen() {
   const [items, setItems] = useState<QRInventoryItem[]>([]);
-  const [filtered, setFiltered] = useState<QRInventoryItem[]>([]);
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [loading, setLoading] = useState(true);
   const [showGenerate, setShowGenerate] = useState(false);
   const [page, setPage] = useState(1);
@@ -62,11 +63,14 @@ export function InventoryScreen() {
   const reload = () => getInventory().then((d) => { setItems(d); setLoading(false); });
   useEffect(() => { reload(); }, []);
 
-  useEffect(() => {
-    const q = search.toLowerCase();
-    setFiltered(items.filter((i) => !q || [i.qr_code, i.type, i.category, i.status].some((v) => v?.toLowerCase().includes(q))));
-    setPage(1);
-  }, [search, items]);
+  const filtered = items.filter((i) => {
+    if (statusFilter !== "all" && i.status !== statusFilter) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      return [i.qr_code, i.type, i.category, i.status].some((v) => v?.toLowerCase().includes(q));
+    }
+    return true;
+  });
 
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageData = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -84,28 +88,39 @@ export function InventoryScreen() {
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a"); a.href = url; a.download = "qr-inventory.csv"; a.click();
+    URL.revokeObjectURL(url);
   };
+
+  const STATUS_TABS: { key: StatusFilter; label: string }[] = [
+    { key: "all", label: "All" },
+    { key: "unclaimed", label: "Unclaimed" },
+    { key: "claimed", label: "Claimed" },
+    { key: "activated", label: "Activated" },
+  ];
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3 flex-wrap">
-        <div className="flex-1 relative min-w-[200px]">
+      {/* Status filter tabs + search + actions */}
+      <div className="flex flex-wrap gap-2 items-center">
+        {STATUS_TABS.map((t) => {
+          const c = t.key === "all" ? items.length : items.filter((i) => i.status === t.key).length;
+          return (
+            <button key={t.key} onClick={() => { setStatusFilter(t.key); setPage(1); }} className={cn("px-3 py-2 rounded-xl text-sm font-semibold transition-all flex items-center gap-1.5", statusFilter === t.key ? "bg-primary text-white" : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50")}>
+              {t.label}
+              <span className={cn("text-[11px] px-1.5 py-0.5 rounded-full", statusFilter === t.key ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500")}>{c}</span>
+            </button>
+          );
+        })}
+        <div className="flex-1 relative min-w-[180px]">
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search inventory…" className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-primary transition-colors" />
+          <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Search inventory…" className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-primary transition-colors" />
         </div>
-        <button onClick={handleExport} className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
-          <Download className="w-4 h-4" /> Export CSV
+        <button onClick={handleExport} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
+          <Download className="w-4 h-4" /> Export
         </button>
-        <button onClick={() => setShowGenerate(true)} className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors">
+        <button onClick={() => setShowGenerate(true)} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors">
           <Plus className="w-4 h-4" /> Bulk Generate
         </button>
-      </div>
-
-      <div className="flex items-center gap-4 text-sm">
-        {["unclaimed", "claimed", "activated"].map((s) => {
-          const c = items.filter((i) => i.status === s).length;
-          return <span key={s} className="text-slate-500"><span className="font-bold text-slate-800">{c}</span> {s}</span>;
-        })}
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
@@ -124,7 +139,7 @@ export function InventoryScreen() {
             </thead>
             <tbody className="divide-y divide-slate-50">
               {pageData.length === 0 ? (
-                <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-400">No inventory yet</td></tr>
+                <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-400">No inventory found</td></tr>
               ) : pageData.map((item) => (
                 <tr key={item.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-4 py-3 font-mono text-xs font-semibold text-slate-800">{item.qr_code}</td>

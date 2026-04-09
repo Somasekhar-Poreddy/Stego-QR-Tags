@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Search, X, ChevronLeft, ChevronRight, Eye, Trash2, PauseCircle } from "lucide-react";
 import { getAllQRCodes, deleteQRCode, disableQRCode, type QRCodeRow } from "@/services/qrService";
+import { getAllUsers, type UserProfile } from "@/services/userService";
 
 const PAGE_SIZE = 15;
 
@@ -21,7 +22,7 @@ function JSONModal({ qr, onClose }: { qr: QRCodeRow; onClose: () => void }) {
         </div>
         <div className="overflow-y-auto p-5 flex-1">
           <pre className="text-xs bg-slate-50 rounded-xl p-4 overflow-x-auto whitespace-pre-wrap break-all font-mono text-slate-700">
-            {JSON.stringify({ ...qr, data: qr.data }, null, 2)}
+            {JSON.stringify(qr, null, 2)}
           </pre>
         </div>
       </div>
@@ -32,21 +33,33 @@ function JSONModal({ qr, onClose }: { qr: QRCodeRow; onClose: () => void }) {
 export function QRCodesScreen() {
   const [qrs, setQrs] = useState<QRCodeRow[]>([]);
   const [filtered, setFiltered] = useState<QRCodeRow[]>([]);
+  const [userMap, setUserMap] = useState<Record<string, UserProfile>>({});
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [viewing, setViewing] = useState<QRCodeRow | null>(null);
 
-  const reload = () => getAllQRCodes().then((d) => { setQrs(d); setLoading(false); });
+  const reload = () => {
+    Promise.all([getAllQRCodes(), getAllUsers()]).then(([codes, users]) => {
+      setQrs(codes);
+      const map: Record<string, UserProfile> = {};
+      users.forEach((u) => { map[u.id] = u; });
+      setUserMap(map);
+      setLoading(false);
+    });
+  };
   useEffect(() => { reload(); }, []);
 
   useEffect(() => {
     const q = search.toLowerCase();
-    setFiltered(qrs.filter((r) =>
-      !q || [r.name, r.type, r.display_code, r.id].some((v) => v?.toLowerCase().includes(q))
-    ));
+    setFiltered(qrs.filter((r) => {
+      if (!q) return true;
+      const owner = userMap[r.user_id];
+      const ownerStr = [owner?.first_name, owner?.last_name, owner?.email].filter(Boolean).join(" ");
+      return [r.name, r.type, r.display_code, r.id, ownerStr].some((v) => v?.toLowerCase().includes(q));
+    }));
     setPage(1);
-  }, [search, qrs]);
+  }, [search, qrs, userMap]);
 
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageData = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -59,7 +72,7 @@ export function QRCodesScreen() {
       <div className="flex items-center gap-4">
         <div className="flex-1 relative">
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search QR codes…" className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-primary transition-colors" />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name, type, code, or owner…" className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-primary transition-colors" />
         </div>
         <span className="text-sm text-slate-500 whitespace-nowrap">{filtered.length} codes</span>
       </div>
@@ -72,9 +85,9 @@ export function QRCodesScreen() {
             <thead className="bg-slate-50 text-xs text-slate-500 font-semibold uppercase tracking-wide">
               <tr>
                 <th className="px-4 py-3 text-left">Name</th>
-                <th className="px-4 py-3 text-left hidden md:table-cell">Type</th>
-                <th className="px-4 py-3 text-left hidden lg:table-cell">Code</th>
-                <th className="px-4 py-3 text-left hidden xl:table-cell">Created</th>
+                <th className="px-4 py-3 text-left hidden md:table-cell">Owner</th>
+                <th className="px-4 py-3 text-left hidden lg:table-cell">Type</th>
+                <th className="px-4 py-3 text-left hidden xl:table-cell">Code</th>
                 <th className="px-4 py-3 text-left">Status</th>
                 <th className="px-4 py-3 text-right">Actions</th>
               </tr>
@@ -82,24 +95,32 @@ export function QRCodesScreen() {
             <tbody className="divide-y divide-slate-50">
               {pageData.length === 0 ? (
                 <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400">No QR codes found</td></tr>
-              ) : pageData.map((qr) => (
-                <tr key={qr.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-4 py-3 font-medium text-slate-800 max-w-[140px] truncate">{qr.name}</td>
-                  <td className="px-4 py-3 text-slate-500 capitalize hidden md:table-cell">{qr.type}</td>
-                  <td className="px-4 py-3 text-slate-400 font-mono text-xs hidden lg:table-cell">{qr.display_code || "—"}</td>
-                  <td className="px-4 py-3 text-slate-400 hidden xl:table-cell">{qr.created_at?.slice(0, 10)}</td>
-                  <td className="px-4 py-3">
-                    <Badge label={qr.is_active === false ? "inactive" : qr.status} color={qr.is_active === false || qr.status === "inactive" ? "bg-slate-100 text-slate-500" : "bg-green-100 text-green-700"} />
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-end gap-1">
-                      <button onClick={() => setViewing(qr)} title="View JSON" className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-500 transition-colors"><Eye className="w-3.5 h-3.5" /></button>
-                      <button onClick={() => handleDisable(qr.id)} title="Disable" className="p-1.5 rounded-lg hover:bg-amber-50 text-amber-500 transition-colors"><PauseCircle className="w-3.5 h-3.5" /></button>
-                      <button onClick={() => handleDelete(qr.id)} title="Delete" className="p-1.5 rounded-lg hover:bg-red-50 text-red-500 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              ) : pageData.map((qr) => {
+                const owner = userMap[qr.user_id];
+                const ownerName = owner ? [owner.first_name, owner.last_name].filter(Boolean).join(" ") || owner.email || qr.user_id.slice(0, 8) : qr.user_id.slice(0, 8);
+                const inactive = qr.is_active === false || qr.status === "inactive";
+                return (
+                  <tr key={qr.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-4 py-3 font-medium text-slate-800 max-w-[120px] truncate">{qr.name}</td>
+                    <td className="px-4 py-3 text-slate-500 hidden md:table-cell max-w-[140px] truncate">
+                      <p className="truncate">{ownerName}</p>
+                      {owner?.email && <p className="text-[11px] text-slate-400 truncate">{owner.email}</p>}
+                    </td>
+                    <td className="px-4 py-3 text-slate-500 capitalize hidden lg:table-cell">{qr.type}</td>
+                    <td className="px-4 py-3 text-slate-400 font-mono text-xs hidden xl:table-cell">{qr.display_code || "—"}</td>
+                    <td className="px-4 py-3">
+                      <Badge label={inactive ? "inactive" : qr.status} color={inactive ? "bg-slate-100 text-slate-500" : "bg-green-100 text-green-700"} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-end gap-1">
+                        <button onClick={() => setViewing(qr)} title="View JSON" className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-500 transition-colors"><Eye className="w-3.5 h-3.5" /></button>
+                        <button onClick={() => handleDisable(qr.id)} title="Disable" className="p-1.5 rounded-lg hover:bg-amber-50 text-amber-500 transition-colors"><PauseCircle className="w-3.5 h-3.5" /></button>
+                        <button onClick={() => handleDelete(qr.id)} title="Delete" className="p-1.5 rounded-lg hover:bg-red-50 text-red-500 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { Search, ChevronLeft, ChevronRight, X, User, QrCode, MessageSquare, Trash2, ShieldOff } from "lucide-react";
-import { getAllUsers, blockUser, deleteUser, type UserProfile } from "@/services/userService";
+import { Search, ChevronLeft, ChevronRight, X, User, QrCode, MessageSquare, Trash2, ShieldOff, ShieldCheck } from "lucide-react";
+import { getAllUsers, blockUser, unblockUser, deleteUser, type UserProfile } from "@/services/userService";
 import { getUserQRCodes, type QRCodeRow } from "@/services/qrService";
 import { getContactRequestsByQR, type ContactRequest } from "@/services/contactRequestService";
 
@@ -10,30 +10,31 @@ function Badge({ label, color }: { label: string; color: string }) {
   return <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${color}`}>{label}</span>;
 }
 
-function DetailPanel({ user, onClose }: { user: UserProfile; onClose: () => void }) {
+function DetailPanel({ user, onRefresh, onClose }: { user: UserProfile; onRefresh: () => void; onClose: () => void }) {
   const [qrs, setQrs] = useState<QRCodeRow[]>([]);
   const [reqs, setReqs] = useState<ContactRequest[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getUserQRCodes(user.id).then(setQrs);
-    Promise.all(
-      [] as Promise<ContactRequest[]>[]
-    ).then(() => setLoading(false));
-    // Fetch contact requests for all user QRs
-    getUserQRCodes(user.id).then(async (userQrs) => {
+    async function load() {
+      const userQrs = await getUserQRCodes(user.id);
+      setQrs(userQrs);
       const allReqs: ContactRequest[] = [];
       for (const qr of userQrs.slice(0, 5)) {
         const r = await getContactRequestsByQR(qr.id);
         allReqs.push(...r);
       }
-      setReqs(allReqs.sort((a, b) => (b.created_at ?? "") > (a.created_at ?? "") ? 1 : -1).slice(0, 10));
+      setReqs(allReqs.sort((a, b) => ((b.created_at ?? "") > (a.created_at ?? "") ? 1 : -1)).slice(0, 10));
       setLoading(false);
-    });
+    }
+    load();
   }, [user.id]);
 
-  const handleBlock = () => { blockUser(user.id); onClose(); };
-  const handleDelete = () => { deleteUser(user.id); onClose(); };
+  const isBlocked = user.status === "blocked";
+
+  const handleBlock = async () => { await blockUser(user.id); onRefresh(); onClose(); };
+  const handleUnblock = async () => { await unblockUser(user.id); onRefresh(); onClose(); };
+  const handleDelete = async () => { await deleteUser(user.id); onRefresh(); onClose(); };
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
@@ -45,7 +46,7 @@ function DetailPanel({ user, onClose }: { user: UserProfile; onClose: () => void
 
         <div className="p-5 space-y-5 flex-1">
           {/* Profile */}
-          <div className="bg-slate-50 rounded-2xl p-4 space-y-2">
+          <div className="bg-slate-50 rounded-2xl p-4">
             <div className="flex items-center gap-3 mb-3">
               <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center">
                 <User className="w-6 h-6 text-primary" />
@@ -57,7 +58,9 @@ function DetailPanel({ user, onClose }: { user: UserProfile; onClose: () => void
             </div>
             <div className="grid grid-cols-2 gap-2 text-xs">
               <div><span className="text-slate-400">Mobile</span><p className="font-semibold text-slate-700">{user.mobile || "—"}</p></div>
-              <div><span className="text-slate-400">Status</span><p className="font-semibold text-slate-700 capitalize">{user.status || "active"}</p></div>
+              <div><span className="text-slate-400">Status</span>
+                <p className={`font-semibold capitalize ${isBlocked ? "text-red-600" : "text-green-600"}`}>{user.status || "active"}</p>
+              </div>
               <div><span className="text-slate-400">Joined</span><p className="font-semibold text-slate-700">{user.created_at?.slice(0, 10) || "—"}</p></div>
               <div><span className="text-slate-400">Age Group</span><p className="font-semibold text-slate-700">{user.age_group || "—"}</p></div>
             </div>
@@ -90,10 +93,12 @@ function DetailPanel({ user, onClose }: { user: UserProfile; onClose: () => void
               <MessageSquare className="w-4 h-4 text-slate-400" />
               <p className="text-sm font-bold text-slate-700">Contact History ({reqs.length})</p>
             </div>
-            {loading ? <p className="text-xs text-slate-400">Loading…</p> : reqs.length === 0 ? <p className="text-xs text-slate-400">No contact requests</p> : (
+            {loading ? <p className="text-xs text-slate-400">Loading…</p> : reqs.length === 0 ? (
+              <p className="text-xs text-slate-400">No contact requests</p>
+            ) : (
               <div className="space-y-2">
-                {reqs.map((r) => (
-                  <div key={r.id} className="bg-slate-50 rounded-xl px-3 py-2">
+                {reqs.map((r, i) => (
+                  <div key={r.id ?? i} className="bg-slate-50 rounded-xl px-3 py-2">
                     <p className="text-sm font-semibold text-slate-800 capitalize">{r.intent || "—"}</p>
                     <p className="text-[11px] text-slate-400">{r.created_at?.slice(0, 10)} · {r.status}</p>
                   </div>
@@ -105,9 +110,15 @@ function DetailPanel({ user, onClose }: { user: UserProfile; onClose: () => void
 
         {/* Actions */}
         <div className="p-5 border-t border-slate-100 flex gap-3">
-          <button onClick={handleBlock} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-amber-200 text-amber-700 hover:bg-amber-50 text-sm font-semibold transition-colors">
-            <ShieldOff className="w-4 h-4" /> Block
-          </button>
+          {isBlocked ? (
+            <button onClick={handleUnblock} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-green-200 text-green-700 hover:bg-green-50 text-sm font-semibold transition-colors">
+              <ShieldCheck className="w-4 h-4" /> Unblock
+            </button>
+          ) : (
+            <button onClick={handleBlock} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-amber-200 text-amber-700 hover:bg-amber-50 text-sm font-semibold transition-colors">
+              <ShieldOff className="w-4 h-4" /> Block
+            </button>
+          )}
           <button onClick={handleDelete} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-red-500 text-white hover:bg-red-600 text-sm font-semibold transition-colors">
             <Trash2 className="w-4 h-4" /> Delete
           </button>
@@ -125,9 +136,8 @@ export function UsersScreen() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<UserProfile | null>(null);
 
-  useEffect(() => {
-    getAllUsers().then((u) => { setUsers(u); setFiltered(u); setLoading(false); });
-  }, []);
+  const reload = () => getAllUsers().then((u) => { setUsers(u); setLoading(false); });
+  useEffect(() => { reload(); }, []);
 
   useEffect(() => {
     const q = search.toLowerCase();
@@ -196,7 +206,7 @@ export function UsersScreen() {
         </div>
       )}
 
-      {selected && <DetailPanel user={selected} onClose={() => setSelected(null)} />}
+      {selected && <DetailPanel user={selected} onRefresh={reload} onClose={() => setSelected(null)} />}
     </div>
   );
 }
