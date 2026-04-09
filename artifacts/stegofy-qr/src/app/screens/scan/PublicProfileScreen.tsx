@@ -55,17 +55,15 @@ function vehicleNoun(vehicleType: string | undefined): string {
 
 function getVehicleIntents(vehicleType: string | undefined): IntentItem[] {
   const noun = vehicleNoun(vehicleType);
-  const cap = noun.charAt(0).toUpperCase() + noun.slice(1);
   return [
-    { id: "lights_on",       label: `The lights of this ${noun} are on.`,    Icon: Lightbulb },
-    { id: "wrong_parking",   label: `The ${noun} is in no parking.`,          Icon: MapPin },
-    { id: "getting_towed",   label: `The ${noun} is getting towed.`,          Icon: Truck },
-    { id: "window_open",     label: `The window or ${noun} is open.`,         Icon: Wind },
-    { id: "something_wrong", label: `Something wrong with this ${noun}.`,     Icon: AlertTriangle },
+    { id: "lights_on",       label: `The lights of this ${noun} are on.`,  Icon: Lightbulb },
+    { id: "wrong_parking",   label: `The ${noun} is in no parking.`,        Icon: MapPin },
+    { id: "getting_towed",   label: `The ${noun} is getting towed.`,        Icon: Truck },
+    { id: "window_open",     label: `The window or ${noun} is open.`,       Icon: Wind },
+    { id: "something_wrong", label: `Something wrong with this ${noun}.`,   Icon: AlertTriangle },
     OTHERS_INTENT,
     EMERGENCY_INTENT,
   ];
-  void cap;
 }
 
 const PET_INTENTS: IntentItem[] = [
