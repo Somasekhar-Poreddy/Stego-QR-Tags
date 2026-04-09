@@ -35,8 +35,8 @@ outputType = "webview"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "PORT=20796 BASE_PATH=/ pnpm --filter @workspace/stegofy-qr run dev"
-waitForPort = 20796
+args = "PORT=5173 BASE_PATH=/ pnpm --filter @workspace/stegofy-qr run dev"
+waitForPort = 5173
 
 [agent]
 stack = "PNPM_WORKSPACE"
