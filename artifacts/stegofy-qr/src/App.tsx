@@ -7,6 +7,7 @@ import LandingPage from "@/pages/LandingPage";
 import { AuthProvider } from "@/app/context/AuthContext";
 import { QRProvider } from "@/app/context/QRContext";
 import { AppRouter } from "@/app/AppRouter";
+import { AdminRouter } from "@/admin/AdminRouter";
 import { PublicProfileScreen } from "@/app/screens/scan/PublicProfileScreen";
 
 const queryClient = new QueryClient();
@@ -53,6 +54,10 @@ function Router() {
 
   if (pathname.startsWith("/app")) {
     return <AppRouter />;
+  }
+
+  if (pathname.startsWith("/admin")) {
+    return <AdminRouter />;
   }
 
   return <NotFound />;
