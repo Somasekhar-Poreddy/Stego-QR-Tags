@@ -89,8 +89,9 @@ export function AnalyticsScreen() {
       setReqTypes(r);
       setQrCats(c);
       setPeakHours(h);
-      setLoading(false);
-    });
+    })
+    .catch(() => {})
+    .finally(() => setLoading(false));
   }, []);
 
   return (

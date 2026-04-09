@@ -1,14 +1,13 @@
 import { useEffect, useState } from "react";
 import { Send, Bell, ChevronDown, User } from "lucide-react";
-import { getNotifications, sendNotification, type Notification } from "@/services/adminService";
-import { getAllUsers, type UserProfile } from "@/services/userService";
+import { getNotifications, sendNotification, adminGetAllUsers, type Notification } from "@/services/adminService";
 import { cn } from "@/lib/utils";
 
 type TargetMode = "broadcast" | "user";
 
 export function NotificationsScreen() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [users, setUsers] = useState<UserProfile[]>([]);
+  const [users, setUsers] = useState<{ id: string; first_name: string | null; last_name: string | null; email: string | null }[]>([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [targetMode, setTargetMode] = useState<TargetMode>("broadcast");
@@ -18,7 +17,7 @@ export function NotificationsScreen() {
   const reload = () => getNotifications().then((d) => { setNotifications(d); setLoading(false); });
   useEffect(() => {
     reload();
-    getAllUsers().then(setUsers);
+    adminGetAllUsers().then((u) => setUsers(u as { id: string; first_name: string | null; last_name: string | null; email: string | null }[]));
   }, []);
 
   const BROADCAST_TARGETS = ["all", "admins", "premium", "free"];

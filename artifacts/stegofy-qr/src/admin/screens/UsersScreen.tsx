@@ -137,7 +137,10 @@ export function UsersScreen() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<UserRow | null>(null);
 
-  const reload = () => adminGetAllUsers().then((u) => { setUsers(u as UserRow[]); setLoading(false); });
+  const reload = () => adminGetAllUsers()
+    .then((u) => { setUsers(u as UserRow[]); })
+    .catch(() => {})
+    .finally(() => setLoading(false));
   useEffect(() => { reload(); }, []);
 
   useEffect(() => {

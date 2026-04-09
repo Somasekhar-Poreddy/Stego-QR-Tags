@@ -41,6 +41,7 @@ export function DashboardScreen() {
         setScansData(scans);
         setReqTypes(types);
       })
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
