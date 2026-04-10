@@ -220,6 +220,24 @@ export async function bulkGenerateInventory(count: number, type: string, categor
 }
 
 /* ═══════════════════════════════════════════════════
+   PERMISSION DEFINITIONS
+   ═══════════════════════════════════════════════════ */
+export interface PermissionDefinition {
+  key: string;
+  label: string;
+  sort_order: number;
+}
+
+export async function getPermissionDefinitions(): Promise<PermissionDefinition[]> {
+  const { data, error } = await supabase
+    .from("permission_definitions")
+    .select("key, label, sort_order")
+    .order("sort_order", { ascending: true });
+  if (error || !data || data.length === 0) return [];
+  return data as PermissionDefinition[];
+}
+
+/* ═══════════════════════════════════════════════════
    TEAM / ADMIN USERS
    ═══════════════════════════════════════════════════ */
 export async function getAdminUsers(): Promise<AdminUser[]> {

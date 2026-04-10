@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
 import { Plus, Trash2, Pencil, X, Shield, AlertTriangle, Eye, EyeOff } from "lucide-react";
-import { getAdminUsers, addAdminUser, updateAdminUser, removeAdminUser, type AdminUser } from "@/services/adminService";
+import {
+  getAdminUsers, addAdminUser, updateAdminUser, removeAdminUser,
+  getPermissionDefinitions,
+  type AdminUser, type PermissionDefinition,
+} from "@/services/adminService";
 
 const ROLES = [
   { key: "super_admin", label: "Super Admin" },
@@ -10,26 +14,32 @@ const ROLES = [
   { key: "viewer", label: "Viewer" },
 ];
 
-const PERMISSION_LABELS: { key: string; label: string }[] = [
-  { key: "manage_users", label: "Manage Users" },
-  { key: "manage_qr_codes", label: "Manage QR Codes" },
-  { key: "manage_orders", label: "Manage Orders" },
-  { key: "manage_products", label: "Manage Products" },
-  { key: "manage_inventory", label: "Manage Inventory" },
-  { key: "view_analytics", label: "View Analytics" },
-  { key: "manage_team", label: "Manage Team" },
-  { key: "send_notifications", label: "Send Notifications" },
-  { key: "manage_support", label: "Manage Support" },
-  { key: "manage_settings", label: "Manage Settings" },
+const FALLBACK_PERMISSIONS: PermissionDefinition[] = [
+  { key: "manage_users",       label: "Manage Users",        sort_order: 1 },
+  { key: "manage_qr_codes",    label: "Manage QR Codes",     sort_order: 2 },
+  { key: "manage_orders",      label: "Manage Orders",       sort_order: 3 },
+  { key: "manage_products",    label: "Manage Products",     sort_order: 4 },
+  { key: "manage_inventory",   label: "Manage Inventory",    sort_order: 5 },
+  { key: "view_analytics",     label: "View Analytics",      sort_order: 6 },
+  { key: "manage_team",        label: "Manage Team",         sort_order: 7 },
+  { key: "send_notifications", label: "Send Notifications",  sort_order: 8 },
+  { key: "manage_support",     label: "Manage Support",      sort_order: 9 },
+  { key: "manage_settings",    label: "Manage Settings",     sort_order: 10 },
 ];
 
-const ROLE_DEFAULTS: Record<string, Record<string, boolean>> = {
-  super_admin: Object.fromEntries(PERMISSION_LABELS.map((p) => [p.key, true])),
-  ops_manager: Object.fromEntries(PERMISSION_LABELS.map((p) => [p.key, ["manage_orders", "manage_products", "manage_inventory", "view_analytics"].includes(p.key)])),
-  support: Object.fromEntries(PERMISSION_LABELS.map((p) => [p.key, ["manage_support", "view_analytics"].includes(p.key)])),
-  marketing: Object.fromEntries(PERMISSION_LABELS.map((p) => [p.key, ["send_notifications", "view_analytics", "manage_products"].includes(p.key)])),
-  viewer: Object.fromEntries(PERMISSION_LABELS.map((p) => [p.key, false])),
-};
+const OPS_MANAGER_KEYS  = ["manage_orders", "manage_products", "manage_inventory", "view_analytics"];
+const SUPPORT_KEYS      = ["manage_support", "view_analytics"];
+const MARKETING_KEYS    = ["send_notifications", "view_analytics", "manage_products"];
+
+function buildRoleDefaults(perms: PermissionDefinition[]): Record<string, Record<string, boolean>> {
+  return {
+    super_admin: Object.fromEntries(perms.map((p) => [p.key, true])),
+    ops_manager: Object.fromEntries(perms.map((p) => [p.key, OPS_MANAGER_KEYS.includes(p.key)])),
+    support:     Object.fromEntries(perms.map((p) => [p.key, SUPPORT_KEYS.includes(p.key)])),
+    marketing:   Object.fromEntries(perms.map((p) => [p.key, MARKETING_KEYS.includes(p.key)])),
+    viewer:      Object.fromEntries(perms.map((p) => [p.key, false])),
+  };
+}
 
 interface MemberForm extends Partial<AdminUser> {
   password?: string;
@@ -38,19 +48,22 @@ interface MemberForm extends Partial<AdminUser> {
 
 function Modal({
   user,
+  permissions,
   onClose,
   onSave,
 }: {
   user: MemberForm | null;
+  permissions: PermissionDefinition[];
   onClose: () => void;
   onSave: (u: MemberForm) => Promise<void>;
 }) {
   const isNew = !user?.id;
-  const [form, setForm] = useState<MemberForm>(() => ({
-    name: "", email: "", role: "viewer", permissions: { ...ROLE_DEFAULTS.viewer },
-    password: "", confirmPassword: "",
-    ...user,
-  }));
+  const roleDefaults = buildRoleDefaults(permissions);
+
+  const [form, setForm] = useState<MemberForm>(() => {
+    const defaultPerms = roleDefaults["viewer"] ?? {};
+    return { name: "", email: "", role: "viewer", permissions: { ...defaultPerms }, password: "", confirmPassword: "", ...user };
+  });
   const [showPass, setShowPass] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -59,7 +72,7 @@ function Modal({
   const setField = (k: keyof MemberForm, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
   const handleRoleChange = (role: string) => {
-    setForm((f) => ({ ...f, role, permissions: { ...ROLE_DEFAULTS[role] ?? ROLE_DEFAULTS.viewer } }));
+    setForm((f) => ({ ...f, role, permissions: { ...(roleDefaults[role] ?? roleDefaults["viewer"] ?? {}) } }));
   };
 
   const togglePerm = (key: string) => {
@@ -75,13 +88,9 @@ function Modal({
       if (form.password !== form.confirmPassword) { setError("Passwords do not match"); return; }
     }
     setSaving(true);
-    try {
-      await onSave(form);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to save");
-    } finally {
-      setSaving(false);
-    }
+    try { await onSave(form); }
+    catch (e) { setError(e instanceof Error ? e.message : "Failed to save"); }
+    finally { setSaving(false); }
   };
 
   return (
@@ -152,32 +161,37 @@ function Modal({
           </div>
 
           <div>
-            <label className="text-xs font-semibold text-slate-500 mb-2 block">Permissions</label>
-            <div className="space-y-2 bg-slate-50 rounded-xl p-3">
-              {PERMISSION_LABELS.map((p) => {
-                const on = (form.permissions ?? {})[p.key] ?? false;
-                return (
-                  <div key={p.key} className="flex items-center justify-between">
-                    <span className="text-sm text-slate-700">{p.label}</span>
-                    <button
-                      onClick={() => togglePerm(p.key)}
-                      className={`w-10 h-5 rounded-full relative transition-all ${on ? "bg-primary" : "bg-slate-300"}`}
-                    >
-                      <span
-                        className="w-4 h-4 bg-white rounded-full shadow absolute top-0.5 transition-all"
-                        style={{ left: on ? "calc(100% - 18px)" : "2px" }}
-                      />
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
+            <label className="text-xs font-semibold text-slate-500 mb-2 block">
+              Permissions
+              <span className="ml-1.5 text-[10px] font-normal text-slate-400">({permissions.length} available)</span>
+            </label>
+            {permissions.length === 0 ? (
+              <div className="bg-slate-50 rounded-xl p-3 text-xs text-slate-400 text-center">Loading permissions…</div>
+            ) : (
+              <div className="space-y-2 bg-slate-50 rounded-xl p-3">
+                {permissions.map((p) => {
+                  const on = (form.permissions ?? {})[p.key] ?? false;
+                  return (
+                    <div key={p.key} className="flex items-center justify-between">
+                      <span className="text-sm text-slate-700">{p.label}</span>
+                      <button
+                        onClick={() => togglePerm(p.key)}
+                        className={`w-10 h-5 rounded-full relative transition-all flex-shrink-0 ${on ? "bg-primary" : "bg-slate-300"}`}
+                      >
+                        <span
+                          className="w-4 h-4 bg-white rounded-full shadow absolute top-0.5 transition-all"
+                          style={{ left: on ? "calc(100% - 18px)" : "2px" }}
+                        />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {error && (
-            <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3.5 py-2.5">
-              {error}
-            </div>
+            <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3.5 py-2.5">{error}</div>
           )}
         </div>
 
@@ -208,7 +222,6 @@ function DeleteConfirm({
   onConfirm: () => Promise<void>;
 }) {
   const [deleting, setDeleting] = useState(false);
-
   const handleDelete = async () => {
     setDeleting(true);
     try { await onConfirm(); } finally { setDeleting(false); }
@@ -221,25 +234,14 @@ function DeleteConfirm({
           <div className="w-10 h-10 bg-red-50 rounded-2xl flex items-center justify-center flex-shrink-0">
             <AlertTriangle className="w-5 h-5 text-red-500" />
           </div>
-          <div>
-            <h3 className="font-bold text-slate-900 text-sm">Delete {member.name || member.email}?</h3>
-          </div>
+          <h3 className="font-bold text-slate-900 text-sm">Delete {member.name || member.email}?</h3>
         </div>
-        <p className="text-sm text-slate-600">
-          This will permanently remove their admin access. This action cannot be undone.
-        </p>
+        <p className="text-sm text-slate-600">This will permanently remove their admin access. This action cannot be undone.</p>
         <div className="flex gap-3 pt-1">
-          <button
-            onClick={onCancel}
-            className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
-          >
+          <button onClick={onCancel} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
             Cancel
           </button>
-          <button
-            onClick={handleDelete}
-            disabled={deleting}
-            className="flex-1 py-2.5 rounded-xl bg-red-500 text-white text-sm font-semibold hover:bg-red-600 transition-colors disabled:opacity-60"
-          >
+          <button onClick={handleDelete} disabled={deleting} className="flex-1 py-2.5 rounded-xl bg-red-500 text-white text-sm font-semibold hover:bg-red-600 transition-colors disabled:opacity-60">
             {deleting ? "Deleting…" : "Delete"}
           </button>
         </div>
@@ -261,13 +263,24 @@ function roleLabel(role: string) {
 }
 
 export function TeamScreen() {
-  const [members, setMembers] = useState<AdminUser[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState<MemberForm | null | false>(false);
+  const [members, setMembers]           = useState<AdminUser[]>([]);
+  const [permissions, setPermissions]   = useState<PermissionDefinition[]>([]);
+  const [loading, setLoading]           = useState(true);
+  const [editing, setEditing]           = useState<MemberForm | null | false>(false);
   const [confirmDelete, setConfirmDelete] = useState<AdminUser | null>(null);
 
-  const reload = () => getAdminUsers().then((d) => { setMembers(d); setLoading(false); });
-  useEffect(() => { reload(); }, []);
+  useEffect(() => {
+    Promise.all([
+      getAdminUsers(),
+      getPermissionDefinitions(),
+    ]).then(([members, perms]) => {
+      setMembers(members);
+      setPermissions(perms.length > 0 ? perms : FALLBACK_PERMISSIONS);
+      setLoading(false);
+    });
+  }, []);
+
+  const reload = () => getAdminUsers().then((d) => setMembers(d));
 
   const handleSave = async (form: MemberForm) => {
     if (form.id) {
@@ -324,6 +337,7 @@ export function TeamScreen() {
                 </tr>
               ) : members.map((m) => {
                 const permCount = Object.values(m.permissions ?? {}).filter(Boolean).length;
+                const totalPerms = permissions.length || Object.keys(m.permissions ?? {}).length;
                 return (
                   <tr key={m.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-4 py-3">
@@ -341,21 +355,15 @@ export function TeamScreen() {
                       <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${roleBadgeColor(m.role)}`}>{roleLabel(m.role)}</span>
                     </td>
                     <td className="px-4 py-3 text-slate-500 hidden lg:table-cell">
-                      <span className="text-xs">{permCount}/{PERMISSION_LABELS.length} permissions enabled</span>
+                      <span className="text-xs">{permCount}/{totalPerms} permissions enabled</span>
                     </td>
                     <td className="px-4 py-3 text-slate-400 hidden xl:table-cell">{m.created_at?.slice(0, 10)}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
-                        <button
-                          onClick={() => setEditing(m)}
-                          className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-500 transition-colors"
-                        >
+                        <button onClick={() => setEditing(m)} className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-500 transition-colors">
                           <Pencil className="w-3.5 h-3.5" />
                         </button>
-                        <button
-                          onClick={() => setConfirmDelete(m)}
-                          className="p-1.5 rounded-lg hover:bg-red-50 text-red-500 transition-colors"
-                        >
+                        <button onClick={() => setConfirmDelete(m)} className="p-1.5 rounded-lg hover:bg-red-50 text-red-500 transition-colors">
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
@@ -369,15 +377,10 @@ export function TeamScreen() {
       </div>
 
       {editing !== false && (
-        <Modal user={editing} onClose={() => setEditing(false)} onSave={handleSave} />
+        <Modal user={editing} permissions={permissions} onClose={() => setEditing(false)} onSave={handleSave} />
       )}
-
       {confirmDelete && (
-        <DeleteConfirm
-          member={confirmDelete}
-          onCancel={() => setConfirmDelete(null)}
-          onConfirm={handleConfirmDelete}
-        />
+        <DeleteConfirm member={confirmDelete} onCancel={() => setConfirmDelete(null)} onConfirm={handleConfirmDelete} />
       )}
     </div>
   );
