@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Plus, Trash2, Pencil, X, Shield } from "lucide-react";
+import { Plus, Trash2, Pencil, X, Shield, AlertTriangle, Eye, EyeOff } from "lucide-react";
 import { getAdminUsers, addAdminUser, updateAdminUser, removeAdminUser, type AdminUser } from "@/services/adminService";
 
 const ROLES = [
@@ -31,12 +31,32 @@ const ROLE_DEFAULTS: Record<string, Record<string, boolean>> = {
   viewer: Object.fromEntries(PERMISSION_LABELS.map((p) => [p.key, false])),
 };
 
-function Modal({ user, onClose, onSave }: { user: Partial<AdminUser> | null; onClose: () => void; onSave: (u: Partial<AdminUser>) => void }) {
-  const [form, setForm] = useState<Partial<AdminUser>>(() => ({
-    name: "", email: "", role: "viewer", permissions: { ...ROLE_DEFAULTS.viewer }, ...user,
-  }));
+interface MemberForm extends Partial<AdminUser> {
+  password?: string;
+  confirmPassword?: string;
+}
 
-  const setField = (k: keyof AdminUser, v: string) => setForm((f) => ({ ...f, [k]: v }));
+function Modal({
+  user,
+  onClose,
+  onSave,
+}: {
+  user: MemberForm | null;
+  onClose: () => void;
+  onSave: (u: MemberForm) => Promise<void>;
+}) {
+  const isNew = !user?.id;
+  const [form, setForm] = useState<MemberForm>(() => ({
+    name: "", email: "", role: "viewer", permissions: { ...ROLE_DEFAULTS.viewer },
+    password: "", confirmPassword: "",
+    ...user,
+  }));
+  const [showPass, setShowPass] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const setField = (k: keyof MemberForm, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
   const handleRoleChange = (role: string) => {
     setForm((f) => ({ ...f, role, permissions: { ...ROLE_DEFAULTS[role] ?? ROLE_DEFAULTS.viewer } }));
@@ -46,26 +66,90 @@ function Modal({ user, onClose, onSave }: { user: Partial<AdminUser> | null; onC
     setForm((f) => ({ ...f, permissions: { ...(f.permissions ?? {}), [key]: !(f.permissions ?? {})[key] } }));
   };
 
+  const handleSave = async () => {
+    setError(null);
+    if (isNew) {
+      if (!form.password) { setError("Password is required"); return; }
+      if (form.password !== form.confirmPassword) { setError("Passwords do not match"); return; }
+      if (form.password.length < 6) { setError("Password must be at least 6 characters"); return; }
+    }
+    setSaving(true);
+    try {
+      await onSave(form);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to save");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-          <h3 className="font-bold text-slate-900">{user?.id ? "Edit Team Member" : "Add Team Member"}</h3>
+          <h3 className="font-bold text-slate-900">{isNew ? "Add Team Member" : "Edit Team Member"}</h3>
           <button onClick={onClose} className="p-1.5 rounded-xl hover:bg-slate-100"><X className="w-4 h-4" /></button>
         </div>
+
         <div className="p-5 space-y-4 overflow-y-auto flex-1">
           {(["name", "email"] as const).map((k) => (
             <div key={k}>
               <label className="text-xs font-semibold text-slate-500 mb-1 block capitalize">{k}</label>
-              <input value={(form[k] as string) || ""} onChange={(e) => setField(k, e.target.value)} className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm outline-none focus:border-primary transition-colors" />
+              <input
+                value={(form[k] as string) || ""}
+                onChange={(e) => setField(k, e.target.value)}
+                type={k === "email" ? "email" : "text"}
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm outline-none focus:border-primary transition-colors"
+              />
             </div>
           ))}
+
+          {isNew && (
+            <>
+              <div>
+                <label className="text-xs font-semibold text-slate-500 mb-1 block">Password</label>
+                <div className="relative">
+                  <input
+                    type={showPass ? "text" : "password"}
+                    value={form.password || ""}
+                    onChange={(e) => setField("password", e.target.value)}
+                    placeholder="Min. 6 characters"
+                    className="w-full px-3 py-2 pr-9 rounded-xl border border-slate-200 text-sm outline-none focus:border-primary transition-colors"
+                  />
+                  <button type="button" onClick={() => setShowPass((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                    {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-500 mb-1 block">Confirm Password</label>
+                <div className="relative">
+                  <input
+                    type={showConfirm ? "text" : "password"}
+                    value={form.confirmPassword || ""}
+                    onChange={(e) => setField("confirmPassword", e.target.value)}
+                    placeholder="Re-enter password"
+                    className="w-full px-3 py-2 pr-9 rounded-xl border border-slate-200 text-sm outline-none focus:border-primary transition-colors"
+                  />
+                  <button type="button" onClick={() => setShowConfirm((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                    {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+
           <div>
             <label className="text-xs font-semibold text-slate-500 mb-1 block">Role</label>
-            <select value={form.role || "viewer"} onChange={(e) => handleRoleChange(e.target.value)} className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm outline-none focus:border-primary bg-white transition-colors">
+            <select
+              value={form.role || "viewer"}
+              onChange={(e) => handleRoleChange(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm outline-none focus:border-primary bg-white transition-colors"
+            >
               {ROLES.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
             </select>
           </div>
+
           <div>
             <label className="text-xs font-semibold text-slate-500 mb-2 block">Permissions</label>
             <div className="space-y-2 bg-slate-50 rounded-xl p-3">
@@ -74,18 +158,90 @@ function Modal({ user, onClose, onSave }: { user: Partial<AdminUser> | null; onC
                 return (
                   <div key={p.key} className="flex items-center justify-between">
                     <span className="text-sm text-slate-700">{p.label}</span>
-                    <button onClick={() => togglePerm(p.key)} className={`w-10 h-5 rounded-full relative transition-all ${on ? "bg-primary" : "bg-slate-300"}`}>
-                      <span className="w-4 h-4 bg-white rounded-full shadow absolute top-0.5 transition-all" style={{ left: on ? "calc(100% - 18px)" : "2px" }} />
+                    <button
+                      onClick={() => togglePerm(p.key)}
+                      className={`w-10 h-5 rounded-full relative transition-all ${on ? "bg-primary" : "bg-slate-300"}`}
+                    >
+                      <span
+                        className="w-4 h-4 bg-white rounded-full shadow absolute top-0.5 transition-all"
+                        style={{ left: on ? "calc(100% - 18px)" : "2px" }}
+                      />
                     </button>
                   </div>
                 );
               })}
             </div>
           </div>
+
+          {error && (
+            <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3.5 py-2.5">
+              {error}
+            </div>
+          )}
         </div>
+
         <div className="px-5 py-4 border-t border-slate-100 flex gap-3">
-          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Cancel</button>
-          <button onClick={() => onSave(form)} className="flex-1 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors">Save</button>
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex-1 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-60"
+          >
+            {saving ? "Saving…" : "Save"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DeleteConfirm({
+  member,
+  onCancel,
+  onConfirm,
+}: {
+  member: AdminUser;
+  onCancel: () => void;
+  onConfirm: () => Promise<void>;
+}) {
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try { await onConfirm(); } finally { setDeleting(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4" onClick={onCancel}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-red-50 rounded-2xl flex items-center justify-center flex-shrink-0">
+            <AlertTriangle className="w-5 h-5 text-red-500" />
+          </div>
+          <div>
+            <h3 className="font-bold text-slate-900 text-sm">Delete team member?</h3>
+            <p className="text-xs text-slate-500 mt-0.5">{member.name || member.email}</p>
+          </div>
+        </div>
+        <p className="text-sm text-slate-600">
+          This will permanently remove their admin access. This action cannot be undone.
+        </p>
+        <div className="flex gap-3 pt-1">
+          <button
+            onClick={onCancel}
+            className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleDelete}
+            disabled={deleting}
+            className="flex-1 py-2.5 rounded-xl bg-red-500 text-white text-sm font-semibold hover:bg-red-600 transition-colors disabled:opacity-60"
+          >
+            {deleting ? "Deleting…" : "Delete"}
+          </button>
         </div>
       </div>
     </div>
@@ -107,25 +263,38 @@ function roleLabel(role: string) {
 export function TeamScreen() {
   const [members, setMembers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState<Partial<AdminUser> | null | false>(false);
+  const [editing, setEditing] = useState<MemberForm | null | false>(false);
+  const [confirmDelete, setConfirmDelete] = useState<AdminUser | null>(null);
 
   const reload = () => getAdminUsers().then((d) => { setMembers(d); setLoading(false); });
   useEffect(() => { reload(); }, []);
 
-  const handleSave = async (form: Partial<AdminUser>) => {
-    if (form.id) await updateAdminUser(form.id, form);
-    else await addAdminUser(form);
+  const handleSave = async (form: MemberForm) => {
+    if (form.id) {
+      await updateAdminUser(form.id, form);
+    } else {
+      const result = await addAdminUser(form);
+      if (result.error) throw new Error(result.error);
+    }
     setEditing(false);
     reload();
   };
 
-  const handleRemove = async (id: string) => { await removeAdminUser(id); reload(); };
+  const handleConfirmDelete = async () => {
+    if (!confirmDelete) return;
+    await removeAdminUser(confirmDelete.id);
+    setConfirmDelete(null);
+    reload();
+  };
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-slate-500">{members.length} team members</p>
-        <button onClick={() => setEditing({})} className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors">
+        <button
+          onClick={() => setEditing({})}
+          className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors"
+        >
           <Plus className="w-4 h-4" /> Add Member
         </button>
       </div>
@@ -176,8 +345,18 @@ export function TeamScreen() {
                     <td className="px-4 py-3 text-slate-400 hidden xl:table-cell">{m.created_at?.slice(0, 10)}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => setEditing(m)} className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-500 transition-colors"><Pencil className="w-3.5 h-3.5" /></button>
-                        <button onClick={() => handleRemove(m.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-red-500 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
+                        <button
+                          onClick={() => setEditing(m)}
+                          className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-500 transition-colors"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => setConfirmDelete(m)}
+                          className="p-1.5 rounded-lg hover:bg-red-50 text-red-500 transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -188,7 +367,17 @@ export function TeamScreen() {
         )}
       </div>
 
-      {editing !== false && <Modal user={editing} onClose={() => setEditing(false)} onSave={handleSave} />}
+      {editing !== false && (
+        <Modal user={editing} onClose={() => setEditing(false)} onSave={handleSave} />
+      )}
+
+      {confirmDelete && (
+        <DeleteConfirm
+          member={confirmDelete}
+          onCancel={() => setConfirmDelete(null)}
+          onConfirm={handleConfirmDelete}
+        />
+      )}
     </div>
   );
 }
