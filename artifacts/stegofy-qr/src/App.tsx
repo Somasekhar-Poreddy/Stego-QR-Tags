@@ -8,6 +8,7 @@ import { AuthProvider } from "@/app/context/AuthContext";
 import { QRProvider } from "@/app/context/QRContext";
 import { AppRouter } from "@/app/AppRouter";
 import { AdminRouter } from "@/admin/AdminRouter";
+import { AdminLogin } from "@/admin/AdminLogin";
 import { PublicProfileScreen } from "@/app/screens/scan/PublicProfileScreen";
 
 const queryClient = new QueryClient();
@@ -54,6 +55,10 @@ function Router() {
 
   if (pathname.startsWith("/app")) {
     return <AppRouter />;
+  }
+
+  if (pathname === "/admin/login") {
+    return <AdminLogin />;
   }
 
   if (pathname.startsWith("/admin")) {

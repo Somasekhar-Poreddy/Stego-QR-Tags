@@ -30,14 +30,28 @@ const NAV_ITEMS: NavItem[] = [
   { path: "/admin/settings",     label: "Settings",          icon: Settings },
 ];
 
+const ROLE_LABELS: Record<string, string> = {
+  super_admin: "Super Admin",
+  ops_manager: "Ops Manager",
+  support: "Support",
+  marketing: "Marketing",
+  viewer: "Viewer",
+};
+
+function roleLabel(role: string) {
+  return ROLE_LABELS[role] ?? role;
+}
+
 function SidebarNav({
   collapsed,
   adminName,
+  adminRole,
   onToggle,
   onClose,
 }: {
   collapsed: boolean;
   adminName: string;
+  adminRole: string;
   onToggle: () => void;
   onClose?: () => void;
 }) {
@@ -45,7 +59,7 @@ function SidebarNav({
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    navigate("/");
+    navigate("/admin/login");
   };
 
   return (
@@ -59,7 +73,7 @@ function SidebarNav({
             </div>
             <div className="min-w-0">
               <p className="text-sm font-extrabold text-slate-900 leading-tight truncate">Stegofy</p>
-              <p className="text-[10px] font-semibold text-primary">Super Admin</p>
+              <p className="text-[10px] font-semibold text-primary">Admin Panel</p>
             </div>
           </div>
         )}
@@ -110,6 +124,9 @@ function SidebarNav({
           <div className="px-3 py-2 mb-1">
             <p className="text-xs font-semibold text-slate-400 truncate">Signed in as</p>
             <p className="text-sm font-bold text-slate-800 truncate">{adminName}</p>
+            {adminRole && (
+              <p className="text-[11px] font-semibold text-primary mt-0.5">{roleLabel(adminRole)}</p>
+            )}
           </div>
         )}
         <button
@@ -131,11 +148,13 @@ function SidebarNav({
 interface AdminLayoutProps {
   children: React.ReactNode;
   adminName: string;
+  adminRole: string;
 }
 
-export function AdminLayout({ children, adminName }: AdminLayoutProps) {
+export function AdminLayout({ children, adminName, adminRole }: AdminLayoutProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [, navigate] = useLocation();
   const [location] = useLocation();
 
   const pageTitle = NAV_ITEMS.find((item) =>
@@ -143,6 +162,11 @@ export function AdminLayout({ children, adminName }: AdminLayoutProps) {
       ? location === "/admin"
       : location.startsWith(item.path)
   )?.label ?? "Admin";
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    navigate("/admin/login");
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 flex">
@@ -152,7 +176,12 @@ export function AdminLayout({ children, adminName }: AdminLayoutProps) {
         collapsed ? "w-[68px]" : "w-64"
       )}>
         <div className="sticky top-0 h-screen overflow-hidden">
-          <SidebarNav collapsed={collapsed} adminName={adminName} onToggle={() => setCollapsed((v) => !v)} />
+          <SidebarNav
+            collapsed={collapsed}
+            adminName={adminName}
+            adminRole={adminRole}
+            onToggle={() => setCollapsed((v) => !v)}
+          />
         </div>
       </div>
 
@@ -170,6 +199,7 @@ export function AdminLayout({ children, adminName }: AdminLayoutProps) {
         <SidebarNav
           collapsed={false}
           adminName={adminName}
+          adminRole={adminRole}
           onToggle={() => setMobileOpen(false)}
           onClose={() => setMobileOpen(false)}
         />
@@ -188,14 +218,24 @@ export function AdminLayout({ children, adminName }: AdminLayoutProps) {
           <div className="flex items-center gap-2 min-w-0">
             <h1 className="text-base font-bold text-slate-900 truncate">{pageTitle}</h1>
           </div>
+
+          {/* Top-right: name, role, logout */}
           <div className="ml-auto flex items-center gap-3">
             <div className="hidden sm:flex flex-col items-end">
               <p className="text-xs font-bold text-slate-800 leading-tight">{adminName}</p>
-              <p className="text-[10px] text-slate-400">Administrator</p>
+              <p className="text-[10px] font-semibold text-primary">{roleLabel(adminRole)}</p>
             </div>
-            <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
+            <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
               <Shield className="w-4 h-4 text-primary" />
             </div>
+            <button
+              onClick={handleLogout}
+              title="Sign out"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-red-500 hover:bg-red-50 transition-colors text-xs font-semibold"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">Sign out</span>
+            </button>
           </div>
         </header>
 

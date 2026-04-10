@@ -1,5 +1,7 @@
+import { useState, useEffect } from "react";
 import { Switch, Route } from "wouter";
 import { AdminLayout } from "@/admin/layout/AdminLayout";
+import { supabase } from "@/lib/supabase";
 
 import { DashboardScreen }       from "@/admin/screens/DashboardScreen";
 import { UsersScreen }           from "@/admin/screens/UsersScreen";
@@ -14,9 +16,42 @@ import { NotificationsScreen }   from "@/admin/screens/NotificationsScreen";
 import { SupportScreen }         from "@/admin/screens/SupportScreen";
 import { SettingsScreen }        from "@/admin/screens/SettingsScreen";
 
+interface AdminInfo {
+  name: string;
+  email: string;
+  role: string;
+}
+
 export function AdminRouter() {
+  const [adminInfo, setAdminInfo] = useState<AdminInfo>({ name: "Super Admin", email: "", role: "super_admin" });
+
+  useEffect(() => {
+    async function loadSession() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const user = session?.user;
+        if (!user) return;
+
+        const { data } = await supabase
+          .from("admin_users")
+          .select("name, role, email")
+          .eq("user_id", user.id)
+          .limit(1);
+
+        const record = Array.isArray(data) && data.length > 0 ? data[0] : null;
+        setAdminInfo({
+          name: record?.name || user.email?.split("@")[0] || "Super Admin",
+          email: record?.email || user.email || "",
+          role: record?.role || "super_admin",
+        });
+      } catch {
+      }
+    }
+    loadSession();
+  }, []);
+
   return (
-    <AdminLayout adminName="Super Admin">
+    <AdminLayout adminName={adminInfo.name} adminRole={adminInfo.role}>
       <Switch>
         <Route path="/admin/users"         component={UsersScreen} />
         <Route path="/admin/qr-codes"      component={QRCodesScreen} />
