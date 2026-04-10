@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { AdminLayout } from "@/admin/layout/AdminLayout";
 import { supabase } from "@/lib/supabase";
 
@@ -23,18 +23,25 @@ interface AdminInfo {
 }
 
 export function AdminRouter() {
-  const [adminInfo, setAdminInfo] = useState<AdminInfo>({ name: "Guest", email: "", role: "" });
+  const [, navigate] = useLocation();
+  const [checking, setChecking]   = useState(true);
+  const [adminInfo, setAdminInfo] = useState<AdminInfo>({ name: "", email: "", role: "" });
 
   useEffect(() => {
-    async function loadSession() {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const user = session?.user;
-        if (!user) {
-          setAdminInfo({ name: "Guest", email: "", role: "" });
-          return;
-        }
+    async function bootstrap() {
+      // getSession() reads from localStorage — instant, no network required.
+      const { data: { session } } = await supabase.auth.getSession();
 
+      if (!session) {
+        navigate("/admin/login");
+        return;
+      }
+
+      const user = session.user;
+
+      // Best-effort: fetch name & role from admin_users for display only.
+      // Auth is already established via the session above.
+      try {
         const { data } = await supabase
           .from("admin_users")
           .select("name, role, email")
@@ -43,15 +50,31 @@ export function AdminRouter() {
 
         const record = Array.isArray(data) && data.length > 0 ? data[0] : null;
         setAdminInfo({
-          name: record?.name || user.email?.split("@")[0] || "Admin",
+          name:  record?.name  || user.email?.split("@")[0] || "Admin",
           email: record?.email || user.email || "",
-          role: record?.role || "",
+          role:  record?.role  || "",
         });
       } catch {
+        setAdminInfo({
+          name:  user.email?.split("@")[0] || "Admin",
+          email: user.email || "",
+          role:  "",
+        });
       }
+
+      setChecking(false);
     }
-    loadSession();
-  }, []);
+
+    bootstrap();
+  }, [navigate]);
+
+  if (checking) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <AdminLayout adminName={adminInfo.name} adminRole={adminInfo.role}>
