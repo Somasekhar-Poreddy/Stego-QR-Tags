@@ -58,6 +58,7 @@ export function AdminRouter() {
     name: "", email: "", role: "", permissions: {},
   });
 
+  // Bootstrap: verify session and load permissions once on mount.
   useEffect(() => {
     async function bootstrap() {
       // getSession() reads from localStorage — instant, no network required.
@@ -110,6 +111,14 @@ export function AdminRouter() {
     bootstrap();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Continuous guard: re-check on every in-app location change after bootstrap.
+  useEffect(() => {
+    if (checking) return; // skip until permissions are loaded
+    if (!isPathAllowed(location, adminInfo.role, adminInfo.permissions)) {
+      navigate("/admin");
+    }
+  }, [location, checking, adminInfo, navigate]);
 
   if (checking) {
     return (
