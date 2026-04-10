@@ -221,8 +221,7 @@ function DeleteConfirm({
             <AlertTriangle className="w-5 h-5 text-red-500" />
           </div>
           <div>
-            <h3 className="font-bold text-slate-900 text-sm">Delete team member?</h3>
-            <p className="text-xs text-slate-500 mt-0.5">{member.name || member.email}</p>
+            <h3 className="font-bold text-slate-900 text-sm">Delete {member.name || member.email}?</h3>
           </div>
         </div>
         <p className="text-sm text-slate-600">
@@ -271,7 +270,8 @@ export function TeamScreen() {
 
   const handleSave = async (form: MemberForm) => {
     if (form.id) {
-      await updateAdminUser(form.id, form);
+      const { password: _p, confirmPassword: _c, ...updateData } = form;
+      await updateAdminUser(form.id, updateData);
     } else {
       const result = await addAdminUser(form);
       if (result.error) throw new Error(result.error);

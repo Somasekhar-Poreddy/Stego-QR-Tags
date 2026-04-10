@@ -226,12 +226,17 @@ export async function getAdminUsers(): Promise<AdminUser[]> {
   const { data } = await supabase.from("admin_users").select("*").order("created_at", { ascending: false });
   return (data ?? []) as AdminUser[];
 }
-export async function addAdminUser(data: Partial<AdminUser> & { password?: string }): Promise<{ error?: string }> {
-  const { password, ...rest } = data;
+export async function addAdminUser(data: Partial<AdminUser> & { password?: string; confirmPassword?: string }): Promise<{ error?: string }> {
+  const { password, confirmPassword: _confirm, ...rest } = data;
   if (password) {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
     const res = await fetch("/api/admin/create-user", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+      },
       body: JSON.stringify({ ...rest, password }),
     });
     if (!res.ok) {
