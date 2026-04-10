@@ -54,13 +54,6 @@ export function AppHeader({ title, showBack, onBack, showNotification = true }: 
       </div>
 
       <div className="flex items-center gap-2">
-        {showNotification && (
-          <button className="relative p-2 rounded-xl hover:bg-slate-100 transition-colors">
-            <Bell className="w-5 h-5 text-slate-600" />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-primary rounded-full" />
-          </button>
-        )}
-
         {/* Profile avatar — always shown, navigates to /app/profile */}
         <button
           onClick={() => navigate("/app/profile")}
@@ -74,6 +67,13 @@ export function AppHeader({ title, showBack, onBack, showNotification = true }: 
         >
           {initials}
         </button>
+
+        {showNotification && (
+          <button className="relative p-2 rounded-xl hover:bg-slate-100 transition-colors">
+            <Bell className="w-5 h-5 text-slate-600" />
+            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-primary rounded-full" />
+          </button>
+        )}
       </div>
     </header>
   );
