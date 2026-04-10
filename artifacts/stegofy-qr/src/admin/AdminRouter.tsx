@@ -43,9 +43,9 @@ export function AdminRouter() {
 
         const record = Array.isArray(data) && data.length > 0 ? data[0] : null;
         setAdminInfo({
-          name: record?.name || user.email?.split("@")[0] || "Super Admin",
+          name: record?.name || user.email?.split("@")[0] || "Admin",
           email: record?.email || user.email || "",
-          role: record?.role || "super_admin",
+          role: record?.role || "",
         });
       } catch {
       }
