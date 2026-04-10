@@ -20,12 +20,43 @@ interface AdminInfo {
   name: string;
   email: string;
   role: string;
+  permissions: Record<string, boolean>;
+}
+
+// Maps each route path to its required permission key.
+// Entries with no key (Dashboard) are always accessible.
+const ROUTE_PERMISSIONS: { path: string; permissionKey?: string }[] = [
+  { path: "/admin/users",          permissionKey: "manage_users" },
+  { path: "/admin/qr-codes",       permissionKey: "manage_qr_codes" },
+  { path: "/admin/requests",       permissionKey: "manage_support" },
+  { path: "/admin/products",       permissionKey: "manage_products" },
+  { path: "/admin/orders",         permissionKey: "manage_orders" },
+  { path: "/admin/inventory",      permissionKey: "manage_inventory" },
+  { path: "/admin/analytics",      permissionKey: "view_analytics" },
+  { path: "/admin/team",           permissionKey: "manage_team" },
+  { path: "/admin/notifications",  permissionKey: "send_notifications" },
+  { path: "/admin/support",        permissionKey: "manage_support" },
+  { path: "/admin/settings",       permissionKey: "manage_settings" },
+];
+
+function isPathAllowed(
+  pathname: string,
+  role: string,
+  permissions: Record<string, boolean>,
+): boolean {
+  if (role === "super_admin") return true;
+  const match = ROUTE_PERMISSIONS.find((r) => pathname.startsWith(r.path));
+  if (!match) return true; // Dashboard or unknown — always allow
+  if (!match.permissionKey) return true;
+  return permissions[match.permissionKey] === true;
 }
 
 export function AdminRouter() {
-  const [, navigate] = useLocation();
+  const [location, navigate] = useLocation();
   const [checking, setChecking]   = useState(true);
-  const [adminInfo, setAdminInfo] = useState<AdminInfo>({ name: "", email: "", role: "" });
+  const [adminInfo, setAdminInfo] = useState<AdminInfo>({
+    name: "", email: "", role: "", permissions: {},
+  });
 
   useEffect(() => {
     async function bootstrap() {
@@ -38,35 +69,47 @@ export function AdminRouter() {
       }
 
       const user = session.user;
+      let info: AdminInfo = {
+        name:        user.email?.split("@")[0] || "Admin",
+        email:       user.email || "",
+        role:        "",
+        permissions: {},
+      };
 
-      // Best-effort: fetch name & role from admin_users for display only.
-      // Auth is already established via the session above.
+      // Fetch name, role, email, permissions from admin_users for display + enforcement.
       try {
         const { data } = await supabase
           .from("admin_users")
-          .select("name, role, email")
+          .select("name, role, email, permissions")
           .eq("user_id", user.id)
           .limit(1);
 
         const record = Array.isArray(data) && data.length > 0 ? data[0] : null;
-        setAdminInfo({
-          name:  record?.name  || user.email?.split("@")[0] || "Admin",
-          email: record?.email || user.email || "",
-          role:  record?.role  || "",
-        });
+        if (record) {
+          info = {
+            name:        record.name  || user.email?.split("@")[0] || "Admin",
+            email:       record.email || user.email || "",
+            role:        record.role  || "",
+            permissions: (record.permissions as Record<string, boolean>) || {},
+          };
+        }
       } catch {
-        setAdminInfo({
-          name:  user.email?.split("@")[0] || "Admin",
-          email: user.email || "",
-          role:  "",
-        });
+        // keep defaults
+      }
+
+      setAdminInfo(info);
+
+      // Route guard: redirect to dashboard if current path is not permitted.
+      if (!isPathAllowed(location, info.role, info.permissions)) {
+        navigate("/admin");
       }
 
       setChecking(false);
     }
 
     bootstrap();
-  }, [navigate]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (checking) {
     return (
@@ -77,7 +120,11 @@ export function AdminRouter() {
   }
 
   return (
-    <AdminLayout adminName={adminInfo.name} adminRole={adminInfo.role}>
+    <AdminLayout
+      adminName={adminInfo.name}
+      adminRole={adminInfo.role}
+      permissions={adminInfo.permissions}
+    >
       <Switch>
         <Route path="/admin/users"         component={UsersScreen} />
         <Route path="/admin/qr-codes"      component={QRCodesScreen} />

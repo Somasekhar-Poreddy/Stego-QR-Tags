@@ -13,21 +13,22 @@ interface NavItem {
   path: string;
   label: string;
   icon: React.ElementType;
+  permissionKey?: string; // undefined = always visible (e.g. Dashboard)
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { path: "/admin",              label: "Dashboard",         icon: LayoutDashboard },
-  { path: "/admin/users",        label: "Users",             icon: Users },
-  { path: "/admin/qr-codes",     label: "QR Codes",          icon: QrCode },
-  { path: "/admin/requests",     label: "Contact Requests",  icon: MessageSquare },
-  { path: "/admin/products",     label: "Products",          icon: Package },
-  { path: "/admin/orders",       label: "Orders",            icon: ShoppingCart },
-  { path: "/admin/inventory",    label: "QR Inventory",      icon: Archive },
-  { path: "/admin/analytics",    label: "Analytics",         icon: BarChart2 },
-  { path: "/admin/team",         label: "Team",              icon: UserCog },
-  { path: "/admin/notifications",label: "Notifications",     icon: Bell },
-  { path: "/admin/support",      label: "Support",           icon: LifeBuoy },
-  { path: "/admin/settings",     label: "Settings",          icon: Settings },
+  { path: "/admin",               label: "Dashboard",         icon: LayoutDashboard },
+  { path: "/admin/users",         label: "Users",             icon: Users,         permissionKey: "manage_users" },
+  { path: "/admin/qr-codes",      label: "QR Codes",          icon: QrCode,        permissionKey: "manage_qr_codes" },
+  { path: "/admin/requests",      label: "Contact Requests",  icon: MessageSquare, permissionKey: "manage_support" },
+  { path: "/admin/products",      label: "Products",          icon: Package,       permissionKey: "manage_products" },
+  { path: "/admin/orders",        label: "Orders",            icon: ShoppingCart,  permissionKey: "manage_orders" },
+  { path: "/admin/inventory",     label: "QR Inventory",      icon: Archive,       permissionKey: "manage_inventory" },
+  { path: "/admin/analytics",     label: "Analytics",         icon: BarChart2,     permissionKey: "view_analytics" },
+  { path: "/admin/team",          label: "Team",              icon: UserCog,       permissionKey: "manage_team" },
+  { path: "/admin/notifications", label: "Notifications",     icon: Bell,          permissionKey: "send_notifications" },
+  { path: "/admin/support",       label: "Support",           icon: LifeBuoy,      permissionKey: "manage_support" },
+  { path: "/admin/settings",      label: "Settings",          icon: Settings,      permissionKey: "manage_settings" },
 ];
 
 const ROLE_LABELS: Record<string, string> = {
@@ -42,16 +43,28 @@ function roleLabel(role: string) {
   return ROLE_LABELS[role] ?? role;
 }
 
+function visibleItems(
+  adminRole: string,
+  permissions: Record<string, boolean>,
+): NavItem[] {
+  if (adminRole === "super_admin") return NAV_ITEMS;
+  return NAV_ITEMS.filter(
+    (item) => !item.permissionKey || permissions[item.permissionKey] === true,
+  );
+}
+
 function SidebarNav({
   collapsed,
   adminName,
   adminRole,
+  permissions,
   onToggle,
   onClose,
 }: {
   collapsed: boolean;
   adminName: string;
   adminRole: string;
+  permissions: Record<string, boolean>;
   onToggle: () => void;
   onClose?: () => void;
 }) {
@@ -61,6 +74,8 @@ function SidebarNav({
     await supabase.auth.signOut();
     navigate("/admin/login");
   };
+
+  const items = visibleItems(adminRole, permissions);
 
   return (
     <div className="flex flex-col h-full bg-white border-r border-slate-200">
@@ -91,7 +106,7 @@ function SidebarNav({
 
       {/* Nav items */}
       <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
-        {NAV_ITEMS.map((item) => {
+        {items.map((item) => {
           const Icon = item.icon;
           const active = item.path === "/admin"
             ? location === "/admin"
@@ -147,15 +162,17 @@ interface AdminLayoutProps {
   children: React.ReactNode;
   adminName: string;
   adminRole: string;
+  permissions: Record<string, boolean>;
 }
 
-export function AdminLayout({ children, adminName, adminRole }: AdminLayoutProps) {
+export function AdminLayout({ children, adminName, adminRole, permissions }: AdminLayoutProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [, navigate] = useLocation();
   const [location] = useLocation();
 
-  const pageTitle = NAV_ITEMS.find((item) =>
+  const items = visibleItems(adminRole, permissions);
+  const pageTitle = items.find((item) =>
     item.path === "/admin"
       ? location === "/admin"
       : location.startsWith(item.path)
@@ -178,6 +195,7 @@ export function AdminLayout({ children, adminName, adminRole }: AdminLayoutProps
             collapsed={collapsed}
             adminName={adminName}
             adminRole={adminRole}
+            permissions={permissions}
             onToggle={() => setCollapsed((v) => !v)}
           />
         </div>
@@ -198,6 +216,7 @@ export function AdminLayout({ children, adminName, adminRole }: AdminLayoutProps
           collapsed={false}
           adminName={adminName}
           adminRole={adminRole}
+          permissions={permissions}
           onToggle={() => setMobileOpen(false)}
           onClose={() => setMobileOpen(false)}
         />
