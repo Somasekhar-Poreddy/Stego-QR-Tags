@@ -124,9 +124,7 @@ function SidebarNav({
           <div className="px-3 py-2 mb-1">
             <p className="text-xs font-semibold text-slate-400 truncate">Signed in as</p>
             <p className="text-sm font-bold text-slate-800 truncate">{adminName}</p>
-            {adminRole && (
-              <p className="text-[11px] font-semibold text-primary mt-0.5">{roleLabel(adminRole)}</p>
-            )}
+            {adminRole && <p className="text-[11px] font-semibold text-primary mt-0.5">{roleLabel(adminRole)}</p>}
           </div>
         )}
         <button
@@ -223,7 +221,7 @@ export function AdminLayout({ children, adminName, adminRole }: AdminLayoutProps
           <div className="ml-auto flex items-center gap-3">
             <div className="hidden sm:flex flex-col items-end">
               <p className="text-xs font-bold text-slate-800 leading-tight">{adminName}</p>
-              <p className="text-[10px] font-semibold text-primary">{roleLabel(adminRole)}</p>
+              {adminRole && <p className="text-[10px] font-semibold text-primary">{roleLabel(adminRole)}</p>}
             </div>
             <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
               <Shield className="w-4 h-4 text-primary" />

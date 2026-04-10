@@ -23,14 +23,17 @@ interface AdminInfo {
 }
 
 export function AdminRouter() {
-  const [adminInfo, setAdminInfo] = useState<AdminInfo>({ name: "Super Admin", email: "", role: "super_admin" });
+  const [adminInfo, setAdminInfo] = useState<AdminInfo>({ name: "Guest", email: "", role: "" });
 
   useEffect(() => {
     async function loadSession() {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         const user = session?.user;
-        if (!user) return;
+        if (!user) {
+          setAdminInfo({ name: "Guest", email: "", role: "" });
+          return;
+        }
 
         const { data } = await supabase
           .from("admin_users")
