@@ -269,8 +269,22 @@ export async function addAdminUser(data: Partial<AdminUser> & { password?: strin
 export async function updateAdminUser(id: string, data: Partial<AdminUser>) {
   return supabase.from("admin_users").update(data).eq("id", id);
 }
-export async function removeAdminUser(id: string) {
-  return supabase.from("admin_users").delete().eq("id", id);
+export async function removeAdminUser(id: string): Promise<{ error?: string }> {
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token;
+  const res = await fetch("/api/admin/delete-user", {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ adminUsersId: id }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({})) as { error?: string };
+    return { error: body.error ?? `Delete failed (${res.status})` };
+  }
+  return {};
 }
 
 /* ═══════════════════════════════════════════════════

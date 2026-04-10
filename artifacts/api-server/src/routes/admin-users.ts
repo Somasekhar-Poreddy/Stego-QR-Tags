@@ -184,4 +184,82 @@ router.post("/admin/create-user", async (req: Request, res: Response) => {
   }
 });
 
+router.delete("/admin/delete-user", async (req: Request, res: Response) => {
+  const caller = await requireManageTeam(req, res);
+  if (!caller) return;
+
+  const { adminUsersId } = req.body as { adminUsersId?: string };
+  if (!adminUsersId) {
+    res.status(400).json({ error: "adminUsersId is required" });
+    return;
+  }
+
+  const supabaseUrl = getSupabaseUrl();
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+
+  try {
+    // 1. Look up the admin_users row to get the Supabase Auth user_id
+    const rowRes = await fetch(
+      `${supabaseUrl}/rest/v1/admin_users?id=eq.${adminUsersId}&select=id,user_id&limit=1`,
+      {
+        headers: {
+          "Authorization": `Bearer ${serviceRoleKey}`,
+          "apikey": serviceRoleKey,
+        },
+      },
+    );
+
+    if (!rowRes.ok) {
+      res.status(500).json({ error: "Failed to look up admin user record" });
+      return;
+    }
+
+    const rows = await rowRes.json() as { id: string; user_id: string | null }[];
+    if (!rows.length) {
+      res.status(404).json({ error: "Admin user record not found" });
+      return;
+    }
+
+    const { user_id } = rows[0];
+
+    // 2. Delete the Supabase Auth account if one exists (ignore 404 — already gone)
+    if (user_id) {
+      const authDelRes = await fetch(`${supabaseUrl}/auth/v1/admin/users/${user_id}`, {
+        method: "DELETE",
+        headers: {
+          "Authorization": `Bearer ${serviceRoleKey}`,
+          "apikey": serviceRoleKey,
+        },
+      });
+      if (!authDelRes.ok && authDelRes.status !== 404) {
+        const body = await authDelRes.json().catch(() => ({})) as { msg?: string };
+        res.status(500).json({ error: body.msg ?? "Failed to delete Supabase Auth user" });
+        return;
+      }
+    }
+
+    // 3. Delete the admin_users row
+    const dbDelRes = await fetch(
+      `${supabaseUrl}/rest/v1/admin_users?id=eq.${adminUsersId}`,
+      {
+        method: "DELETE",
+        headers: {
+          "Authorization": `Bearer ${serviceRoleKey}`,
+          "apikey": serviceRoleKey,
+        },
+      },
+    );
+
+    if (!dbDelRes.ok) {
+      res.status(500).json({ error: "Auth user deleted but failed to remove admin record" });
+      return;
+    }
+
+    res.status(200).json({ success: true });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unexpected error";
+    res.status(500).json({ error: message });
+  }
+});
+
 export default router;

@@ -222,9 +222,18 @@ function DeleteConfirm({
   onConfirm: () => Promise<void>;
 }) {
   const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   const handleDelete = async () => {
     setDeleting(true);
-    try { await onConfirm(); } finally { setDeleting(false); }
+    setError(null);
+    try {
+      await onConfirm();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to delete member");
+    } finally {
+      setDeleting(false);
+    }
   };
 
   return (
@@ -236,7 +245,10 @@ function DeleteConfirm({
           </div>
           <h3 className="font-bold text-slate-900 text-sm">Delete {member.name || member.email}?</h3>
         </div>
-        <p className="text-sm text-slate-600">This will permanently remove their admin access. This action cannot be undone.</p>
+        <p className="text-sm text-slate-600">This will permanently remove their admin access and revoke their login. This action cannot be undone.</p>
+        {error && (
+          <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3.5 py-2.5">{error}</div>
+        )}
         <div className="flex gap-3 pt-1">
           <button onClick={onCancel} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
             Cancel
@@ -296,7 +308,8 @@ export function TeamScreen() {
 
   const handleConfirmDelete = async () => {
     if (!confirmDelete) return;
-    await removeAdminUser(confirmDelete.id);
+    const result = await removeAdminUser(confirmDelete.id);
+    if (result.error) throw new Error(result.error);
     setConfirmDelete(null);
     reload();
   };
