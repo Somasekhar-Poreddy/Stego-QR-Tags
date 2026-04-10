@@ -70,8 +70,9 @@ function Modal({
     setError(null);
     if (isNew) {
       if (!form.password) { setError("Password is required"); return; }
-      if (form.password !== form.confirmPassword) { setError("Passwords do not match"); return; }
       if (form.password.length < 6) { setError("Password must be at least 6 characters"); return; }
+      if (!form.confirmPassword) { setError("Please confirm the password"); return; }
+      if (form.password !== form.confirmPassword) { setError("Passwords do not match"); return; }
     }
     setSaving(true);
     try {

@@ -166,7 +166,14 @@ router.post("/admin/create-user", async (req: Request, res: Response) => {
 
     const dbData = await dbRes.json();
     if (!dbRes.ok) {
-      res.status(dbRes.status).json({ error: "Auth user created but failed to save admin record", details: dbData });
+      await fetch(`${supabaseUrl}/auth/v1/admin/users/${userId}`, {
+        method: "DELETE",
+        headers: {
+          "Authorization": `Bearer ${serviceRoleKey}`,
+          "apikey": serviceRoleKey,
+        },
+      }).catch(() => {});
+      res.status(dbRes.status).json({ error: "Failed to save admin record; auth user has been cleaned up", details: dbData });
       return;
     }
 
