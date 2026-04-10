@@ -1,13 +1,12 @@
-import { Home, QrCode, ScanLine, ShoppingBag, User } from "lucide-react";
+import { Home, QrCode, ScanLine, ShoppingBag } from "lucide-react";
 import { useLocation, Link } from "wouter";
 import { cn } from "@/lib/utils";
 
 const TABS = [
-  { label: "Home", icon: Home, href: "/app" },
-  { label: "Scan", icon: ScanLine, href: "/app/scan" },
-  { label: "My QR", icon: QrCode, href: "/app/qr" },
-  { label: "Shop", icon: ShoppingBag, href: "/app/shop" },
-  { label: "Profile", icon: User, href: "/app/profile" },
+  { label: "Home",  icon: Home,        href: "/app" },
+  { label: "Scan",  icon: ScanLine,    href: "/app/scan" },
+  { label: "My QR", icon: QrCode,      href: "/app/qr" },
+  { label: "Shop",  icon: ShoppingBag, href: "/app/shop" },
 ];
 
 export function BottomNav() {

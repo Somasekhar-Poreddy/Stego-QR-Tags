@@ -1,5 +1,22 @@
 import { supabase } from "@/lib/supabase";
 
+export interface Address {
+  id: string;
+  label: string;
+  street: string;
+  city: string;
+  state: string;
+  pincode: string;
+  country: string;
+  isDefault: boolean;
+}
+
+export interface SocialLinks {
+  instagram?: string;
+  facebook?: string;
+  twitter?: string;
+}
+
 export interface UserProfile {
   id: string;
   first_name: string | null;
@@ -8,6 +25,8 @@ export interface UserProfile {
   mobile: string | null;
   age_group: string | null;
   gender: string | null;
+  addresses?: Address[];
+  social_links?: SocialLinks;
   created_at?: string;
   last_active?: string | null;
   status?: string | null;
