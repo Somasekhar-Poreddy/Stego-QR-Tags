@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Search, ChevronLeft, ChevronRight, X, User, QrCode, MessageSquare, Trash2, ShieldOff, ShieldCheck } from "lucide-react";
+import { Search, ChevronLeft, ChevronRight, X, User, QrCode, MessageSquare, Trash2, ShieldOff, ShieldCheck, Copy, Check } from "lucide-react";
 import {
   adminGetAllUsers, adminBlockUser, adminUnblockUser, adminDeleteUser,
   adminGetUserQRCodes, adminGetContactRequestsByQR,
@@ -7,7 +7,7 @@ import {
 
 const PAGE_SIZE = 15;
 
-interface UserRow { id: string; first_name: string | null; last_name: string | null; email: string | null; mobile: string | null; age_group: string | null; gender: string | null; created_at?: string; status?: string | null; }
+interface UserRow { id: string; sgy_id?: string | null; first_name: string | null; last_name: string | null; email: string | null; mobile: string | null; age_group: string | null; gender: string | null; created_at?: string; status?: string | null; }
 interface QRRow { id: string; name: string; type: string; status: string; display_code: string | null; }
 interface RequestRow { id?: string; intent: string | null; status: string; created_at?: string; }
 
@@ -19,6 +19,15 @@ function DetailPanel({ user, onRefresh, onClose }: { user: UserRow; onRefresh: (
   const [qrs, setQrs] = useState<QRRow[]>([]);
   const [reqs, setReqs] = useState<RequestRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [copied, setCopied] = useState(false);
+
+  const copySgyId = () => {
+    if (!user.sgy_id) return;
+    navigator.clipboard.writeText(user.sgy_id).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
 
   useEffect(() => {
     async function load() {
@@ -55,9 +64,20 @@ function DetailPanel({ user, onRefresh, onClose }: { user: UserRow; onRefresh: (
               <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center">
                 <User className="w-6 h-6 text-primary" />
               </div>
-              <div>
+              <div className="flex-1 min-w-0">
                 <p className="font-bold text-slate-900">{[user.first_name, user.last_name].filter(Boolean).join(" ") || "—"}</p>
-                <p className="text-xs text-slate-500">{user.email || "—"}</p>
+                <p className="text-xs text-slate-500 truncate">{user.email || "—"}</p>
+                {user.sgy_id && (
+                  <button
+                    onClick={copySgyId}
+                    className="mt-1.5 inline-flex items-center gap-1.5 bg-primary/10 hover:bg-primary/20 border border-primary/20 rounded-lg px-2 py-0.5 transition-all group"
+                  >
+                    <span className="text-[11px] font-bold text-primary tracking-wide">{user.sgy_id}</span>
+                    {copied
+                      ? <Check className="w-3 h-3 text-green-500" />
+                      : <Copy className="w-3 h-3 text-primary/50 group-hover:text-primary transition-colors" />}
+                  </button>
+                )}
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2 text-xs">
@@ -146,7 +166,7 @@ export function UsersScreen() {
   useEffect(() => {
     const q = search.toLowerCase();
     setFiltered((users as UserRow[]).filter((u) =>
-      !q || [u.first_name, u.last_name, u.email, u.mobile].some((v) => v?.toLowerCase().includes(q))
+      !q || [u.first_name, u.last_name, u.email, u.mobile, u.sgy_id].some((v) => v?.toLowerCase().includes(q))
     ));
     setPage(1);
   }, [search, users]);
@@ -172,6 +192,7 @@ export function UsersScreen() {
             <thead className="bg-slate-50 text-xs text-slate-500 font-semibold uppercase tracking-wide">
               <tr>
                 <th className="px-4 py-3 text-left">Name</th>
+                <th className="px-4 py-3 text-left hidden sm:table-cell">SGY ID</th>
                 <th className="px-4 py-3 text-left hidden md:table-cell">Email</th>
                 <th className="px-4 py-3 text-left hidden lg:table-cell">Mobile</th>
                 <th className="px-4 py-3 text-left hidden xl:table-cell">Joined</th>
@@ -180,10 +201,15 @@ export function UsersScreen() {
             </thead>
             <tbody className="divide-y divide-slate-50">
               {pageData.length === 0 ? (
-                <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-400">No users found</td></tr>
+                <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400">No users found</td></tr>
               ) : pageData.map((u) => (
                 <tr key={u.id} onClick={() => setSelected(u)} className="hover:bg-slate-50 cursor-pointer transition-colors">
                   <td className="px-4 py-3 font-medium text-slate-800">{[u.first_name, u.last_name].filter(Boolean).join(" ") || "—"}</td>
+                  <td className="px-4 py-3 hidden sm:table-cell">
+                    {u.sgy_id
+                      ? <span className="text-xs font-bold text-primary bg-primary/8 border border-primary/15 rounded-lg px-2 py-0.5">{u.sgy_id}</span>
+                      : <span className="text-slate-300">—</span>}
+                  </td>
                   <td className="px-4 py-3 text-slate-500 hidden md:table-cell">{u.email || "—"}</td>
                   <td className="px-4 py-3 text-slate-500 hidden lg:table-cell">{u.mobile || "—"}</td>
                   <td className="px-4 py-3 text-slate-400 hidden xl:table-cell">{u.created_at?.slice(0, 10) || "—"}</td>

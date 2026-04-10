@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import {
   User, Phone, Mail, Shield, Bell, Lock, HelpCircle, LogOut,
   ChevronRight, ChevronDown, Pencil, Trash2, Plus, X, Check,
-  MapPin, Instagram, Twitter, Facebook, Save,
+  MapPin, Instagram, Twitter, Facebook, Save, Copy,
 } from "lucide-react";
 import { useAuth } from "@/app/context/AuthContext";
 import { AppHeader } from "@/app/components/AppHeader";
@@ -177,6 +177,8 @@ export function ProfileScreen() {
   const { user, logout } = useAuth();
 
   /* personal info state */
+  const [sgyId,      setSgyId]      = useState<string | null>(null);
+  const [copied,     setCopied]     = useState(false);
   const [firstName,  setFirstName]  = useState("");
   const [lastName,   setLastName]   = useState("");
   const [mobile,     setMobile]     = useState("");
@@ -204,6 +206,7 @@ export function ProfileScreen() {
     if (!user?.id) return;
     getUserProfile(user.id).then((p) => {
       if (!p) return;
+      setSgyId(    p.sgy_id      ?? null);
       setFirstName(p.first_name  ?? "");
       setLastName( p.last_name   ?? "");
       setMobile(   p.mobile      ?? "");
@@ -213,6 +216,14 @@ export function ProfileScreen() {
       setSocial(   (p.social_links as SocialLinks) ?? {});
     });
   }, [user?.id]);
+
+  const copySgyId = () => {
+    if (!sgyId) return;
+    navigator.clipboard.writeText(sgyId).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
 
   const displayEmail = user?.email || "Not linked";
   const initials = ((firstName[0] ?? user?.name?.[0] ?? "U") + (lastName[0] ?? "")).toUpperCase();
@@ -287,6 +298,21 @@ export function ProfileScreen() {
                 {[firstName, lastName].filter(Boolean).join(" ") || user?.name || "User"}
               </p>
               <p className="text-xs text-slate-400 mt-0.5 truncate">{displayEmail}</p>
+
+              {/* SGY Member ID */}
+              {sgyId ? (
+                <button
+                  onClick={copySgyId}
+                  className="mt-2 inline-flex items-center gap-1.5 bg-primary/8 hover:bg-primary/15 border border-primary/20 rounded-lg px-2.5 py-1 transition-all group"
+                >
+                  <span className="text-[11px] font-bold text-primary tracking-wide">{sgyId}</span>
+                  {copied
+                    ? <Check className="w-3 h-3 text-green-500" />
+                    : <Copy className="w-3 h-3 text-primary/50 group-hover:text-primary transition-colors" />}
+                </button>
+              ) : (
+                <div className="mt-2 h-5 w-24 bg-slate-100 rounded-lg animate-pulse" />
+              )}
             </div>
           </div>
         </div>

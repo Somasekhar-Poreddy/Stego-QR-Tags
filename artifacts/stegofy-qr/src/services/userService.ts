@@ -19,6 +19,7 @@ export interface SocialLinks {
 
 export interface UserProfile {
   id: string;
+  sgy_id?: string | null;
   first_name: string | null;
   last_name: string | null;
   email: string | null;
