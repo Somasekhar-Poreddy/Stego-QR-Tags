@@ -37,7 +37,11 @@ async function fetchPrimary(ip: string): Promise<GeoData | null> {
 
 async function fetchFallback(ip: string): Promise<GeoData | null> {
   try {
-    const res = await fetch(`https://api.ip2location.io/?ip=${ip}`, {
+    const key = process.env.IP2LOCATION_API_KEY;
+    const url = key
+      ? `https://api.ip2location.io/?key=${key}&ip=${ip}`
+      : `https://api.ip2location.io/?ip=${ip}`;
+    const res = await fetch(url, {
       signal: AbortSignal.timeout(5000),
     });
     if (!res.ok) return null;
