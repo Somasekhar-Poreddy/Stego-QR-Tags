@@ -1377,7 +1377,7 @@ function ScansTab({
           <p className="text-xl font-black text-slate-800">{totalCount}</p>
         </div>
         <div className="bg-slate-50 rounded-2xl p-3 text-center">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Requests Made</p>
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Requests (Loaded)</p>
           <p className="text-xl font-black text-slate-800">{scans.filter((s) => s.is_request_made).length}</p>
         </div>
       </div>
@@ -1528,6 +1528,8 @@ function UserDetailModal({ user, onRefresh, onClose }: {
     if (qrIds.length > 0) {
       const sc = await adminGetScanCountByQRIds(qrIds);
       setScanCount(sc);
+    } else {
+      setScanCount(0);
     }
     setLoadingData(false);
   }, [user.id]);
