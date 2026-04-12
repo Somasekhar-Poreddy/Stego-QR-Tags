@@ -12,7 +12,7 @@ import {
   adminGetUserQRCodes, adminUpdateUserProfile, adminGetAllContactRequestsForUser,
   adminGetQRCountsByUser, adminDisableQRCode, adminEnableQRCode, adminDeleteQRCode,
   adminUpdateQRCode, adminGetUserActivityLogs, adminGetLastSeenByUsers,
-  type ActivityLog,
+  adminGetUserActivityLogCount, type ActivityLog,
 } from "@/services/adminService";
 
 /* ─────────────────────────────────────────────────
@@ -1131,7 +1131,7 @@ function ActivityTab({ contacts }: { contacts: ContactRow[] }) {
 /* ─────────────────────────────────────────────────
    SESSIONS TAB
    ───────────────────────────────────────────────── */
-function SessionsTab({ userId }: { userId: string }) {
+function SessionsTab({ userId, totalCount }: { userId: string; totalCount: number }) {
   const [logs, setLogs] = useState<ActivityLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [limit, setLimit] = useState(30);
@@ -1173,7 +1173,7 @@ function SessionsTab({ userId }: { userId: string }) {
       <div className="grid grid-cols-3 gap-3">
         <div className="bg-slate-50 rounded-2xl p-3 text-center">
           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Total Logins</p>
-          <p className="text-xl font-black text-slate-800">{loginEvents.length}</p>
+          <p className="text-xl font-black text-slate-800">{totalCount > 0 ? totalCount : loginEvents.length}</p>
         </div>
         <div className="bg-slate-50 rounded-2xl p-3 text-center">
           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Last Login</p>
@@ -1264,6 +1264,7 @@ function UserDetailModal({ user, onRefresh, onClose }: {
   const [tab, setTab] = useState<TabKey>("profile");
   const [qrs, setQrs] = useState<QRRow[]>([]);
   const [contacts, setContacts] = useState<ContactRow[]>([]);
+  const [sessionCount, setSessionCount] = useState(0);
   const [loadingData, setLoadingData] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [localUser, setLocalUser] = useState<UserRow>(user);
@@ -1274,12 +1275,14 @@ function UserDetailModal({ user, onRefresh, onClose }: {
 
   const loadUserData = useCallback(async () => {
     setLoadingData(true);
-    const [userQrs, allContacts] = await Promise.all([
+    const [userQrs, allContacts, count] = await Promise.all([
       adminGetUserQRCodes(user.id) as Promise<QRRow[]>,
       adminGetAllContactRequestsForUser(user.id) as Promise<ContactRow[]>,
+      adminGetUserActivityLogCount(user.id),
     ]);
     setQrs(userQrs);
     setContacts(allContacts);
+    setSessionCount(count);
     setLoadingData(false);
   }, [user.id]);
 
@@ -1316,7 +1319,7 @@ function UserDetailModal({ user, onRefresh, onClose }: {
     { key: "profile", label: "Profile", icon: <User className="w-4 h-4" /> },
     { key: "qrcodes", label: "QR Codes", icon: <QrCode className="w-4 h-4" />, badge: qrs.length },
     { key: "activity", label: "Activity", icon: <Activity className="w-4 h-4" />, badge: contacts.length },
-    { key: "sessions", label: "Sessions", icon: <Clock className="w-4 h-4" /> },
+    { key: "sessions", label: "Sessions", icon: <Clock className="w-4 h-4" />, badge: sessionCount },
   ];
 
   return (
@@ -1396,7 +1399,7 @@ function UserDetailModal({ user, onRefresh, onClose }: {
               {tab === "profile" && <ProfileTab user={localUser} onRefresh={onRefresh} onUserUpdated={handleUserUpdated} />}
               {tab === "qrcodes" && <QRCodesTab qrs={qrs} contacts={contacts} onRefreshQrs={loadUserData} />}
               {tab === "activity" && <ActivityTab contacts={contacts} />}
-              {tab === "sessions" && <SessionsTab userId={user.id} />}
+              {tab === "sessions" && <SessionsTab userId={user.id} totalCount={sessionCount} />}
             </>
           )}
         </div>

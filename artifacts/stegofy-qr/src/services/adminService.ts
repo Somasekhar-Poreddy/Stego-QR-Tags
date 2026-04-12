@@ -99,6 +99,14 @@ export interface ActivityLog {
   metadata: Record<string, string | null>;
 }
 
+export async function adminGetUserActivityLogCount(userId: string): Promise<number> {
+  const { count } = await supabase
+    .from("user_activity_logs")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId);
+  return count ?? 0;
+}
+
 export async function adminGetUserActivityLogs(userId: string, limit = 30): Promise<ActivityLog[]> {
   const { data } = await supabase
     .from("user_activity_logs")
