@@ -239,6 +239,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
       }
 
+      // TOKEN_REFRESHED: Supabase silently renewed the access token.
+      // Re-build user state so React holds fresh data and downstream
+      // Supabase calls don't fail with stale tokens.
+      if (event === "TOKEN_REFRESHED" && session?.user) {
+        if (passwordRecoveryInProgress.current) return;
+        try {
+          const built = await fetchAndBuildUser(session.user);
+          if (mounted) setUser(built);
+        } catch {
+          // non-fatal — user stays logged in with existing state
+        }
+        return;
+      }
+
       if (event === "SIGNED_OUT") {
         // Don't navigate to login if we are in the recovery flow
         if (passwordRecoveryInProgress.current) return;
@@ -265,10 +279,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     });
 
+    // Visibility recovery: browsers throttle JS timers in background tabs
+    // (~1 min), which can let the Supabase token expire mid-session.
+    // When the user returns to the tab, force an immediate session check
+    // so the token is refreshed before any user action fires.
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState !== "visible") return;
+      if (!mounted) return;
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!mounted) return;
+        if (session?.user && !passwordRecoveryInProgress.current && !otpSignupInProgress.current) {
+          const built = await fetchAndBuildUser(session.user);
+          if (mounted) setUser(built);
+        } else if (!session && !passwordRecoveryInProgress.current) {
+          // Session is truly gone — redirect to login
+          setUser(null);
+          setStep("login");
+        }
+      } catch {
+        // non-fatal — user stays in current state
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
     return () => {
       mounted = false;
       clearTimeout(loadingTimeout);
       listener.subscription.unsubscribe();
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, []);
 
