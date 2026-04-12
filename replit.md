@@ -55,12 +55,26 @@ Every package extends `tsconfig.base.json` which sets `composite: true`. The roo
 Express 5 API server. Routes live in `src/routes/` and use `@workspace/api-zod` for request and response validation and `@workspace/db` for persistence.
 
 - Entry: `src/index.ts` — reads `PORT`, starts Express
-- App setup: `src/app.ts` — mounts CORS, JSON/urlencoded parsing, routes at `/api`
-- Routes: `src/routes/index.ts` mounts sub-routers; `src/routes/health.ts` exposes `GET /health` (full path: `/api/health`)
+- App setup: `src/app.ts` — mounts CORS, JSON/urlencoded parsing, routes at `/api`; `trust proxy` enabled for Replit
+- Routes: `src/routes/index.ts` mounts sub-routers; `src/routes/health.ts` exposes `GET /health`
+- QR Scan Tracking routes (`src/routes/track-scan.ts`):
+  - `POST /api/track-scan` — captures visitor IP, masks/hashes/encrypts it, geo lookup (freeipapi → ip2location fallback), UA parsing, inserts row into `qr_scans` table, returns `{ id }`
+  - `PUT /api/track-scan/:id/intent` — updates `intent` and sets `is_request_made = true` when visitor acts
+  - `POST /api/admin/decrypt-ip` — super-admin only; decrypts `encrypted_ip`, logs to `admin_ip_access_logs`
+- IP utilities: `src/utils/encryption.ts` (AES-256-CBC), `src/services/ipService.ts` (masking/hashing), `src/services/geoService.ts` (geo lookup)
 - Depends on: `@workspace/db`, `@workspace/api-zod`
 - `pnpm --filter @workspace/api-server run dev` — run the dev server
 - `pnpm --filter @workspace/api-server run build` — production esbuild bundle (`dist/index.cjs`)
 - Build bundles an allowlist of deps (express, cors, pg, drizzle-orm, zod, etc.) and externalizes the rest
+
+#### Required Secrets
+| Secret | Purpose |
+|--------|---------|
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (bypasses RLS for server-side writes) |
+| `IP_ENCRYPTION_KEY` | 64-char hex key (32 bytes) for AES-256-CBC IP encryption. Generate with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
+
+#### Supabase Migrations
+Run `supabase-task18-migration.sql` and `supabase-task20-migration.sql` in the Supabase SQL editor to create `user_activity_logs`, `qr_scans`, and `admin_ip_access_logs` tables.
 
 ### `lib/db` (`@workspace/db`)
 
