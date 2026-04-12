@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   Search, X, ChevronLeft, ChevronRight, Trash2, PauseCircle,
-  Edit3, Save, RefreshCw, Phone, Key, ShieldCheck, Settings,
+  Eye, Edit3, Save, RefreshCw, Phone, Key, ShieldCheck, Settings,
   Download, ExternalLink,
 } from "lucide-react";
 import QRCodeLib from "qrcode";
@@ -474,9 +474,7 @@ function QREditModal({ qr: initialQr, owner, onClose, onUpdated, onEnable, onDis
                 </button>
               )}
               <button
-                onClick={() => {
-                  if (confirm(`Delete "${qr.name}"? This cannot be undone.`)) { onDelete(qr.id); onClose(); }
-                }}
+                onClick={() => { onDelete(qr.id); onClose(); }}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-red-200 text-red-600 text-xs font-semibold hover:bg-red-50 transition-colors ml-auto">
                 <Trash2 className="w-3.5 h-3.5" /> Delete QR
               </button>
@@ -591,7 +589,7 @@ export function QRCodesScreen() {
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
                         <button onClick={() => setViewing(qr)} title="View / Edit" className="p-1.5 rounded-lg hover:bg-primary/10 text-primary transition-colors">
-                          <Edit3 className="w-3.5 h-3.5" />
+                          <Eye className="w-3.5 h-3.5" />
                         </button>
                         {inactive ? (
                           <button onClick={() => handleEnable(qr.id)} title="Enable" className="p-1.5 rounded-lg hover:bg-green-50 text-green-600 transition-colors">
