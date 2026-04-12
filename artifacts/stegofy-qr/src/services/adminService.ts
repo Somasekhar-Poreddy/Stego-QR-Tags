@@ -192,6 +192,90 @@ export async function adminGetScanCountByQRIds(qrIds: string[]): Promise<number>
   return count ?? 0;
 }
 
+/* ═══════════════════════════════════════════════════
+   VISITOR LOG (all scans — global admin view)
+   ═══════════════════════════════════════════════════ */
+export type ScanFilter = "all" | "registered" | "strangers";
+
+export interface ScanWithQRName extends QRScan {
+  qr_name: string | null;
+}
+
+export async function adminGetAllScans(
+  filter: ScanFilter = "all",
+  limit = 30,
+  offset = 0,
+): Promise<ScanWithQRName[]> {
+  let q = supabase
+    .from("qr_scans")
+    .select("*, qr_codes(name, display_code, type)")
+    .order("created_at", { ascending: false })
+    .range(offset, offset + limit - 1);
+
+  if (filter === "registered") q = q.not("user_id", "is", null);
+  if (filter === "strangers") q = q.is("user_id", null);
+
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+
+  return ((data ?? []) as unknown as (QRScan & { qr_codes: { name: string | null; display_code: string | null; type: string | null } | null })[]).map(
+    (row) => ({
+      ...row,
+      qr_name: row.qr_codes?.name || row.qr_codes?.display_code || row.qr_codes?.type || null,
+    }),
+  );
+}
+
+export async function adminGetAllScansCount(filter: ScanFilter = "all"): Promise<number> {
+  let q = supabase
+    .from("qr_scans")
+    .select("id", { count: "exact", head: true });
+
+  if (filter === "registered") q = q.not("user_id", "is", null);
+  if (filter === "strangers") q = q.is("user_id", null);
+
+  const { count, error } = await q;
+  if (error) throw new Error(error.message);
+  return count ?? 0;
+}
+
+export interface GeoBreakdownRow { country: string; count: number }
+export interface DeviceBreakdownRow { device: string; count: number }
+
+export async function adminGetGeoBreakdown(): Promise<GeoBreakdownRow[]> {
+  const { data, error } = await supabase
+    .from("qr_scans")
+    .select("country")
+    .not("country", "is", null);
+  if (error) throw new Error(error.message);
+
+  const counts: Record<string, number> = {};
+  (data ?? []).forEach((row) => {
+    const key = (row.country as string) || "Unknown";
+    counts[key] = (counts[key] ?? 0) + 1;
+  });
+  return Object.entries(counts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)
+    .map(([country, count]) => ({ country, count }));
+}
+
+export async function adminGetDeviceBreakdown(): Promise<DeviceBreakdownRow[]> {
+  const { data, error } = await supabase
+    .from("qr_scans")
+    .select("device");
+  if (error) throw new Error(error.message);
+
+  const counts: Record<string, number> = {};
+  (data ?? []).forEach((row) => {
+    const key = (row.device as string) || "unknown";
+    counts[key] = (counts[key] ?? 0) + 1;
+  });
+  return Object.entries(counts)
+    .sort((a, b) => b[1] - a[1])
+    .map(([device, count]) => ({ device, count }));
+}
+
 export async function adminDecryptIP(
   encryptedIp: string,
   qrId?: string,

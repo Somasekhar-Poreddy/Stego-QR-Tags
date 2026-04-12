@@ -15,6 +15,7 @@ import { TeamScreen }            from "@/admin/screens/TeamScreen";
 import { NotificationsScreen }   from "@/admin/screens/NotificationsScreen";
 import { SupportScreen }         from "@/admin/screens/SupportScreen";
 import { SettingsScreen }        from "@/admin/screens/SettingsScreen";
+import { VisitorLogScreen }     from "@/admin/screens/VisitorLogScreen";
 
 interface AdminInfo {
   name: string;
@@ -33,6 +34,7 @@ const ROUTE_PERMISSIONS: { path: string; permissionKey?: string }[] = [
   { path: "/admin/orders",         permissionKey: "manage_orders" },
   { path: "/admin/inventory",      permissionKey: "manage_inventory" },
   { path: "/admin/analytics",      permissionKey: "view_analytics" },
+  { path: "/admin/visitor-log",    permissionKey: "view_analytics" },
   { path: "/admin/team",           permissionKey: "manage_team" },
   { path: "/admin/notifications",  permissionKey: "send_notifications" },
   { path: "/admin/support",        permissionKey: "manage_support" },
@@ -146,6 +148,7 @@ export function AdminRouter() {
         <Route path="/admin/notifications" component={NotificationsScreen} />
         <Route path="/admin/support"       component={SupportScreen} />
         <Route path="/admin/settings"      component={SettingsScreen} />
+        <Route path="/admin/visitor-log"   component={VisitorLogScreen} />
         <Route                             component={DashboardScreen} />
       </Switch>
     </AdminLayout>

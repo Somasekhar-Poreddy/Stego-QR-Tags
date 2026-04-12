@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, QrCode, MessageSquare,
   Package, ShoppingCart, Archive, BarChart2,
   UserCog, Bell, LifeBuoy, Settings,
-  ChevronLeft, ChevronRight, Menu, X, LogOut, Shield,
+  ChevronLeft, ChevronRight, Menu, X, LogOut, Shield, Globe,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
@@ -25,6 +25,7 @@ const NAV_ITEMS: NavItem[] = [
   { path: "/admin/orders",        label: "Orders",            icon: ShoppingCart,  permissionKey: "manage_orders" },
   { path: "/admin/inventory",     label: "QR Inventory",      icon: Archive,       permissionKey: "manage_inventory" },
   { path: "/admin/analytics",     label: "Analytics",         icon: BarChart2,     permissionKey: "view_analytics" },
+  { path: "/admin/visitor-log",   label: "Visitor Log",       icon: Globe,         permissionKey: "view_analytics" },
   { path: "/admin/team",          label: "Team",              icon: UserCog,       permissionKey: "manage_team" },
   { path: "/admin/notifications", label: "Notifications",     icon: Bell,          permissionKey: "send_notifications" },
   { path: "/admin/support",       label: "Support",           icon: LifeBuoy,      permissionKey: "manage_support" },

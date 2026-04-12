@@ -1,22 +1,54 @@
 import { useEffect, useState } from "react";
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
 import {
   getScansPerDay, getRequestsByType, getTopQRCategories, getPeakHourData,
+  adminGetGeoBreakdown, adminGetDeviceBreakdown,
+  type GeoBreakdownRow, type DeviceBreakdownRow,
 } from "@/services/adminService";
 
 const PIE_COLORS = ["#7c3aed", "#6d28d9", "#5b21b6", "#4c1d95", "#2e1065", "#8b5cf6"];
+const DEVICE_COLORS: Record<string, string> = {
+  mobile: "#7c3aed",
+  desktop: "#06b6d4",
+  tablet: "#f59e0b",
+  unknown: "#94a3b8",
+};
+
+const COUNTRY_ISO: Record<string, string> = {
+  "india": "IN", "united states": "US", "united kingdom": "GB",
+  "canada": "CA", "australia": "AU", "germany": "DE", "france": "FR",
+  "japan": "JP", "china": "CN", "brazil": "BR", "russia": "RU",
+  "south korea": "KR", "mexico": "MX", "italy": "IT", "spain": "ES",
+  "netherlands": "NL", "switzerland": "CH", "sweden": "SE", "singapore": "SG",
+  "malaysia": "MY", "indonesia": "ID", "thailand": "TH", "vietnam": "VN",
+  "philippines": "PH", "pakistan": "PK", "bangladesh": "BD", "sri lanka": "LK",
+  "nepal": "NP", "new zealand": "NZ", "south africa": "ZA", "nigeria": "NG",
+  "kenya": "KE", "egypt": "EG", "saudi arabia": "SA", "united arab emirates": "AE",
+  "qatar": "QA", "turkey": "TR", "ukraine": "UA", "poland": "PL",
+};
+
+function countryFlag(country: string): string {
+  const iso = COUNTRY_ISO[country.toLowerCase()];
+  if (!iso) return "🌐";
+  return iso.toUpperCase().replace(/./g, (c) =>
+    String.fromCodePoint(0x1F1E6 + c.charCodeAt(0) - 65)
+  );
+}
 
 function Skeleton({ className = "" }: { className?: string }) {
   return <div className={`bg-slate-100 rounded-xl animate-pulse ${className}`} />;
 }
 
-function ChartCard({ title, children, loading }: { title: string; children: React.ReactNode; loading: boolean }) {
+function ChartCard({ title, subtitle, children, loading }: { title: string; subtitle?: string; children: React.ReactNode; loading: boolean }) {
   return (
     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-      <p className="text-sm font-bold text-slate-800 mb-4">{title}</p>
+      <div className="mb-4">
+        <p className="text-sm font-bold text-slate-800">{title}</p>
+        {subtitle && <p className="text-[11px] text-slate-400 mt-0.5">{subtitle}</p>}
+      </div>
       {loading ? <Skeleton className="h-52" /> : children}
     </div>
   );
@@ -58,7 +90,6 @@ function PeakHourHeatmap({ data }: { data: { hour: number; count: number }[] }) 
           );
         })}
       </div>
-      {/* Legend */}
       <div className="flex items-center gap-2 text-xs text-slate-500">
         <span>Low</span>
         {["#ede9fe", "#ddd6fe", "#c4b5fd", "#a78bfa", "#7c3aed"].map((c) => (
@@ -71,11 +102,72 @@ function PeakHourHeatmap({ data }: { data: { hour: number; count: number }[] }) 
   );
 }
 
+function GeoBarChart({ data }: { data: GeoBreakdownRow[] }) {
+  if (data.length === 0) {
+    return <div className="h-[210px] flex items-center justify-center text-sm text-slate-400">No geo data yet</div>;
+  }
+
+  const chartData = data.map((row) => ({
+    country: `${countryFlag(row.country)} ${row.country}`,
+    count: row.count,
+  }));
+
+  return (
+    <ResponsiveContainer width="100%" height={210}>
+      <BarChart data={chartData} layout="vertical">
+        <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+        <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10 }} />
+        <YAxis dataKey="country" type="category" tick={{ fontSize: 10 }} width={100} />
+        <Tooltip />
+        <Bar dataKey="count" fill="#7c3aed" radius={[0, 4, 4, 0]} />
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+function DevicePieChart({ data }: { data: DeviceBreakdownRow[] }) {
+  if (data.length === 0) {
+    return <div className="h-[210px] flex items-center justify-center text-sm text-slate-400">No device data yet</div>;
+  }
+
+  const chartData = data.map((row) => ({
+    name: row.device.charAt(0).toUpperCase() + row.device.slice(1),
+    value: row.count,
+    key: row.device,
+  }));
+
+  return (
+    <ResponsiveContainer width="100%" height={210}>
+      <PieChart>
+        <Pie
+          data={chartData}
+          cx="50%"
+          cy="50%"
+          outerRadius={75}
+          dataKey="value"
+          nameKey="name"
+          label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+          labelLine={false}
+          fontSize={10}
+        >
+          {chartData.map((entry, i) => (
+            <Cell key={i} fill={DEVICE_COLORS[entry.key] ?? PIE_COLORS[i % PIE_COLORS.length]} />
+          ))}
+        </Pie>
+        <Tooltip />
+        <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
+      </PieChart>
+    </ResponsiveContainer>
+  );
+}
+
 export function AnalyticsScreen() {
   const [scans, setScans] = useState<{ date: string; scans: number }[]>([]);
   const [reqTypes, setReqTypes] = useState<{ name: string; value: number }[]>([]);
   const [qrCats, setQrCats] = useState<{ category: string; count: number }[]>([]);
   const [peakHours, setPeakHours] = useState<{ hour: number; count: number }[]>([]);
+  const [geo, setGeo] = useState<GeoBreakdownRow[]>([]);
+  const [devices, setDevices] = useState<DeviceBreakdownRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -86,11 +178,15 @@ export function AnalyticsScreen() {
       getRequestsByType(),
       getTopQRCategories(),
       getPeakHourData(),
-    ]).then(([s, r, c, h]) => {
+      adminGetGeoBreakdown(),
+      adminGetDeviceBreakdown(),
+    ]).then(([s, r, c, h, g, d]) => {
       setScans(s);
       setReqTypes(r);
       setQrCats(c);
       setPeakHours(h);
+      setGeo(g);
+      setDevices(d);
     })
     .catch(() => {})
     .finally(() => setLoading(false));
@@ -133,6 +229,24 @@ export function AnalyticsScreen() {
               </PieChart>
             </ResponsiveContainer>
           )}
+        </ChartCard>
+
+        {/* Top countries */}
+        <ChartCard
+          title="Top Countries by Scan Count"
+          subtitle="Based on IP geolocation data"
+          loading={loading}
+        >
+          <GeoBarChart data={geo} />
+        </ChartCard>
+
+        {/* Device breakdown */}
+        <ChartCard
+          title="Devices & Browsers"
+          subtitle="Scanner device type distribution"
+          loading={loading}
+        >
+          <DevicePieChart data={devices} />
         </ChartCard>
 
         {/* QR categories horizontal bar */}
