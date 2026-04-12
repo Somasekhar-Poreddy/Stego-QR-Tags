@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
+import { getSessionId } from "@/lib/sessionId";
 
 /* ─── Types ────────────────────────────────────────────────────────────────── */
 interface QRPublicData {
@@ -523,6 +524,8 @@ export function PublicProfileScreen() {
   const [showEmergencyContacts, setShowEmergencyContacts] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
+  const scanIdRef = useRef<string | null>(null);
+
   // Extract QR id from path: /qr/<id>
   const qrId = (() => {
     const match = window.location.pathname.match(/^\/qr\/([^/?#]+)/);
@@ -541,6 +544,21 @@ export function PublicProfileScreen() {
         setNotFound(true);
       } else {
         setQrData(data as QRPublicData);
+        // Fire-and-forget: record this QR scan
+        fetch("/api/track-scan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            qr_id: data.id,
+            session_id: getSessionId(),
+            referrer: document.referrer || null,
+          }),
+        })
+          .then((r) => r.json())
+          .then((body: { id?: string }) => {
+            if (body.id) scanIdRef.current = body.id;
+          })
+          .catch(() => {});
       }
       setLoading(false);
     })();
@@ -580,6 +598,15 @@ export function PublicProfileScreen() {
       if (error) {
         console.error("contact_requests insert failed:", error);
         return "Failed to send request. Please check your connection and try again.";
+      }
+      // Fire-and-forget: update scan row with intent + mark request made
+      if (scanIdRef.current) {
+        const sid = scanIdRef.current;
+        fetch(`/api/track-scan/${sid}/intent`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ intent: selectedIntent }),
+        }).catch(() => {});
       }
     }
     setShowVerify(false);

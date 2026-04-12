@@ -5,6 +5,7 @@ import {
   Phone, MapPin, Globe, Calendar, Instagram, Twitter, Facebook,
   Save, Edit3, RefreshCw, Filter, Home, Activity, Plus, Key, Link2,
   ExternalLink, Download, Clock, LogIn, LogOut, Smartphone, Monitor,
+  BarChart2, Eye, EyeOff,
 } from "lucide-react";
 import QRCodeLib from "qrcode";
 import {
@@ -12,8 +13,10 @@ import {
   adminGetUserQRCodes, adminUpdateUserProfile, adminGetAllContactRequestsForUser,
   adminGetQRCountsByUser, adminDisableQRCode, adminEnableQRCode, adminDeleteQRCode,
   adminUpdateQRCode, adminGetUserActivityLogs, adminGetLastSeenByUsers,
-  adminGetUserActivityLogCount, type ActivityLog,
+  adminGetUserActivityLogCount, adminGetScansByQRIds, adminGetScanCountByQRIds,
+  adminDecryptIP, type ActivityLog, type QRScan,
 } from "@/services/adminService";
+import { supabase } from "@/lib/supabase";
 
 /* ─────────────────────────────────────────────────
    TYPES
@@ -1254,9 +1257,195 @@ function SessionsTab({ userId, totalCount }: { userId: string; totalCount: numbe
 }
 
 /* ─────────────────────────────────────────────────
+   SCANS TAB
+   ───────────────────────────────────────────────── */
+function ScansTab({
+  qrIds,
+  totalCount,
+  isSuperAdmin,
+}: {
+  qrIds: string[];
+  totalCount: number;
+  isSuperAdmin: boolean;
+}) {
+  const [scans, setScans] = useState<QRScan[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [limit, setLimit] = useState(30);
+  const [hasMore, setHasMore] = useState(false);
+  const [revealedIps, setRevealedIps] = useState<Record<string, string>>({});
+  const [loadingIp, setLoadingIp] = useState<Record<string, boolean>>({});
+
+  const revealIp = (id: string, ip: string) => {
+    setRevealedIps((prev) => ({ ...prev, [id]: ip }));
+    setTimeout(() => {
+      setRevealedIps((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+    }, 10000);
+  };
+
+  const load = useCallback(async (lim: number) => {
+    setLoading(true);
+    const data = await adminGetScansByQRIds(qrIds, lim + 1);
+    setHasMore(data.length > lim);
+    setScans(data.slice(0, lim));
+    setLoading(false);
+  }, [qrIds]);
+
+  useEffect(() => { load(30); }, [load]);
+
+  const handleLoadMore = () => {
+    const next = limit + 30;
+    setLimit(next);
+    load(next);
+  };
+
+  const handleViewIp = async (scan: QRScan) => {
+    if (!scan.encrypted_ip) return;
+    setLoadingIp((prev) => ({ ...prev, [scan.id]: true }));
+    const result = await adminDecryptIP(scan.encrypted_ip, scan.qr_id, scan.id);
+    setLoadingIp((prev) => ({ ...prev, [scan.id]: false }));
+    if ("ip" in result) {
+      revealIp(scan.id, result.ip);
+    } else {
+      revealIp(scan.id, `Error: ${result.error}`);
+    }
+  };
+
+  const getDeviceIcon = (device: string | null) => {
+    if (device === "mobile") return <Smartphone className="w-3.5 h-3.5" />;
+    return <Monitor className="w-3.5 h-3.5" />;
+  };
+
+  if (loading && scans.length === 0) {
+    return (
+      <div className="flex items-center justify-center py-20 gap-2 text-slate-400">
+        <RefreshCw className="w-4 h-4 animate-spin text-primary" />
+        <span className="text-sm">Loading scans…</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-5 py-4 space-y-4">
+      {/* Summary */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="bg-slate-50 rounded-2xl p-3 text-center">
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Total Scans</p>
+          <p className="text-xl font-black text-slate-800">{totalCount}</p>
+        </div>
+        <div className="bg-slate-50 rounded-2xl p-3 text-center">
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Requests Made</p>
+          <p className="text-xl font-black text-slate-800">{scans.filter((s) => s.is_request_made).length}</p>
+        </div>
+      </div>
+
+      {scans.length === 0 ? (
+        <div className="text-center py-16 space-y-2">
+          <BarChart2 className="w-10 h-10 text-slate-200 mx-auto" />
+          <p className="text-sm text-slate-400">No scans recorded yet</p>
+          <p className="text-xs text-slate-300">Scans are recorded when someone opens a QR tag link</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {scans.map((scan) => {
+            const ts = new Date(scan.created_at).toLocaleString("en-IN", {
+              day: "2-digit", month: "short", year: "numeric",
+              hour: "2-digit", minute: "2-digit",
+            });
+            const location = [scan.city, scan.state, scan.country].filter(Boolean).join(", ");
+            const revealedIp = revealedIps[scan.id];
+            const isLoadingThisIp = loadingIp[scan.id];
+            return (
+              <div key={scan.id} className="bg-slate-50 rounded-xl p-3 space-y-2">
+                <div className="flex items-start gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-indigo-100 flex items-center justify-center shrink-0 text-indigo-600">
+                    {getDeviceIcon(scan.device)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-xs font-bold text-slate-700" title={ts}>
+                        {formatRelativeTime(scan.created_at)}
+                      </p>
+                      {scan.is_request_made && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">
+                          Request made
+                        </span>
+                      )}
+                      {scan.intent && (
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${getIntentColor(scan.intent)}`}>
+                          {getIntentLabel(scan.intent)}
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
+                      {(scan.browser || scan.os) && (
+                        <span className="text-[11px] font-mono text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
+                          {[scan.browser, scan.os].filter(Boolean).join(" · ")}
+                        </span>
+                      )}
+                      {location && (
+                        <span className="flex items-center gap-1 text-[11px] text-slate-500">
+                          <MapPin className="w-3 h-3 text-slate-400 shrink-0" /> {location}
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-1.5 flex items-center gap-2 flex-wrap">
+                      {scan.masked_ip && (
+                        <span className="text-[11px] font-mono text-slate-500">
+                          {revealedIp ? (
+                            <span className="text-primary font-semibold">{revealedIp}</span>
+                          ) : (
+                            scan.masked_ip
+                          )}
+                        </span>
+                      )}
+                      {isSuperAdmin && scan.encrypted_ip && (
+                        <button
+                          onClick={() => handleViewIp(scan)}
+                          disabled={isLoadingThisIp || !!revealedIp}
+                          className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-lg bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-colors disabled:opacity-50"
+                          title="View full IP (visible for 10 seconds)"
+                        >
+                          {isLoadingThisIp ? (
+                            <RefreshCw className="w-3 h-3 animate-spin" />
+                          ) : revealedIp ? (
+                            <EyeOff className="w-3 h-3" />
+                          ) : (
+                            <Eye className="w-3 h-3" />
+                          )}
+                          {revealedIp ? "Hiding…" : "View Full IP 🔐"}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {hasMore && (
+        <button
+          onClick={handleLoadMore}
+          disabled={loading}
+          className="w-full py-2 text-xs font-semibold text-primary bg-primary/5 hover:bg-primary/10 rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+        >
+          {loading ? <RefreshCw className="w-3 h-3 animate-spin" /> : null}
+          Load more scans
+        </button>
+      )}
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────
    USER DETAIL MODAL — true full-page overlay
    ───────────────────────────────────────────────── */
-type TabKey = "profile" | "qrcodes" | "activity" | "sessions";
+type TabKey = "profile" | "qrcodes" | "activity" | "sessions" | "scans";
 
 function UserDetailModal({ user, onRefresh, onClose }: {
   user: UserRow; onRefresh: () => void; onClose: () => void;
@@ -1265,6 +1454,8 @@ function UserDetailModal({ user, onRefresh, onClose }: {
   const [qrs, setQrs] = useState<QRRow[]>([]);
   const [contacts, setContacts] = useState<ContactRow[]>([]);
   const [sessionCount, setSessionCount] = useState(0);
+  const [scanCount, setScanCount] = useState(0);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [loadingData, setLoadingData] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [localUser, setLocalUser] = useState<UserRow>(user);
@@ -1283,10 +1474,26 @@ function UserDetailModal({ user, onRefresh, onClose }: {
     setQrs(userQrs);
     setContacts(allContacts);
     setSessionCount(count);
+    // Fetch scan count from qr_scans using these user's QR IDs
+    const qrIds = userQrs.map((q) => q.id);
+    if (qrIds.length > 0) {
+      const sc = await adminGetScanCountByQRIds(qrIds);
+      setScanCount(sc);
+    }
     setLoadingData(false);
   }, [user.id]);
 
   useEffect(() => { loadUserData(); }, [loadUserData]);
+
+  // Determine if current admin is a super-admin
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session?.user) return;
+      const allowedIds = (import.meta.env.VITE_ADMIN_USER_IDS ?? "")
+        .split(",").map((id: string) => id.trim()).filter(Boolean);
+      setIsSuperAdmin(allowedIds.includes(session.user.id));
+    }).catch(() => {});
+  }, []);
 
   const isBlocked = localUser.status === "blocked";
   const fullName = [localUser.first_name, localUser.last_name].filter(Boolean).join(" ") || "Unknown User";
@@ -1320,6 +1527,7 @@ function UserDetailModal({ user, onRefresh, onClose }: {
     { key: "qrcodes", label: "QR Codes", icon: <QrCode className="w-4 h-4" />, badge: qrs.length },
     { key: "activity", label: "Activity", icon: <Activity className="w-4 h-4" />, badge: contacts.length },
     { key: "sessions", label: "Sessions", icon: <Clock className="w-4 h-4" />, badge: sessionCount },
+    { key: "scans", label: "Scans", icon: <BarChart2 className="w-4 h-4" />, badge: scanCount },
   ];
 
   return (
@@ -1400,6 +1608,7 @@ function UserDetailModal({ user, onRefresh, onClose }: {
               {tab === "qrcodes" && <QRCodesTab qrs={qrs} contacts={contacts} onRefreshQrs={loadUserData} />}
               {tab === "activity" && <ActivityTab contacts={contacts} />}
               {tab === "sessions" && <SessionsTab userId={user.id} totalCount={sessionCount} />}
+              {tab === "scans" && <ScansTab qrIds={qrs.map((q) => q.id)} totalCount={scanCount} isSuperAdmin={isSuperAdmin} />}
             </>
           )}
         </div>
