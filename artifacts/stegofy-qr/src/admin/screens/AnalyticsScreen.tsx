@@ -79,8 +79,10 @@ export function AnalyticsScreen() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const to = new Date();
+    const from = new Date(); from.setDate(from.getDate() - 13); from.setHours(0, 0, 0, 0);
     Promise.all([
-      getScansPerDay((() => { const f = new Date(); f.setDate(f.getDate() - 13); f.setHours(0,0,0,0); return f; })(), new Date()),
+      getScansPerDay(from, to),
       getRequestsByType(),
       getTopQRCategories(),
       getPeakHourData(),
