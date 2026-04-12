@@ -272,18 +272,18 @@ export async function getDashboardStats() {
   };
 }
 
-export async function getScansPerDay(days = 7): Promise<{ date: string; scans: number }[]> {
-  const since = new Date(); since.setDate(since.getDate() - days);
+export async function getScansPerDay(from: Date, to: Date): Promise<{ date: string; scans: number }[]> {
   const { data } = await supabase
-    .from("activity_logs")
+    .from("qr_scans")
     .select("created_at")
-    .eq("action_type", "scan")
-    .gte("created_at", since.toISOString());
+    .gte("created_at", from.toISOString())
+    .lte("created_at", to.toISOString());
 
   const counts: Record<string, number> = {};
-  for (let i = days - 1; i >= 0; i--) {
-    const d = new Date(); d.setDate(d.getDate() - i);
-    counts[d.toISOString().slice(0, 10)] = 0;
+  const cur = new Date(from);
+  while (cur <= to) {
+    counts[cur.toISOString().slice(0, 10)] = 0;
+    cur.setDate(cur.getDate() + 1);
   }
   (data ?? []).forEach((row) => {
     const key = (row.created_at as string).slice(0, 10);
@@ -292,8 +292,11 @@ export async function getScansPerDay(days = 7): Promise<{ date: string; scans: n
   return Object.entries(counts).map(([date, scans]) => ({ date: date.slice(5), scans }));
 }
 
-export async function getRequestsByType(): Promise<{ name: string; value: number }[]> {
-  const { data } = await supabase.from("contact_requests").select("intent");
+export async function getRequestsByType(from?: Date, to?: Date): Promise<{ name: string; value: number }[]> {
+  let q = supabase.from("contact_requests").select("intent");
+  if (from) q = q.gte("created_at", from.toISOString());
+  if (to) q = q.lte("created_at", to.toISOString());
+  const { data } = await q;
   const counts: Record<string, number> = {};
   (data ?? []).forEach((row) => {
     const key = (row.intent as string) || "unknown";

@@ -80,7 +80,7 @@ export function AnalyticsScreen() {
 
   useEffect(() => {
     Promise.all([
-      getScansPerDay(14),
+      getScansPerDay((() => { const f = new Date(); f.setDate(f.getDate() - 13); f.setHours(0,0,0,0); return f; })(), new Date()),
       getRequestsByType(),
       getTopQRCategories(),
       getPeakHourData(),
