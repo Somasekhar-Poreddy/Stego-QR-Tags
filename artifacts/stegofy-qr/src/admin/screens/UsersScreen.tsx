@@ -529,6 +529,54 @@ function QRImage({ url, size = 128 }: { url: string; size?: number }) {
 }
 
 /* ─────────────────────────────────────────────────
+   QR PREVIEW CARD (128×128 image + copy URL + links)
+   ───────────────────────────────────────────────── */
+function QRPreviewCard({ qr }: { qr: { id: string; qr_url?: string | null; display_code: string | null; name: string } }) {
+  const [copied, setCopied] = useState(false);
+  const qrPageUrl = qr.qr_url || `${window.location.origin}/qr/${qr.id}`;
+
+  const handleDl = async () => {
+    try {
+      const d = await QRCodeLib.toDataURL(qrPageUrl, { width: 512, margin: 3, color: { dark: "#1e293b", light: "#ffffff" } });
+      const fname = qr.display_code ? `stegofy-${qr.display_code}` : (qr.name || qr.id);
+      const a = document.createElement("a"); a.href = d;
+      a.download = `${fname}.png`; a.click();
+    } catch { /* ignore */ }
+  };
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(qrPageUrl).then(() => {
+      setCopied(true); setTimeout(() => setCopied(false), 2000);
+    }).catch(() => { /* ignore */ });
+  };
+
+  return (
+    <div className="flex flex-col items-center gap-1.5 shrink-0" style={{ width: 140 }}>
+      <div className="bg-white p-1.5 rounded-xl shadow-sm border border-slate-100">
+        <QRImage url={qrPageUrl} size={128} />
+      </div>
+      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Stegofy</p>
+      <button
+        onClick={handleCopy}
+        title="Copy URL"
+        className="flex items-center gap-1 text-[9px] font-mono text-slate-500 bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded-lg transition-colors w-full justify-center group"
+      >
+        <span className="truncate max-w-[90px]">{qr.display_code || "Copy URL"}</span>
+        {copied ? <Check className="w-2.5 h-2.5 text-green-500 shrink-0" /> : <Copy className="w-2.5 h-2.5 text-slate-400 shrink-0 group-hover:text-slate-600" />}
+      </button>
+      <a href={qrPageUrl} target="_blank" rel="noopener noreferrer"
+        className="flex items-center gap-1 text-[10px] font-semibold text-primary hover:underline">
+        <ExternalLink className="w-2.5 h-2.5" /> Open Page
+      </a>
+      <button onClick={handleDl}
+        className="flex items-center gap-1 text-[10px] font-semibold text-slate-500 hover:text-slate-700">
+        <Download className="w-2.5 h-2.5" /> PNG
+      </button>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────
    QR SETTINGS TOGGLE (reusable)
    ───────────────────────────────────────────────── */
 function SettingToggle({ label, value, onChange, disabled }: {
@@ -821,32 +869,7 @@ function QRCard({ qr: initialQr, contacts, onToggle, onDelete, onUpdated }: {
             <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Contact Activity</p>
             <div className="flex gap-4 items-start">
               {/* QR Code Preview column */}
-              {(() => {
-                const qrPageUrl = qr.qr_url || `${window.location.origin}/qr/${qr.id}`;
-                const handleDl = async () => {
-                  try {
-                    const d = await QRCodeLib.toDataURL(qrPageUrl, { width: 512, margin: 3, color: { dark: "#1e293b", light: "#ffffff" } });
-                    const a = document.createElement("a"); a.href = d;
-                    a.download = `${qr.name || qr.id}.png`; a.click();
-                  } catch { /* ignore */ }
-                };
-                return (
-                  <div className="flex flex-col items-center gap-1.5 shrink-0">
-                    <div className="bg-white p-1.5 rounded-xl shadow-sm border border-slate-100">
-                      <QRImage url={qrPageUrl} size={128} />
-                    </div>
-                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Stegofy</p>
-                    <a href={qrPageUrl} target="_blank" rel="noopener noreferrer"
-                      className="flex items-center gap-1 text-[10px] font-semibold text-primary hover:underline">
-                      <ExternalLink className="w-2.5 h-2.5" /> Open Page
-                    </a>
-                    <button onClick={handleDl}
-                      className="flex items-center gap-1 text-[10px] font-semibold text-slate-500 hover:text-slate-700">
-                      <Download className="w-2.5 h-2.5" /> PNG
-                    </button>
-                  </div>
-                );
-              })()}
+              <QRPreviewCard qr={qr} />
 
               {/* Timeline column */}
               {contacts.length === 0 ? (

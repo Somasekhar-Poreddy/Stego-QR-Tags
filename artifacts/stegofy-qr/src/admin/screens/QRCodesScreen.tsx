@@ -2,13 +2,49 @@ import { useEffect, useState } from "react";
 import {
   Search, X, ChevronLeft, ChevronRight, Trash2, PauseCircle,
   Eye, Edit3, Save, RefreshCw, Phone, Key, ShieldCheck, Settings,
-  Download, ExternalLink,
+  Download, ExternalLink, Copy, Check, Share2,
+  Lock, MessageCircle, Video, Zap,
 } from "lucide-react";
 import QRCodeLib from "qrcode";
+import jsPDF from "jspdf";
 import {
   adminGetAllQRCodes, adminDisableQRCode, adminDeleteQRCode,
   adminGetAllUsers, adminEnableQRCode, adminUpdateQRCode,
 } from "@/services/adminService";
+
+/* ─────────────────────────────────────────────────
+   DATA FIELD LABEL MAP (human-readable keys)
+   ───────────────────────────────────────────────── */
+const DATA_FIELD_LABELS: Record<string, string> = {
+  vehicle_number: "Vehicle Number", license_plate: "License Plate",
+  make: "Make", model: "Model", color: "Color", year: "Year",
+  rc_owner: "RC Owner", fuel_type: "Fuel Type", chassis_number: "Chassis No.",
+  pet_name: "Pet Name", breed: "Breed", pet_color: "Color", pet_age: "Age",
+  microchip: "Microchip No.", vet_name: "Vet Name", vet_phone: "Vet Phone",
+  child_name: "Child Name", parent_name: "Parent Name", school: "School",
+  blood_group: "Blood Group", allergies: "Allergies", medications: "Medications",
+  doctor_name: "Doctor Name", hospital: "Hospital",
+  owner_name: "Owner Name", address: "Address", city: "City",
+  company: "Company", designation: "Designation", website: "Website",
+  email: "Email", notes: "Notes", description: "Description",
+  event_name: "Event Name", event_date: "Event Date", venue: "Venue",
+  luggage_type: "Luggage Type", bag_color: "Bag Color",
+  item_name: "Item Name", item_type: "Item Type",
+  elder_name: "Elder Name", caregiver: "Caregiver", caregiver_phone: "Caregiver Phone",
+  emergency_info: "Emergency Info",
+};
+
+/* ─────────────────────────────────────────────────
+   PRIVACY SETTING DEFINITIONS (icon + label + desc)
+   ───────────────────────────────────────────────── */
+const PRIVACY_SETTING_DEFS = [
+  { key: "allow_contact",   label: "Allow Contact",       desc: "Finders can request to contact the owner",       Icon: Phone,         color: "text-blue-500" },
+  { key: "strict_mode",     label: "Strict Mode",         desc: "Only verified users can view contact info",      Icon: Lock,          color: "text-slate-500" },
+  { key: "maskPhone",       label: "Mask Phone Number",   desc: "Phone calls routed via anonymous bridge",        Icon: Eye,           color: "text-indigo-500" },
+  { key: "whatsappOnly",    label: "WhatsApp Only",       desc: "Finders can only send WhatsApp messages",        Icon: MessageCircle, color: "text-green-500" },
+  { key: "videoCall",       label: "Allow Video Call",    desc: "Finder can request a live video call",           Icon: Video,         color: "text-violet-500" },
+  { key: "emergencyPriority", label: "Emergency Priority", desc: "Immediate priority connection when scanned",    Icon: Zap,           color: "text-amber-500" },
+] as const;
 
 const PAGE_SIZE = 15;
 
@@ -19,7 +55,7 @@ interface QRPrivacy {
 interface QRRow {
   id: string; user_id: string; name: string; type: string; status: string;
   display_code: string | null; is_active: boolean | null; created_at: string;
-  qr_url?: string | null;
+  qr_url?: string | null; data?: Record<string, unknown> | null;
   primary_contact?: string | null; secondary_phone?: string | null;
   emergency_contact?: string | null; allow_contact?: boolean | null;
   strict_mode?: boolean | null; whatsapp_enabled?: boolean | null;
@@ -128,6 +164,7 @@ function QREditModal({ qr: initialQr, owner, onClose, onUpdated, onEnable, onDis
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [showPinChange, setShowPinChange] = useState(false);
+  const [urlCopied, setUrlCopied] = useState(false);
 
   const [form, setForm] = useState({
     name: qr.name || "",
@@ -217,9 +254,64 @@ function QREditModal({ qr: initialQr, owner, onClose, onUpdated, onEnable, onDis
       });
       const a = document.createElement("a");
       a.href = highRes;
-      a.download = `${qr.name || qr.display_code || qr.id}.png`;
+      const fname = qr.display_code ? `stegofy-${qr.display_code}` : (qr.name || qr.id);
+      a.download = `${fname}.png`;
       a.click();
     } catch { /* ignore */ }
+  };
+
+  const handleDownloadPDF = async () => {
+    try {
+      const dataUrl = await QRCodeLib.toDataURL(qrPageUrl, {
+        width: 512, margin: 2,
+        color: { dark: "#1e293b", light: "#ffffff" },
+        errorCorrectionLevel: "M",
+      });
+      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const pageW = doc.internal.pageSize.getWidth();
+      const qrSize = 80;
+      const qrX = (pageW - qrSize) / 2;
+      doc.setFillColor(248, 250, 252);
+      doc.roundedRect(0, 0, pageW, 297, 0, 0, "F");
+      doc.addImage(dataUrl, "PNG", qrX, 40, qrSize, qrSize);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(18);
+      doc.setTextColor(15, 23, 42);
+      doc.text(qr.name || "QR Code", pageW / 2, 135, { align: "center" });
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(100, 116, 139);
+      doc.text(qrPageUrl, pageW / 2, 145, { align: "center", maxWidth: pageW - 40 });
+      if (qr.display_code) {
+        doc.setFontSize(8);
+        doc.text(`Code: ${qr.display_code}`, pageW / 2, 155, { align: "center" });
+      }
+      doc.setFontSize(8);
+      doc.setTextColor(148, 163, 184);
+      doc.text("Powered by Stegofy — stegofy.com", pageW / 2, 280, { align: "center" });
+      const fname = qr.display_code ? `stegofy-${qr.display_code}` : (qr.name || qr.id);
+      doc.save(`${fname}.pdf`);
+    } catch { /* ignore */ }
+  };
+
+  const handleShare = async () => {
+    if (typeof navigator.share === "function") {
+      try {
+        await navigator.share({ title: qr.name, url: qrPageUrl, text: `QR: ${qr.name}` });
+        return;
+      } catch { /* fall through */ }
+    }
+    navigator.clipboard.writeText(qrPageUrl).then(() => {
+      setUrlCopied(true);
+      setTimeout(() => setUrlCopied(false), 2000);
+    }).catch(() => { /* ignore */ });
+  };
+
+  const handleCopyUrl = () => {
+    navigator.clipboard.writeText(qrPageUrl).then(() => {
+      setUrlCopied(true);
+      setTimeout(() => setUrlCopied(false), 2000);
+    }).catch(() => { /* ignore */ });
   };
 
   return (
@@ -269,17 +361,34 @@ function QREditModal({ qr: initialQr, owner, onClose, onUpdated, onEnable, onDis
             </div>
             <div className="flex flex-col gap-2 min-w-0">
               <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">QR Page URL</p>
-              <p className="text-xs font-mono text-slate-600 break-all leading-relaxed bg-white rounded-lg px-2 py-1.5 border border-slate-200">
-                {qrPageUrl}
-              </p>
-              <div className="flex gap-2 flex-wrap">
+              {/* Copyable URL chip */}
+              <button
+                onClick={handleCopyUrl}
+                className="flex items-center gap-1.5 text-left text-xs font-mono text-slate-600 bg-white rounded-lg px-2 py-1.5 border border-slate-200 hover:border-primary/40 transition-colors w-full group"
+                title="Click to copy URL"
+              >
+                <span className="flex-1 truncate">{qrPageUrl}</span>
+                {urlCopied
+                  ? <Check className="w-3 h-3 text-green-500 shrink-0" />
+                  : <Copy className="w-3 h-3 text-slate-300 group-hover:text-slate-500 shrink-0 transition-colors" />
+                }
+              </button>
+              <div className="flex gap-1.5 flex-wrap">
                 <a href={qrPageUrl} target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 text-xs font-semibold text-primary bg-primary/10 px-3 py-1.5 rounded-xl hover:bg-primary/20 transition-colors">
-                  <ExternalLink className="w-3 h-3" /> Open QR Page
+                  className="flex items-center gap-1 text-[11px] font-semibold text-primary bg-primary/10 px-2.5 py-1.5 rounded-xl hover:bg-primary/20 transition-colors">
+                  <ExternalLink className="w-3 h-3" /> Open
                 </a>
+                <button onClick={handleShare}
+                  className="flex items-center gap-1 text-[11px] font-semibold text-slate-600 bg-white border border-slate-200 px-2.5 py-1.5 rounded-xl hover:bg-slate-50 transition-colors shadow-sm">
+                  <Share2 className="w-3 h-3" /> Share
+                </button>
                 <button onClick={handleDownloadQR}
-                  className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 bg-white border border-slate-200 px-3 py-1.5 rounded-xl hover:bg-slate-50 transition-colors shadow-sm">
-                  <Download className="w-3 h-3" /> Download PNG
+                  className="flex items-center gap-1 text-[11px] font-semibold text-slate-600 bg-white border border-slate-200 px-2.5 py-1.5 rounded-xl hover:bg-slate-50 transition-colors shadow-sm">
+                  <Download className="w-3 h-3" /> PNG
+                </button>
+                <button onClick={handleDownloadPDF}
+                  className="flex items-center gap-1 text-[11px] font-semibold text-red-600 bg-red-50 border border-red-100 px-2.5 py-1.5 rounded-xl hover:bg-red-100 transition-colors">
+                  <Download className="w-3 h-3" /> PDF
                 </button>
               </div>
               <div className="flex items-center gap-2">
@@ -360,19 +469,35 @@ function QREditModal({ qr: initialQr, owner, onClose, onUpdated, onEnable, onDis
                 <SettingToggle label="Emergency Priority" value={form.emergencyPriority} onChange={(v) => setForm((f) => ({ ...f, emergencyPriority: v }))} />
               </div>
             ) : (
-              <div className="flex flex-wrap gap-1.5">
-                {[
-                  { label: "Allow Contact", val: qr.allow_contact },
-                  { label: "Strict Mode", val: qr.strict_mode },
-                  { label: "Mask Phone", val: qr.privacy?.maskPhone },
-                  { label: "WhatsApp Only", val: qr.privacy?.whatsappOnly ?? qr.whatsapp_enabled },
-                  { label: "Video Call", val: qr.privacy?.videoCall ?? qr.allow_video_call },
-                  { label: "Emergency Priority", val: qr.privacy?.emergencyPriority },
-                ].map(({ label, val }) => (
-                  <span key={label} className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${val ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-400"}`}>
-                    {val ? "✓" : "✗"} {label}
+              <div className="space-y-2">
+                {PRIVACY_SETTING_DEFS.map(({ key, label, desc, Icon, color }) => {
+                  const val = key === "allow_contact" ? qr.allow_contact
+                    : key === "strict_mode" ? qr.strict_mode
+                    : key === "maskPhone" ? (qr.privacy?.maskPhone)
+                    : key === "whatsappOnly" ? (qr.privacy?.whatsappOnly ?? qr.whatsapp_enabled)
+                    : key === "videoCall" ? (qr.privacy?.videoCall ?? qr.allow_video_call)
+                    : qr.privacy?.emergencyPriority;
+                  return (
+                    <div key={key} className="flex items-center gap-3 py-1.5 border-b border-slate-100 last:border-0">
+                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${val ? "bg-slate-100" : "bg-slate-50"}`}>
+                        <Icon className={`w-3.5 h-3.5 ${val ? color : "text-slate-300"}`} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-xs font-semibold ${val ? "text-slate-800" : "text-slate-400"}`}>{label}</p>
+                        <p className="text-[10px] text-slate-400 leading-relaxed">{desc}</p>
+                      </div>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${val ? "bg-green-100 text-green-600" : "bg-slate-100 text-slate-400"}`}>
+                        {val ? "ON" : "OFF"}
+                      </span>
+                    </div>
+                  );
+                })}
+                <div className="flex items-center gap-2 pt-1">
+                  <span className="text-[10px] text-slate-400">Privacy Mode:</span>
+                  <span className="text-[10px] font-bold text-slate-700 capitalize bg-slate-100 px-2 py-0.5 rounded-full">
+                    {qr.privacy_mode || "show"}
                   </span>
-                ))}
+                </div>
               </div>
             )}
           </div>
@@ -441,6 +566,38 @@ function QREditModal({ qr: initialQr, owner, onClose, onUpdated, onEnable, onDis
               <div><span className="text-slate-400">Created:</span> <span className="font-semibold text-slate-700">{qr.created_at ? new Date(qr.created_at).toLocaleDateString("en-IN") : "—"}</span></div>
             </div>
           </div>
+
+          {/* QR Data Fields — dynamic key-value pairs from data JSONB */}
+          {(() => {
+            const data = qr.data;
+            if (!data || typeof data !== "object") return null;
+            const SKIP_KEYS = new Set(["photo", "image", "mask_phone", "whatsapp_only", "video_call",
+              "emergency_priority", "strict_mode", "allow_contact", "maskPhone", "whatsappOnly",
+              "videoCall", "emergencyPriority", "strictMode"]);
+            const isPhone = (k: string) => /phone|contact|mobile|number/.test(k.toLowerCase());
+            const entries = Object.entries(data).filter(([k, v]) =>
+              !SKIP_KEYS.has(k) && v !== "" && v !== null && v !== undefined && typeof v !== "boolean"
+            );
+            if (entries.length === 0) return null;
+            return (
+              <div className="bg-slate-50 rounded-2xl p-4">
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">QR Data Fields</p>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                  {entries.map(([key, value]) => {
+                    const label = DATA_FIELD_LABELS[key] || key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+                    const strVal = String(value);
+                    const displayVal = isPhone(key) ? maskContact(strVal) : strVal;
+                    return (
+                      <div key={key} className="col-span-1">
+                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">{label}</p>
+                        <p className="text-xs text-slate-700 font-medium truncate" title={strVal}>{displayVal}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Save row (edit mode) */}
           {editing && (
