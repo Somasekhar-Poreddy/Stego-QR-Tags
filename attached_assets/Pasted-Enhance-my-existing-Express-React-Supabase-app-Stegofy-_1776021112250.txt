@@ -1,0 +1,304 @@
+Enhance my existing Express + React + Supabase app (Stegofy) by implementing a full IP tracking and geolocation system.
+
+IMPORTANT:
+- Do NOT break existing functionality
+- Add this as a new tracking layer
+- Works for BOTH:
+  1. Registered users
+  2. Anonymous QR scanners
+
+-----------------------------------
+GOAL:
+-----------------------------------
+Capture scan + interaction data ONCE at event time and store in Supabase.
+
+Analytics must ALWAYS read from DB, NOT from IP APIs.
+
+-----------------------------------
+STEP 0: EXPRESS CONFIG (VERY IMPORTANT)
+-----------------------------------
+
+If deployed behind proxy (Replit, Vercel, etc.):
+
+app.set('trust proxy', true);
+
+-----------------------------------
+STEP 1: CAPTURE CLEAN IP
+-----------------------------------
+
+const rawIp =
+  req.headers['x-forwarded-for'] ||
+  req.socket.remoteAddress ||
+  '';
+
+const ip = rawIp.split(',')[0].trim();
+
+-----------------------------------
+STEP 2: CREATE ENCRYPTION UTILS
+-----------------------------------
+
+Create file:
+/src/utils/encryption.js
+
+Use Node crypto (AES-256)
+
+Functions:
+
+- encryptIP(ip)
+- decryptIP(encrypted_ip)
+
+Store encryption key in ENV:
+IP_ENCRYPTION_KEY
+
+DO NOT expose key in frontend
+
+-----------------------------------
+STEP 3: CREATE IP PROCESSING HELPERS
+-----------------------------------
+
+/src/services/ipService.js
+
+Functions:
+
+1. getMaskedIP(ip)
+Example:
+192.168.45.12 → 192.168.xxx.xxx
+
+2. getHashedIP(ip)
+Use SHA256
+
+-----------------------------------
+STEP 4: GEO LOOKUP (PRIMARY + FALLBACK)
+-----------------------------------
+
+Use APIs:
+
+Primary:
+https://freeipapi.com/api/json/{ip}
+
+Fallback:
+https://api.ip2location.io/?ip={ip}
+
+Extract:
+
+- city
+- region/state
+- country
+- zip/postal code (if available)
+- latitude (optional)
+- longitude (optional)
+- timezone (optional)
+
+IMPORTANT:
+- Call ONLY ONCE per scan
+- If primary fails → fallback
+- If both fail → continue without location
+
+-----------------------------------
+STEP 5: CAPTURE DEVICE + BROWSER
+-----------------------------------
+
+From user-agent:
+
+- device (mobile / desktop)
+- browser (Chrome, Safari, etc.)
+- OS (Android, iOS, Windows)
+
+-----------------------------------
+STEP 6: GENERATE SESSION ID
+-----------------------------------
+
+If not exists:
+
+- Generate UUID
+- Store in localStorage (frontend)
+- Send with request
+
+-----------------------------------
+STEP 7: CREATE TRACKING API
+-----------------------------------
+
+Route:
+
+POST /api/track-scan
+
+Flow:
+
+1. Capture IP
+2. Mask + Hash + Encrypt
+3. Call Geo API
+4. Parse device info
+5. Get timestamp
+6. Save to Supabase
+
+-----------------------------------
+STEP 8: SUPABASE TABLE
+-----------------------------------
+
+Table: qr_scans
+
+Fields:
+
+- id (uuid)
+- qr_id
+- user_id (nullable)
+- masked_ip
+- hashed_ip
+- encrypted_ip
+- city
+- state
+- country
+- pincode
+- latitude
+- longitude
+- timezone
+- device
+- browser
+- os
+- referrer
+- session_id
+- intent (nullable)
+- is_request_made (boolean default false)
+- created_at (timestamp)
+
+-----------------------------------
+STEP 9: INTERACTION UPDATE
+-----------------------------------
+
+When user selects intent or sends request:
+
+UPDATE same record:
+
+- intent
+- is_request_made = true
+
+-----------------------------------
+STEP 10: MULTI-LOCATION TRACKING
+-----------------------------------
+
+DO NOT overwrite previous scans.
+
+Each scan = new row
+
+This enables:
+
+- movement tracking
+- location-based analytics
+
+-----------------------------------
+STEP 11: ADMIN PANEL INTEGRATION
+-----------------------------------
+
+In User Details:
+
+Show:
+
+- Recent scans
+- City / State
+- Device
+- Time
+
+Show IP:
+
+Default:
+masked_ip
+
+Add button:
+"View Full IP 🔐"
+
+-----------------------------------
+STEP 12: SECURE ADMIN ACCESS
+-----------------------------------
+
+Only allow if:
+
+role = super_admin
+
+On click:
+
+- decrypt encrypted_ip
+- show temporarily
+
+-----------------------------------
+STEP 13: LOG ADMIN ACCESS
+-----------------------------------
+
+Create table:
+
+admin_ip_access_logs
+
+Fields:
+
+- id
+- admin_id
+- qr_id
+- viewed_at
+
+Log every IP access
+
+-----------------------------------
+STEP 14: FRONTEND INTEGRATION
+-----------------------------------
+
+On page load:
+
+/qr/:id
+
+Call:
+
+POST /api/track-scan
+
+Send:
+
+- qr_id
+- session_id
+- referrer
+
+-----------------------------------
+STEP 15: PERFORMANCE OPTIMIZATION
+-----------------------------------
+
+- Avoid duplicate calls per session per QR
+- Use session_id + qr_id check
+
+-----------------------------------
+STEP 16: ANALYTICS RULE (VERY IMPORTANT)
+-----------------------------------
+
+Analytics must:
+
+- Query Supabase ONLY
+- NEVER call IP APIs again
+
+-----------------------------------
+STEP 17: ERROR HANDLING
+-----------------------------------
+
+- If geo API fails → still log scan
+- Do NOT break user experience
+
+-----------------------------------
+STEP 18: SECURITY BEST PRACTICES
+-----------------------------------
+
+- Store:
+  masked_ip → UI
+  hashed_ip → logic
+  encrypted_ip → admin access
+
+- Never expose raw IP in frontend
+- Keep encryption key in ENV only
+
+-----------------------------------
+FINAL GOAL:
+-----------------------------------
+
+Build a privacy-first, scalable tracking system that:
+
+- Captures scan behavior
+- Enables analytics
+- Supports admin debugging
+- Works without repeated API calls
+- Tracks multi-location usage
+
+WITHOUT breaking existing system.
