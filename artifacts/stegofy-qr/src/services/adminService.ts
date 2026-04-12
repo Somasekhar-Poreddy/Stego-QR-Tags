@@ -242,11 +242,19 @@ export async function adminGetAllScansCount(filter: ScanFilter = "all"): Promise
 export interface GeoBreakdownRow { country: string; count: number }
 export interface DeviceBreakdownRow { device: string; count: number }
 
-export async function adminGetGeoBreakdown(): Promise<GeoBreakdownRow[]> {
-  const { data, error } = await supabase
-    .from("qr_scans")
-    .select("country")
-    .not("country", "is", null);
+export async function adminGetGeoBreakdown(
+  filter: ScanFilter = "all",
+  from?: Date,
+  to?: Date,
+  topN = 10,
+): Promise<GeoBreakdownRow[]> {
+  let q = supabase.from("qr_scans").select("country").not("country", "is", null);
+  if (filter === "registered") q = q.not("user_id", "is", null);
+  if (filter === "strangers") q = q.is("user_id", null);
+  if (from) q = q.gte("created_at", from.toISOString());
+  if (to) q = q.lte("created_at", to.toISOString());
+
+  const { data, error } = await q;
   if (error) throw new Error(error.message);
 
   const counts: Record<string, number> = {};
@@ -256,14 +264,22 @@ export async function adminGetGeoBreakdown(): Promise<GeoBreakdownRow[]> {
   });
   return Object.entries(counts)
     .sort((a, b) => b[1] - a[1])
-    .slice(0, 10)
+    .slice(0, topN)
     .map(([country, count]) => ({ country, count }));
 }
 
-export async function adminGetDeviceBreakdown(): Promise<DeviceBreakdownRow[]> {
-  const { data, error } = await supabase
-    .from("qr_scans")
-    .select("device");
+export async function adminGetDeviceBreakdown(
+  filter: ScanFilter = "all",
+  from?: Date,
+  to?: Date,
+): Promise<DeviceBreakdownRow[]> {
+  let q = supabase.from("qr_scans").select("device");
+  if (filter === "registered") q = q.not("user_id", "is", null);
+  if (filter === "strangers") q = q.is("user_id", null);
+  if (from) q = q.gte("created_at", from.toISOString());
+  if (to) q = q.lte("created_at", to.toISOString());
+
+  const { data, error } = await q;
   if (error) throw new Error(error.message);
 
   const counts: Record<string, number> = {};
@@ -274,6 +290,57 @@ export async function adminGetDeviceBreakdown(): Promise<DeviceBreakdownRow[]> {
   return Object.entries(counts)
     .sort((a, b) => b[1] - a[1])
     .map(([device, count]) => ({ device, count }));
+}
+
+export interface ScanSummary { total: number; registered: number; strangers: number }
+
+export async function adminGetScanSummary(from: Date, to: Date): Promise<ScanSummary> {
+  const [allRes, regRes, stranRes] = await Promise.all([
+    supabase.from("qr_scans").select("id", { count: "exact", head: true })
+      .gte("created_at", from.toISOString()).lte("created_at", to.toISOString()),
+    supabase.from("qr_scans").select("id", { count: "exact", head: true })
+      .not("user_id", "is", null)
+      .gte("created_at", from.toISOString()).lte("created_at", to.toISOString()),
+    supabase.from("qr_scans").select("id", { count: "exact", head: true })
+      .is("user_id", null)
+      .gte("created_at", from.toISOString()).lte("created_at", to.toISOString()),
+  ]);
+  return {
+    total: allRes.count ?? 0,
+    registered: regRes.count ?? 0,
+    strangers: stranRes.count ?? 0,
+  };
+}
+
+export interface ScanDaySplit { date: string; registered: number; strangers: number }
+
+export async function getScansPerDayWithSplit(from: Date, to: Date): Promise<ScanDaySplit[]> {
+  const { data } = await supabase
+    .from("qr_scans")
+    .select("created_at, user_id")
+    .gte("created_at", from.toISOString())
+    .lte("created_at", to.toISOString());
+
+  const reg: Record<string, number> = {};
+  const str: Record<string, number> = {};
+  const cur = new Date(from);
+  while (cur <= to) {
+    const k = cur.toISOString().slice(0, 10);
+    reg[k] = 0;
+    str[k] = 0;
+    cur.setDate(cur.getDate() + 1);
+  }
+  (data ?? []).forEach((row) => {
+    const k = (row.created_at as string).slice(0, 10);
+    if (!(k in reg)) return;
+    if (row.user_id) reg[k]++;
+    else str[k]++;
+  });
+  return Object.keys(reg).sort().map((date) => ({
+    date: date.slice(5),
+    registered: reg[date],
+    strangers: str[date],
+  }));
 }
 
 export async function adminDecryptIP(
@@ -392,8 +459,11 @@ export async function getRequestsByType(from?: Date, to?: Date): Promise<{ name:
     .map(([name, value]) => ({ name, value }));
 }
 
-export async function getTopQRCategories(): Promise<{ category: string; count: number }[]> {
-  const { data } = await supabase.from("qr_codes").select("type");
+export async function getTopQRCategories(from?: Date, to?: Date): Promise<{ category: string; count: number }[]> {
+  let q = supabase.from("qr_codes").select("type");
+  if (from) q = q.gte("created_at", from.toISOString());
+  if (to) q = q.lte("created_at", to.toISOString());
+  const { data } = await q;
   const counts: Record<string, number> = {};
   (data ?? []).forEach((row) => {
     const key = (row.type as string) || "unknown";
@@ -405,11 +475,11 @@ export async function getTopQRCategories(): Promise<{ category: string; count: n
     .map(([category, count]) => ({ category, count }));
 }
 
-export async function getPeakHourData(): Promise<{ hour: number; count: number }[]> {
-  const { data } = await supabase
-    .from("activity_logs")
-    .select("created_at")
-    .eq("action_type", "scan");
+export async function getPeakHourData(from?: Date, to?: Date): Promise<{ hour: number; count: number }[]> {
+  let q = supabase.from("qr_scans").select("created_at");
+  if (from) q = q.gte("created_at", from.toISOString());
+  if (to) q = q.lte("created_at", to.toISOString());
+  const { data } = await q;
 
   const hours = Array.from({ length: 24 }, (_, i) => ({ hour: i, count: 0 }));
   (data ?? []).forEach((row) => {

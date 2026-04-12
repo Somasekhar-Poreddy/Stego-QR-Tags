@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis,
   CartesianGrid, Tooltip, ResponsiveContainer,
@@ -7,34 +7,9 @@ import { Users, QrCode, MessageSquare, ShoppingCart, Zap, DollarSign, RefreshCw,
 import {
   getDashboardStats, getScansPerDay, getRequestsByType,
 } from "@/services/adminService";
+import { DateRangeBar, useDateRange, RANGE_LABELS } from "@/admin/components/DateRangeBar";
 
 interface Stats { totalUsers: number; activeQRCodes: number; todayRequests: number; emergencyRequests: number; totalOrders: number; }
-
-type RangeKey = "7d" | "30d" | "90d" | "month";
-
-const RANGE_LABELS: Record<RangeKey, string> = {
-  "7d": "Last 7 Days",
-  "30d": "Last 30 Days",
-  "90d": "Last 90 Days",
-  "month": "This Month",
-};
-
-function getRangeDates(key: RangeKey): { from: Date; to: Date } {
-  const to = new Date();
-  to.setHours(23, 59, 59, 999);
-  const from = new Date();
-  if (key === "7d") {
-    from.setDate(from.getDate() - 6);
-  } else if (key === "30d") {
-    from.setDate(from.getDate() - 29);
-  } else if (key === "90d") {
-    from.setDate(from.getDate() - 89);
-  } else {
-    from.setDate(1);
-  }
-  from.setHours(0, 0, 0, 0);
-  return { from, to };
-}
 
 function StatCard({ label, value, icon: Icon, color, bg }: { label: string; value: number | string; icon: React.ElementType; color: string; bg: string }) {
   return (
@@ -94,8 +69,8 @@ export function DashboardScreen() {
   const [chartsLoading, setChartsLoading] = useState(true);
   const [chartsError, setChartsError] = useState(false);
 
-  const [range, setRange] = useState<RangeKey>("7d");
-  const { from, to } = useMemo(() => getRangeDates(range), [range]);
+  const dateRange = useDateRange("7d");
+  const { from, to, rangeKey } = dateRange;
 
   const loadStats = useCallback(() => {
     setStatsLoading(true);
@@ -128,11 +103,12 @@ export function DashboardScreen() {
   };
 
   const anyLoading = statsLoading || chartsLoading;
+  const rangeLabel = RANGE_LABELS[rangeKey];
 
   return (
     <div className="space-y-6">
 
-      {/* Header — always visible */}
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold text-slate-900">Dashboard</h2>
@@ -148,23 +124,8 @@ export function DashboardScreen() {
         </button>
       </div>
 
-      {/* Date range selector — always visible so user can interact regardless of data state */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-xs font-semibold text-slate-500 mr-1">Filter charts:</span>
-        {(Object.keys(RANGE_LABELS) as RangeKey[]).map((key) => (
-          <button
-            key={key}
-            onClick={() => setRange(key)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${
-              range === key
-                ? "bg-primary text-white shadow-sm"
-                : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
-            }`}
-          >
-            {RANGE_LABELS[key]}
-          </button>
-        ))}
-      </div>
+      {/* Date range filter — always visible */}
+      <DateRangeBar state={dateRange} label="Filter charts:" />
 
       {/* Stat cards */}
       {statsLoading ? (
@@ -191,7 +152,7 @@ export function DashboardScreen() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
           <p className="text-sm font-bold text-slate-800 mb-1">QR Scans</p>
-          <p className="text-[11px] text-slate-400 mb-4">{RANGE_LABELS[range]}</p>
+          <p className="text-[11px] text-slate-400 mb-4">{rangeLabel}</p>
           {chartsLoading ? (
             <Skeleton className="h-48" />
           ) : chartsError ? (
@@ -211,7 +172,7 @@ export function DashboardScreen() {
 
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
           <p className="text-sm font-bold text-slate-800 mb-1">Contact Requests by Type</p>
-          <p className="text-[11px] text-slate-400 mb-4">{RANGE_LABELS[range]}</p>
+          <p className="text-[11px] text-slate-400 mb-4">{rangeLabel}</p>
           {chartsLoading ? (
             <Skeleton className="h-48" />
           ) : chartsError ? (
