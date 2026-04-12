@@ -98,6 +98,9 @@ export async function adminGetAllQRCodes() {
 export async function adminDisableQRCode(id: string) {
   return supabase.from("qr_codes").update({ status: "inactive", is_active: false }).eq("id", id);
 }
+export async function adminEnableQRCode(id: string) {
+  return supabase.from("qr_codes").update({ status: "active", is_active: true }).eq("id", id);
+}
 export async function adminDeleteQRCode(id: string) {
   return supabase.from("qr_codes").delete().eq("id", id);
 }

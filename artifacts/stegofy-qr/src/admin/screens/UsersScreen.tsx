@@ -8,7 +8,7 @@ import {
 import {
   adminGetAllUsers, adminBlockUser, adminUnblockUser, adminDeleteUser,
   adminGetUserQRCodes, adminUpdateUserProfile, adminGetAllContactRequestsForUser,
-  adminGetQRCountsByUser, adminDisableQRCode, adminDeleteQRCode,
+  adminGetQRCountsByUser, adminDisableQRCode, adminEnableQRCode, adminDeleteQRCode,
 } from "@/services/adminService";
 
 /* ─────────────────────────────────────────────────
@@ -111,7 +111,10 @@ function CopyBtn({ text, className = "" }: { text: string; className?: string })
 /* ─────────────────────────────────────────────────
    PROFILE TAB
    ───────────────────────────────────────────────── */
-function ProfileTab({ user, onRefresh }: { user: UserRow; onRefresh: () => void }) {
+function ProfileTab({ user, onRefresh, onUserUpdated }: {
+  user: UserRow; onRefresh: () => void;
+  onUserUpdated: (updates: Partial<UserRow>) => void;
+}) {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -178,8 +181,17 @@ function ProfileTab({ user, onRefresh }: { user: UserRow; onRefresh: () => void 
     if (error) {
       setSaveMsg({ ok: false, text: "Failed to save. Please try again." });
     } else {
+      const updatedFields: Partial<UserRow> = {
+        first_name: form.first_name || null,
+        last_name: form.last_name || null,
+        mobile: form.mobile || null,
+        age_group: form.age_group || null,
+        gender: form.gender || null,
+        status: form.status || "active",
+      };
       setSaveMsg({ ok: true, text: "Changes saved successfully!" });
       setEditing(false);
+      onUserUpdated(updatedFields);
       onRefresh();
       setTimeout(() => setSaveMsg(null), 3000);
     }
@@ -320,9 +332,9 @@ function ProfileTab({ user, onRefresh }: { user: UserRow; onRefresh: () => void 
 /* ─────────────────────────────────────────────────
    QR CARD (expandable with activity timeline)
    ───────────────────────────────────────────────── */
-function QRCard({ qr, contacts, onDisable, onDelete }: {
+function QRCard({ qr, contacts, onToggle, onDelete }: {
   qr: QRRow; contacts: ContactRow[];
-  onDisable: (id: string) => void; onDelete: (id: string) => void;
+  onToggle: (id: string, currentStatus: string) => void; onDelete: (id: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const scanCount = qr.scan_count ?? qr.scans ?? 0;
@@ -400,9 +412,9 @@ function QRCard({ qr, contacts, onDisable, onDelete }: {
             )}
           </div>
           <div className="px-4 pb-3 flex items-center gap-2 border-t border-slate-50 pt-3">
-            <button onClick={() => onDisable(qr.id)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-amber-200 text-amber-700 hover:bg-amber-50 text-xs font-semibold transition-colors">
-              <ShieldOff className="w-3.5 h-3.5" /> {qr.status === "active" ? "Disable" : "Enable"}
+            <button onClick={() => onToggle(qr.id, qr.status)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${qr.status === "active" ? "border border-amber-200 text-amber-700 hover:bg-amber-50" : "border border-green-200 text-green-700 hover:bg-green-50"}`}>
+              {qr.status === "active" ? <><ShieldOff className="w-3.5 h-3.5" /> Disable</> : <><ShieldCheck className="w-3.5 h-3.5" /> Enable</>}
             </button>
             <button onClick={() => onDelete(qr.id)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 text-xs font-semibold transition-colors">
@@ -428,7 +440,14 @@ function QRCodesTab({ qrs, contacts, onRefreshQrs }: {
     contactsByQr[c.qr_id].push(c);
   });
 
-  const handleDisable = async (qrId: string) => { await adminDisableQRCode(qrId); onRefreshQrs(); };
+  const handleToggle = async (qrId: string, currentStatus: string) => {
+    if (currentStatus === "active") {
+      await adminDisableQRCode(qrId);
+    } else {
+      await adminEnableQRCode(qrId);
+    }
+    onRefreshQrs();
+  };
   const handleDelete = async (qrId: string) => {
     if (!confirm("Delete this QR code? This cannot be undone.")) return;
     await adminDeleteQRCode(qrId); onRefreshQrs();
@@ -460,7 +479,7 @@ function QRCodesTab({ qrs, contacts, onRefreshQrs }: {
         <div className="space-y-3">
           {qrs.map((qr) => (
             <QRCard key={qr.id} qr={qr} contacts={contactsByQr[qr.id] ?? []}
-              onDisable={handleDisable} onDelete={handleDelete} />
+              onToggle={handleToggle} onDelete={handleDelete} />
           ))}
         </div>
       )}
@@ -594,6 +613,11 @@ function UserDetailModal({ user, onRefresh, onClose }: {
   const [contacts, setContacts] = useState<ContactRow[]>([]);
   const [loadingData, setLoadingData] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [localUser, setLocalUser] = useState<UserRow>(user);
+
+  const handleUserUpdated = useCallback((updates: Partial<UserRow>) => {
+    setLocalUser((prev) => ({ ...prev, ...updates }));
+  }, []);
 
   const loadUserData = useCallback(async () => {
     setLoadingData(true);
@@ -608,9 +632,9 @@ function UserDetailModal({ user, onRefresh, onClose }: {
 
   useEffect(() => { loadUserData(); }, [loadUserData]);
 
-  const isBlocked = user.status === "blocked";
-  const fullName = [user.first_name, user.last_name].filter(Boolean).join(" ") || "Unknown User";
-  const avatarLetters = initials(user);
+  const isBlocked = localUser.status === "blocked";
+  const fullName = [localUser.first_name, localUser.last_name].filter(Boolean).join(" ") || "Unknown User";
+  const avatarLetters = initials(localUser);
 
   const handleBlock = async () => {
     setActionLoading(true);
@@ -654,13 +678,13 @@ function UserDetailModal({ user, onRefresh, onClose }: {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <h2 className="text-base font-black text-slate-900">{fullName}</h2>
-                <Badge label={user.status || "active"} color={isBlocked ? "bg-red-100 text-red-600" : "bg-green-100 text-green-700"} />
+                <Badge label={localUser.status || "active"} color={isBlocked ? "bg-red-100 text-red-600" : "bg-green-100 text-green-700"} />
               </div>
-              <p className="text-xs text-slate-500 mt-0.5">{user.email || "No email"}</p>
-              {user.sgy_id && (
+              <p className="text-xs text-slate-500 mt-0.5">{localUser.email || "No email"}</p>
+              {localUser.sgy_id && (
                 <div className="flex items-center gap-1.5 mt-1.5">
-                  <span className="text-xs font-black text-primary bg-primary/10 border border-primary/20 rounded-lg px-2 py-0.5 font-mono tracking-wide">{user.sgy_id}</span>
-                  <CopyBtn text={user.sgy_id} />
+                  <span className="text-xs font-black text-primary bg-primary/10 border border-primary/20 rounded-lg px-2 py-0.5 font-mono tracking-wide">{localUser.sgy_id}</span>
+                  <CopyBtn text={localUser.sgy_id} />
                 </div>
               )}
             </div>
@@ -715,7 +739,7 @@ function UserDetailModal({ user, onRefresh, onClose }: {
             </div>
           ) : (
             <>
-              {tab === "profile" && <ProfileTab user={user} onRefresh={onRefresh} />}
+              {tab === "profile" && <ProfileTab user={localUser} onRefresh={onRefresh} onUserUpdated={handleUserUpdated} />}
               {tab === "qrcodes" && <QRCodesTab qrs={qrs} contacts={contacts} onRefreshQrs={loadUserData} />}
               {tab === "activity" && <ActivityTab contacts={contacts} />}
             </>
