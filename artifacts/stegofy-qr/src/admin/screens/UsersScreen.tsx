@@ -190,7 +190,12 @@ function ProfileTab({ user, onRefresh, onUserUpdated }: {
   const handleSave = async () => {
     setSaving(true);
     setSaveMsg(null);
-    const cleanAddresses = editAddresses.filter((a) => a.line1?.trim() && a.city?.trim());
+    const rawAddresses = editAddresses.filter((a) => a.line1?.trim() && a.city?.trim());
+    const hasDefault = rawAddresses.some((a) => a.is_default);
+    const cleanAddresses = rawAddresses.map((a, i) => ({
+      ...a,
+      is_default: hasDefault ? !!a.is_default : i === 0,
+    }));
     const cleanSocial: SocialLinks = {
       instagram: editSocial.instagram?.trim() || undefined,
       facebook: editSocial.facebook?.trim() || undefined,
@@ -438,12 +443,16 @@ function ProfileTab({ user, onRefresh, onUserUpdated }: {
                   <Instagram className="w-4 h-4 text-pink-500" /> @{readSocial.instagram}
                 </a>
               )}
-              {readSocial.facebook && (
-                <a href={`https://facebook.com/${readSocial.facebook}`} target="_blank" rel="noreferrer"
-                  className="flex items-center gap-2 text-sm text-slate-700 hover:text-blue-600 transition-colors">
-                  <Facebook className="w-4 h-4 text-blue-600" /> {readSocial.facebook}
-                </a>
-              )}
+              {readSocial.facebook && (() => {
+                const fbVal = readSocial.facebook;
+                const fbUrl = fbVal.startsWith("http") ? fbVal : `https://facebook.com/${fbVal}`;
+                return (
+                  <a href={fbUrl} target="_blank" rel="noreferrer"
+                    className="flex items-center gap-2 text-sm text-slate-700 hover:text-blue-600 transition-colors">
+                    <Facebook className="w-4 h-4 text-blue-600" /> {fbVal}
+                  </a>
+                );
+              })()}
               {readSocial.twitter && (
                 <a href={`https://twitter.com/${readSocial.twitter}`} target="_blank" rel="noreferrer"
                   className="flex items-center gap-2 text-sm text-slate-700 hover:text-sky-500 transition-colors">
