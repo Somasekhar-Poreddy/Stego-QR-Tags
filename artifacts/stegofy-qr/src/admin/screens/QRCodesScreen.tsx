@@ -60,7 +60,7 @@ function QRImage({ url, size = 180 }: { url: string; size?: number }) {
   );
 }
 
-interface OwnerRow { id: string; first_name: string | null; last_name: string | null; email: string | null; }
+interface OwnerRow { id: string; sgy_id?: string | null; first_name: string | null; last_name: string | null; email: string | null; }
 
 function Badge({ label, color }: { label: string; color: string }) {
   return <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full capitalize ${color}`}>{label}</span>;
@@ -100,11 +100,28 @@ function getTypeEmoji(type: string) {
 }
 
 /* ─────────────────────────────────────────────────
-   QR EDIT MODAL — replaces raw JSON modal
+   QR EDIT MODAL — view + edit + actions
    ───────────────────────────────────────────────── */
-function QREditModal({ qr: initialQr, owner, onClose, onUpdated }: {
+function maskContact(val: string | null | undefined): string {
+  if (!val) return "—";
+  const digits = val.replace(/\D/g, "");
+  if (digits.length >= 4) return "•".repeat(digits.length - 4) + digits.slice(-4);
+  return "••••";
+}
+
+function OwnerAvatar({ name }: { name: string }) {
+  const initials = name.split(" ").filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
+  return (
+    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center text-white text-xs font-bold shrink-0">
+      {initials || "?"}
+    </div>
+  );
+}
+
+function QREditModal({ qr: initialQr, owner, onClose, onUpdated, onEnable, onDisable, onDelete }: {
   qr: QRRow; owner: OwnerRow | undefined;
   onClose: () => void; onUpdated: (id: string, updates: Partial<QRRow>) => void;
+  onEnable: (id: string) => void; onDisable: (id: string) => void; onDelete: (id: string) => void;
 }) {
   const [qr, setQr] = useState<QRRow>(initialQr);
   const [editing, setEditing] = useState(false);
@@ -188,7 +205,7 @@ function QREditModal({ qr: initialQr, owner, onClose, onUpdated }: {
   };
 
   const inactive = qr.is_active === false || qr.status === "inactive";
-  const ownerName = owner ? [owner.first_name, owner.last_name].filter(Boolean).join(" ") || owner.email : "Unknown";
+  const ownerName = owner ? ([owner.first_name, owner.last_name].filter(Boolean).join(" ") || owner.email || "Unknown") : "Unknown";
   const qrPageUrl = qr.qr_url || `${window.location.origin}/qr/${qr.id}`;
 
   const handleDownloadQR = async () => {
@@ -318,7 +335,7 @@ function QREditModal({ qr: initialQr, owner, onClose, onUpdated }: {
                   <div key={label} className="flex items-center gap-2">
                     <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                     <span className="text-[11px] text-slate-500">{label}:</span>
-                    <span className="text-sm font-semibold text-slate-800">{val}</span>
+                    <span className="text-sm font-semibold text-slate-800 font-mono">{maskContact(val)}</span>
                   </div>
                 ) : null)}
                 {!qr.primary_contact && !qr.secondary_phone && !qr.emergency_contact && (
@@ -397,6 +414,23 @@ function QREditModal({ qr: initialQr, owner, onClose, onUpdated }: {
             )}
           </div>
 
+          {/* Owner Info */}
+          {owner && (
+            <div className="bg-slate-50 rounded-2xl p-4">
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Owner</p>
+              <div className="flex items-center gap-3">
+                <OwnerAvatar name={ownerName} />
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-slate-900 truncate">{ownerName}</p>
+                  {owner.email && <p className="text-xs text-slate-500 truncate">{owner.email}</p>}
+                  {owner.sgy_id && (
+                    <p className="text-[10px] font-mono text-slate-400 bg-slate-200 rounded px-1.5 py-0.5 mt-0.5 inline-block">{owner.sgy_id}</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Status info */}
           <div className="bg-slate-50 rounded-2xl p-4">
             <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">QR Details</p>
@@ -408,7 +442,7 @@ function QREditModal({ qr: initialQr, owner, onClose, onUpdated }: {
             </div>
           </div>
 
-          {/* Save row */}
+          {/* Save row (edit mode) */}
           {editing && (
             <div className="flex items-center gap-3 pb-2">
               <button onClick={handleSave} disabled={saving}
@@ -423,6 +457,30 @@ function QREditModal({ qr: initialQr, owner, onClose, onUpdated }: {
           )}
           {saveMsg && (
             <p className={`text-xs font-semibold ${saveMsg.ok ? "text-green-600" : "text-red-600"}`}>{saveMsg.text}</p>
+          )}
+
+          {/* Actions row (always visible) */}
+          {!editing && (
+            <div className="border-t border-slate-100 pt-4 flex items-center gap-3 flex-wrap">
+              {inactive ? (
+                <button onClick={() => { onEnable(qr.id); onClose(); }}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-green-600 text-white text-xs font-semibold hover:bg-green-700 transition-colors">
+                  <ShieldCheck className="w-3.5 h-3.5" /> Enable QR
+                </button>
+              ) : (
+                <button onClick={() => { onDisable(qr.id); onClose(); }}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-700 text-white text-xs font-semibold hover:bg-slate-800 transition-colors">
+                  <PauseCircle className="w-3.5 h-3.5" /> Disable QR
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  if (confirm(`Delete "${qr.name}"? This cannot be undone.`)) { onDelete(qr.id); onClose(); }
+                }}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-red-200 text-red-600 text-xs font-semibold hover:bg-red-50 transition-colors ml-auto">
+                <Trash2 className="w-3.5 h-3.5" /> Delete QR
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -577,6 +635,9 @@ export function QRCodesScreen() {
           owner={userMap[viewing.user_id]}
           onClose={() => setViewing(null)}
           onUpdated={(id, updates) => { handleUpdated(id, updates); setViewing((v) => v ? { ...v, ...updates } : null); }}
+          onEnable={(id) => { handleEnable(id); }}
+          onDisable={(id) => { handleDisable(id); }}
+          onDelete={(id) => { handleDelete(id); }}
         />
       )}
     </div>
