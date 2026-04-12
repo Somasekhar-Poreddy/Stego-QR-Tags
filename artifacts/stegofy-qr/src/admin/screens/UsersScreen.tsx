@@ -1310,6 +1310,7 @@ function ScansTab({
   );
   const [scans, setScans] = useState<QRScan[]>([]);
   const [loading, setLoading] = useState(true);
+  const [scanError, setScanError] = useState<string | null>(null);
   const [limit, setLimit] = useState(30);
   const [hasMore, setHasMore] = useState(false);
   const [revealedIps, setRevealedIps] = useState<Record<string, string>>({});
@@ -1328,9 +1329,14 @@ function ScansTab({
 
   const load = useCallback(async (lim: number) => {
     setLoading(true);
-    const data = await adminGetScansByQRIds(qrIds, lim + 1);
-    setHasMore(data.length > lim);
-    setScans(data.slice(0, lim));
+    setScanError(null);
+    try {
+      const data = await adminGetScansByQRIds(qrIds, lim + 1);
+      setHasMore(data.length > lim);
+      setScans(data.slice(0, lim));
+    } catch (e) {
+      setScanError(e instanceof Error ? e.message : String(e));
+    }
     setLoading(false);
   }, [qrIds]);
 
@@ -1364,6 +1370,16 @@ function ScansTab({
       <div className="flex items-center justify-center py-20 gap-2 text-slate-400">
         <RefreshCw className="w-4 h-4 animate-spin text-primary" />
         <span className="text-sm">Loading scans…</span>
+      </div>
+    );
+  }
+
+  if (scanError) {
+    return (
+      <div className="px-5 py-8 text-center space-y-3">
+        <p className="text-sm font-semibold text-red-600">Failed to load scans</p>
+        <p className="text-xs text-slate-500 font-mono bg-red-50 rounded-xl p-3 text-left">{scanError}</p>
+        <button onClick={() => load(limit)} className="text-sm text-primary hover:underline">Retry</button>
       </div>
     );
   }
@@ -1734,6 +1750,14 @@ export function UsersScreen() {
             />
           </div>
           <span className="text-sm text-slate-500 whitespace-nowrap">{filtered.length} users</span>
+          <button
+            onClick={reload}
+            disabled={loading}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-50 whitespace-nowrap"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+            Refresh
+          </button>
         </div>
 
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">

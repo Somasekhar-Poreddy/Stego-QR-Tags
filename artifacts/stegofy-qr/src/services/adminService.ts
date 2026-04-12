@@ -172,21 +172,23 @@ export async function adminGetQRScans(qrId: string, limit = 30): Promise<QRScan[
 
 export async function adminGetScansByQRIds(qrIds: string[], limit = 50): Promise<QRScan[]> {
   if (qrIds.length === 0) return [];
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("qr_scans")
     .select("*")
     .in("qr_id", qrIds)
     .order("created_at", { ascending: false })
     .limit(limit);
+  if (error) throw new Error(error.message);
   return (data ?? []) as QRScan[];
 }
 
 export async function adminGetScanCountByQRIds(qrIds: string[]): Promise<number> {
   if (qrIds.length === 0) return 0;
-  const { count } = await supabase
+  const { count, error } = await supabase
     .from("qr_scans")
     .select("id", { count: "exact", head: true })
     .in("qr_id", qrIds);
+  if (error) throw new Error(error.message);
   return count ?? 0;
 }
 

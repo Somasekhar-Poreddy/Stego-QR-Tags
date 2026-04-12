@@ -506,7 +506,7 @@ function QREditModal({ qr: initialQr, owner, onClose, onUpdated, onEnable, onDis
                     <div key={label} className="flex items-center gap-2">
                       <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                       <span className="text-[11px] text-slate-500">{label}:</span>
-                      <span className="text-sm font-semibold text-slate-800 font-mono">{maskContact(val)}</span>
+                      <span className="text-sm font-semibold text-slate-800 font-mono">{val}</span>
                     </div>
                   ) : null)}
                   {!qr.primary_contact && !qr.secondary_phone && !qr.emergency_contact && (
@@ -570,8 +570,8 @@ function QREditModal({ qr: initialQr, owner, onClose, onUpdated, onEnable, onDis
                 <div className="flex items-center gap-2">
                   <Key className="w-4 h-4 text-slate-400" />
                   <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">PIN Code</p>
-                  <span className={`text-[11px] font-semibold ${qr.pin_code ? "text-green-600" : "text-slate-400"}`}>
-                    {qr.pin_code ? "Protected (4-digit PIN set)" : "None"}
+                  <span className={`text-[11px] font-semibold font-mono ${qr.pin_code ? "text-green-600" : "text-slate-400"}`}>
+                    {qr.pin_code ? qr.pin_code : "None"}
                   </span>
                 </div>
                 {editing && (
@@ -620,7 +620,7 @@ function QREditModal({ qr: initialQr, owner, onClose, onUpdated, onEnable, onDis
                     {entries.map(([key, value]) => {
                       const label = DATA_FIELD_LABELS[key] || key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
                       const strVal = String(value);
-                      const displayVal = isPhone(key) ? maskContact(strVal) : strVal;
+                      const displayVal = strVal;
                       return (
                         <div key={key} className="col-span-1">
                           <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">{label}</p>
@@ -735,6 +735,14 @@ export function QRCodesScreen() {
             className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-primary transition-colors" />
         </div>
         <span className="text-sm text-slate-500 whitespace-nowrap">{filtered.length} codes</span>
+        <button
+          onClick={reload}
+          disabled={loading}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-50 whitespace-nowrap"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+          Refresh
+        </button>
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
@@ -758,8 +766,8 @@ export function QRCodesScreen() {
               ) : pageData.map((qr) => {
                 const owner = userMap[qr.user_id];
                 const ownerName = owner
-                  ? [owner.first_name, owner.last_name].filter(Boolean).join(" ") || owner.email || qr.user_id.slice(0, 8)
-                  : qr.user_id.slice(0, 8);
+                  ? [owner.first_name, owner.last_name].filter(Boolean).join(" ") || owner.email || "Unknown"
+                  : "Unknown";
                 const inactive = qr.is_active === false || qr.status === "inactive";
                 return (
                   <tr key={qr.id} className="hover:bg-slate-50 transition-colors">

@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis,
   CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
-import { Users, QrCode, MessageSquare, ShoppingCart, Zap, DollarSign } from "lucide-react";
+import { Users, QrCode, MessageSquare, ShoppingCart, Zap, DollarSign, RefreshCw } from "lucide-react";
 import {
   getDashboardStats, getScansPerDay, getRequestsByType,
 } from "@/services/adminService";
@@ -34,7 +34,8 @@ export function DashboardScreen() {
   const [reqTypes, setReqTypes] = useState<{ name: string; value: number }[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    setLoading(true);
     Promise.all([getDashboardStats(), getScansPerDay(7), getRequestsByType()])
       .then(([s, scans, types]) => {
         setStats(s);
@@ -45,11 +46,23 @@ export function DashboardScreen() {
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => { load(); }, [load]);
+
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-xl font-bold text-slate-900">Dashboard</h2>
-        <p className="text-sm text-slate-500 mt-0.5">Platform overview</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-slate-900">Dashboard</h2>
+          <p className="text-sm text-slate-500 mt-0.5">Platform overview</p>
+        </div>
+        <button
+          onClick={load}
+          disabled={loading}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-50"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+          Refresh
+        </button>
       </div>
 
       {/* Stat cards */}
