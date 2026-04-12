@@ -524,7 +524,8 @@ export function PublicProfileScreen() {
   const [showEmergencyContacts, setShowEmergencyContacts] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
-  const scanIdRef = useRef<string | null>(null);
+  // Reactive scan ID — triggers intent-update effect when it arrives after async POST
+  const [scanId, setScanId] = useState<string | null>(null);
 
   // Extract QR id from path: /qr/<id>
   const qrId = (() => {
@@ -544,7 +545,7 @@ export function PublicProfileScreen() {
         setNotFound(true);
       } else {
         setQrData(data as QRPublicData);
-        // Fire-and-forget: record this QR scan
+        // Fire-and-forget: record this QR scan; setScanId triggers pending intent effect
         fetch("/api/track-scan", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -556,7 +557,7 @@ export function PublicProfileScreen() {
         })
           .then((r) => r.json())
           .then((body: { id?: string }) => {
-            if (body.id) scanIdRef.current = body.id;
+            if (body.id) setScanId(body.id);
           })
           .catch(() => {});
       }
@@ -564,16 +565,16 @@ export function PublicProfileScreen() {
     })();
   }, [qrId]);
 
-  // Fire-and-forget: update scan row with selected intent whenever it changes
+  // Fire-and-forget: update scan row with intent on selection or when scan ID arrives.
+  // Depends on both so it replays if user selected intent before POST returned.
   useEffect(() => {
-    if (!selectedIntent || !scanIdRef.current) return;
-    const sid = scanIdRef.current;
-    fetch(`/api/track-scan/${sid}/intent`, {
+    if (!selectedIntent || !scanId) return;
+    fetch(`/api/track-scan/${scanId}/intent`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ intent: selectedIntent }),
     }).catch(() => {});
-  }, [selectedIntent]);
+  }, [selectedIntent, scanId]);
 
   /** Returns null on success, or an error message on DB failure */
   const handleVerified = async (phone: string): Promise<string | null> => {
@@ -611,9 +612,8 @@ export function PublicProfileScreen() {
         return "Failed to send request. Please check your connection and try again.";
       }
       // Fire-and-forget: mark request made + update intent on scan row
-      if (scanIdRef.current) {
-        const sid = scanIdRef.current;
-        fetch(`/api/track-scan/${sid}/intent`, {
+      if (scanId) {
+        fetch(`/api/track-scan/${scanId}/intent`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ intent: selectedIntent, is_request_made: true }),
