@@ -89,6 +89,43 @@ export async function adminGetQRCountsByUser(userIds: string[]): Promise<Record<
 }
 
 /* ═══════════════════════════════════════════════════
+   USER ACTIVITY LOGS (admin view)
+   ═══════════════════════════════════════════════════ */
+export interface ActivityLog {
+  id: string;
+  user_id: string;
+  event_type: string;
+  created_at: string;
+  metadata: Record<string, string | null>;
+}
+
+export async function adminGetUserActivityLogs(userId: string, limit = 30): Promise<ActivityLog[]> {
+  const { data } = await supabase
+    .from("user_activity_logs")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  return (data ?? []) as ActivityLog[];
+}
+
+export async function adminGetLastSeenByUsers(userIds: string[]): Promise<Record<string, string>> {
+  if (userIds.length === 0) return {};
+  const { data } = await supabase
+    .from("user_activity_logs")
+    .select("user_id, created_at")
+    .eq("event_type", "login")
+    .in("user_id", userIds);
+  const map: Record<string, string> = {};
+  (data ?? []).forEach((row) => {
+    const uid = row.user_id as string;
+    const ts = row.created_at as string;
+    if (!map[uid] || ts > map[uid]) map[uid] = ts;
+  });
+  return map;
+}
+
+/* ═══════════════════════════════════════════════════
    QR CODES (admin view)
    ═══════════════════════════════════════════════════ */
 export async function adminGetAllQRCodes() {

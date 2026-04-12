@@ -133,6 +133,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Mirror the module-level flag into a ref so event handlers can read it synchronously.
   // Initialized ONCE from _recoveryPending (not from URL detection which may be stale).
   const passwordRecoveryInProgress = useRef(_recoveryPending);
+  // Stores the user id before sign-out so the logout event can be logged
+  const prevUserIdRef = useRef<string | null>(null);
 
   // Wrap setStep so navigating back to login always clears all in-progress flags
   const setStep = (s: AuthStep) => {
@@ -172,7 +174,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         if (session?.user && !otpSignupInProgress.current) {
           const built = await fetchAndBuildUser(session.user);
-          if (mounted) { setUser(built); setStep("app"); }
+          if (mounted) {
+            prevUserIdRef.current = session.user.id;
+            setUser(built); setStep("app");
+          }
         }
       } catch (err) {
         console.warn("Session restore failed:", err);
@@ -214,15 +219,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         try {
           const built = await fetchAndBuildUser(session.user);
-          if (mounted) { setUser(built); setStep("app"); setLoading(false); }
+          if (mounted) {
+            prevUserIdRef.current = session.user.id;
+            setUser(built); setStep("app"); setLoading(false);
+          }
         } catch {
           if (mounted) setLoading(false);
         }
+
+        // Fire-and-forget: log login event (never blocks auth flow)
+        supabase.from("user_activity_logs").insert({
+          user_id: session.user.id,
+          event_type: "login",
+          metadata: {
+            user_agent: navigator.userAgent,
+            platform: navigator.platform,
+            language: navigator.language,
+          },
+        });
       }
 
       if (event === "SIGNED_OUT") {
         // Don't navigate to login if we are in the recovery flow
         if (passwordRecoveryInProgress.current) return;
+        // Fire-and-forget: log logout event using the stored ref id
+        if (prevUserIdRef.current) {
+          supabase.from("user_activity_logs").insert({
+            user_id: prevUserIdRef.current,
+            event_type: "logout",
+            metadata: {
+              user_agent: navigator.userAgent,
+              platform: navigator.platform,
+              language: navigator.language,
+            },
+          });
+          prevUserIdRef.current = null;
+        }
         setUser(null); setStep("login"); setLoading(false);
       }
 

@@ -4,14 +4,15 @@ import {
   Trash2, ShieldOff, ShieldCheck, Copy, Check, ChevronDown, ChevronUp,
   Phone, MapPin, Globe, Calendar, Instagram, Twitter, Facebook,
   Save, Edit3, RefreshCw, Filter, Home, Activity, Plus, Key, Link2,
-  ExternalLink, Download,
+  ExternalLink, Download, Clock, LogIn, LogOut, Smartphone, Monitor,
 } from "lucide-react";
 import QRCodeLib from "qrcode";
 import {
   adminGetAllUsers, adminBlockUser, adminUnblockUser, adminDeleteUser,
   adminGetUserQRCodes, adminUpdateUserProfile, adminGetAllContactRequestsForUser,
   adminGetQRCountsByUser, adminDisableQRCode, adminEnableQRCode, adminDeleteQRCode,
-  adminUpdateQRCode,
+  adminUpdateQRCode, adminGetUserActivityLogs, adminGetLastSeenByUsers,
+  type ActivityLog,
 } from "@/services/adminService";
 
 /* ─────────────────────────────────────────────────
@@ -103,6 +104,24 @@ function initials(u: UserRow) {
   if (parts.length >= 2) return `${parts[0]![0]}${parts[1]![0]}`.toUpperCase();
   if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
   return "??";
+}
+
+function parseUA(ua: string | null | undefined): { browser: string; platform: string; isMobile: boolean } {
+  if (!ua) return { browser: "Unknown", platform: "Unknown", isMobile: false };
+  const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(ua);
+  let browser = "Other";
+  if (/Edg\//i.test(ua)) browser = "Edge";
+  else if (/OPR\//i.test(ua)) browser = "Opera";
+  else if (/Chrome\//i.test(ua)) browser = "Chrome";
+  else if (/Firefox\//i.test(ua)) browser = "Firefox";
+  else if (/Safari\//i.test(ua)) browser = "Safari";
+  let platform = "Other";
+  if (/Android/i.test(ua)) platform = "Android";
+  else if (/iPhone|iPad|iPod/i.test(ua)) platform = "iOS";
+  else if (/Windows/i.test(ua)) platform = "Windows";
+  else if (/Mac OS X/i.test(ua)) platform = "macOS";
+  else if (/Linux/i.test(ua)) platform = "Linux";
+  return { browser, platform, isMobile };
 }
 
 function Badge({ label, color }: { label: string; color: string }) {
@@ -1110,9 +1129,134 @@ function ActivityTab({ contacts }: { contacts: ContactRow[] }) {
 }
 
 /* ─────────────────────────────────────────────────
+   SESSIONS TAB
+   ───────────────────────────────────────────────── */
+function SessionsTab({ userId }: { userId: string }) {
+  const [logs, setLogs] = useState<ActivityLog[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [limit, setLimit] = useState(30);
+  const [hasMore, setHasMore] = useState(false);
+
+  const load = useCallback(async (lim: number) => {
+    setLoading(true);
+    const data = await adminGetUserActivityLogs(userId, lim + 1);
+    setHasMore(data.length > lim);
+    setLogs(data.slice(0, lim));
+    setLoading(false);
+  }, [userId]);
+
+  useEffect(() => { load(30); }, [load]);
+
+  const handleLoadMore = () => {
+    const next = limit + 30;
+    setLimit(next);
+    load(next);
+  };
+
+  const loginEvents = logs.filter((l) => l.event_type === "login");
+  const logoutEvents = logs.filter((l) => l.event_type === "logout");
+  const lastLogin = loginEvents[0]?.created_at;
+  const lastLogout = logoutEvents[0]?.created_at;
+
+  if (loading && logs.length === 0) {
+    return (
+      <div className="flex items-center justify-center py-20 gap-2 text-slate-400">
+        <RefreshCw className="w-4 h-4 animate-spin text-primary" />
+        <span className="text-sm">Loading sessions…</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-5 py-4 space-y-4">
+      {/* Summary stats */}
+      <div className="grid grid-cols-3 gap-3">
+        <div className="bg-slate-50 rounded-2xl p-3 text-center">
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Total Logins</p>
+          <p className="text-xl font-black text-slate-800">{loginEvents.length}</p>
+        </div>
+        <div className="bg-slate-50 rounded-2xl p-3 text-center">
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Last Login</p>
+          <p className="text-xs font-semibold text-slate-700" title={lastLogin ? new Date(lastLogin).toLocaleString("en-IN") : undefined}>
+            {lastLogin ? formatRelativeTime(lastLogin) : "—"}
+          </p>
+        </div>
+        <div className="bg-slate-50 rounded-2xl p-3 text-center">
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Last Logout</p>
+          <p className="text-xs font-semibold text-slate-700" title={lastLogout ? new Date(lastLogout).toLocaleString("en-IN") : undefined}>
+            {lastLogout ? formatRelativeTime(lastLogout) : "—"}
+          </p>
+        </div>
+      </div>
+
+      {/* Timeline */}
+      {logs.length === 0 ? (
+        <div className="text-center py-16 space-y-2">
+          <Clock className="w-10 h-10 text-slate-200 mx-auto" />
+          <p className="text-sm text-slate-400">No session activity recorded yet</p>
+          <p className="text-xs text-slate-300">Sessions are recorded from this point forward</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {logs.map((log) => {
+            const isLogin = log.event_type === "login";
+            const ua = (log.metadata as Record<string, string | null>)?.user_agent;
+            const { browser, platform, isMobile } = parseUA(ua);
+            const ts = new Date(log.created_at).toLocaleString("en-IN", {
+              day: "2-digit", month: "short", year: "numeric",
+              hour: "2-digit", minute: "2-digit",
+            });
+            return (
+              <div key={log.id} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl">
+                <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${isLogin ? "bg-green-100" : "bg-red-100"}`}>
+                  {isLogin
+                    ? <LogIn className="w-4 h-4 text-green-600" />
+                    : <LogOut className="w-4 h-4 text-red-500" />
+                  }
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className={`text-xs font-bold ${isLogin ? "text-green-700" : "text-red-600"}`}>
+                      {isLogin ? "Logged In" : "Logged Out"}
+                    </p>
+                    <span className="text-[10px] font-mono text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
+                      {browser} · {platform}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-0.5" title={ts}>
+                    {formatRelativeTime(log.created_at)}
+                  </p>
+                </div>
+                <div className="shrink-0 text-slate-300">
+                  {isMobile
+                    ? <Smartphone className="w-4 h-4" />
+                    : <Monitor className="w-4 h-4" />
+                  }
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {hasMore && (
+        <button
+          onClick={handleLoadMore}
+          disabled={loading}
+          className="w-full py-2 text-xs font-semibold text-primary bg-primary/5 hover:bg-primary/10 rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+        >
+          {loading ? <RefreshCw className="w-3 h-3 animate-spin" /> : null}
+          Load more sessions
+        </button>
+      )}
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────
    USER DETAIL MODAL — true full-page overlay
    ───────────────────────────────────────────────── */
-type TabKey = "profile" | "qrcodes" | "activity";
+type TabKey = "profile" | "qrcodes" | "activity" | "sessions";
 
 function UserDetailModal({ user, onRefresh, onClose }: {
   user: UserRow; onRefresh: () => void; onClose: () => void;
@@ -1172,6 +1316,7 @@ function UserDetailModal({ user, onRefresh, onClose }: {
     { key: "profile", label: "Profile", icon: <User className="w-4 h-4" /> },
     { key: "qrcodes", label: "QR Codes", icon: <QrCode className="w-4 h-4" />, badge: qrs.length },
     { key: "activity", label: "Activity", icon: <Activity className="w-4 h-4" />, badge: contacts.length },
+    { key: "sessions", label: "Sessions", icon: <Clock className="w-4 h-4" /> },
   ];
 
   return (
@@ -1251,6 +1396,7 @@ function UserDetailModal({ user, onRefresh, onClose }: {
               {tab === "profile" && <ProfileTab user={localUser} onRefresh={onRefresh} onUserUpdated={handleUserUpdated} />}
               {tab === "qrcodes" && <QRCodesTab qrs={qrs} contacts={contacts} onRefreshQrs={loadUserData} />}
               {tab === "activity" && <ActivityTab contacts={contacts} />}
+              {tab === "sessions" && <SessionsTab userId={user.id} />}
             </>
           )}
         </div>
@@ -1270,6 +1416,7 @@ export function UsersScreen() {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<UserRow | null>(null);
+  const [lastSeenMap, setLastSeenMap] = useState<Record<string, string>>({});
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -1277,8 +1424,13 @@ export function UsersScreen() {
       const u = (await adminGetAllUsers()) as UserRow[];
       setUsers(u);
       if (u.length > 0) {
-        const counts = await adminGetQRCountsByUser(u.map((x) => x.id));
+        const ids = u.map((x) => x.id);
+        const [counts, lastSeen] = await Promise.all([
+          adminGetQRCountsByUser(ids),
+          adminGetLastSeenByUsers(ids),
+        ]);
         setQrCounts(counts);
+        setLastSeenMap(lastSeen);
       }
     } catch { /* noop */ }
     setLoading(false);
@@ -1328,13 +1480,14 @@ export function UsersScreen() {
                   <th className="px-4 py-3 text-left hidden lg:table-cell">Mobile</th>
                   <th className="px-4 py-3 text-center hidden xl:table-cell">QR Codes</th>
                   <th className="px-4 py-3 text-left hidden xl:table-cell">Joined</th>
+                  <th className="px-4 py-3 text-left hidden xl:table-cell">Last Seen</th>
                   <th className="px-4 py-3 text-left">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {pageData.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-10 text-center text-slate-400">
+                    <td colSpan={8} className="px-4 py-10 text-center text-slate-400">
                       <User className="w-8 h-8 text-slate-200 mx-auto mb-2" />
                       No users found
                     </td>
@@ -1369,6 +1522,15 @@ export function UsersScreen() {
                     </td>
                     <td className="px-4 py-3 text-slate-400 hidden xl:table-cell text-xs">
                       {u.created_at ? new Date(u.created_at).toLocaleDateString("en-IN") : "—"}
+                    </td>
+                    <td className="px-4 py-3 hidden xl:table-cell text-xs">
+                      {lastSeenMap[u.id] ? (
+                        <span className="text-slate-600 font-medium" title={new Date(lastSeenMap[u.id]).toLocaleString("en-IN")}>
+                          {formatRelativeTime(lastSeenMap[u.id])}
+                        </span>
+                      ) : (
+                        <span className="text-slate-300">Never</span>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <Badge label={u.status || "active"} color={u.status === "blocked" ? "bg-red-100 text-red-600" : "bg-green-100 text-green-700"} />
