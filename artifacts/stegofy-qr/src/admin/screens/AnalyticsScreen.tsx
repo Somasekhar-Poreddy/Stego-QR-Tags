@@ -227,17 +227,21 @@ export function AnalyticsScreen() {
 
   const [summary, setSummary] = useState<ScanSummary | null>(null);
   const [loadingSummary, setLoadingSummary] = useState(true);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
 
   const [splitScans, setSplitScans] = useState<ScanDaySplit[]>([]);
   const [loadingSplit, setLoadingSplit] = useState(true);
+  const [splitError, setSplitError] = useState<string | null>(null);
 
   const [geoReg, setGeoReg] = useState<GeoBreakdownRow[]>([]);
   const [geoStr, setGeoStr] = useState<GeoBreakdownRow[]>([]);
   const [loadingGeoSplit, setLoadingGeoSplit] = useState(true);
+  const [geoSplitError, setGeoSplitError] = useState<string | null>(null);
 
   const [devReg, setDevReg] = useState<DeviceBreakdownRow[]>([]);
   const [devStr, setDevStr] = useState<DeviceBreakdownRow[]>([]);
   const [loadingDevSplit, setLoadingDevSplit] = useState(true);
+  const [devSplitError, setDevSplitError] = useState<string | null>(null);
 
   const loadAll = useCallback((f: Date, t: Date) => {
     setLoadingCore(true);
@@ -249,6 +253,10 @@ export function AnalyticsScreen() {
     setLoadingDevSplit(true);
     setGeoError(null);
     setDeviceError(null);
+    setSummaryError(null);
+    setSplitError(null);
+    setGeoSplitError(null);
+    setDevSplitError(null);
 
     Promise.all([
       getScansPerDay(f, t),
@@ -256,46 +264,43 @@ export function AnalyticsScreen() {
       getTopQRCategories(f, t),
       getPeakHourData(f, t),
     ]).then(([s, r, c, h]) => {
-      setScans(s);
-      setReqTypes(r);
-      setQrCats(c);
-      setPeakHours(h);
+      setScans(s); setReqTypes(r); setQrCats(c); setPeakHours(h);
     })
     .catch(() => {})
     .finally(() => setLoadingCore(false));
 
     adminGetGeoBreakdown("all", f, t)
       .then(setGeo)
-      .catch((e) => setGeoError(e instanceof Error ? e.message : "Failed"))
+      .catch((e) => setGeoError(e instanceof Error ? e.message : "Failed to load geo data"))
       .finally(() => setLoadingGeo(false));
 
     adminGetDeviceBreakdown("all", f, t)
       .then(setDevices)
-      .catch((e) => setDeviceError(e instanceof Error ? e.message : "Failed"))
+      .catch((e) => setDeviceError(e instanceof Error ? e.message : "Failed to load device data"))
       .finally(() => setLoadingDevices(false));
 
     adminGetScanSummary(f, t)
       .then(setSummary)
-      .catch(() => {})
+      .catch((e) => setSummaryError(e instanceof Error ? e.message : "Failed to load scan summary"))
       .finally(() => setLoadingSummary(false));
 
     getScansPerDayWithSplit(f, t)
       .then(setSplitScans)
-      .catch(() => {})
+      .catch((e) => setSplitError(e instanceof Error ? e.message : "Failed to load scan trend"))
       .finally(() => setLoadingSplit(false));
 
     Promise.all([
       adminGetGeoBreakdown("registered", f, t, 5),
       adminGetGeoBreakdown("strangers", f, t, 5),
     ]).then(([reg, str]) => { setGeoReg(reg); setGeoStr(str); })
-      .catch(() => {})
+      .catch((e) => setGeoSplitError(e instanceof Error ? e.message : "Failed to load geo split"))
       .finally(() => setLoadingGeoSplit(false));
 
     Promise.all([
       adminGetDeviceBreakdown("registered", f, t),
       adminGetDeviceBreakdown("strangers", f, t),
     ]).then(([reg, str]) => { setDevReg(reg); setDevStr(str); })
-      .catch(() => {})
+      .catch((e) => setDevSplitError(e instanceof Error ? e.message : "Failed to load device split"))
       .finally(() => setLoadingDevSplit(false));
   }, []);
 
@@ -385,36 +390,49 @@ export function AnalyticsScreen() {
         </div>
 
         {/* Summary pills */}
-        <ScanSummaryPills summary={summary} loading={loadingSummary} />
+        {summaryError ? (
+          <div className="bg-red-50 border border-red-100 rounded-2xl p-4 text-center space-y-1">
+            <p className="text-sm font-semibold text-red-600">Failed to load scan summary</p>
+            <p className="text-xs font-mono text-red-500">{summaryError}</p>
+          </div>
+        ) : (
+          <ScanSummaryPills summary={summary} loading={loadingSummary} />
+        )}
 
         {/* Dual-line scan trend */}
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
           <p className="text-sm font-bold text-slate-800 mb-1">Scan Trend — Registered vs Anonymous</p>
           <p className="text-[11px] text-slate-400 mb-4">{rangeLabel} · Purple = registered, Amber = anonymous strangers</p>
-          <ScanSplitChart data={splitScans} loading={loadingSplit} />
+          {splitError ? (
+            <ErrorState message={splitError} />
+          ) : (
+            <ScanSplitChart data={splitScans} loading={loadingSplit} />
+          )}
         </div>
 
         {/* Geo split */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <ChartCard title="Countries — Registered Scanners" subtitle="Top 5 countries" loading={loadingGeoSplit}>
-            <GeoBarChart data={geoReg} height={180} />
+            {geoSplitError ? <ErrorState message={geoSplitError} /> : <GeoBarChart data={geoReg} height={180} />}
           </ChartCard>
           <ChartCard title="Countries — Anonymous Strangers" subtitle="Top 5 countries" loading={loadingGeoSplit}>
-            <GeoBarChart data={geoStr} height={180} />
+            {geoSplitError ? <ErrorState message={geoSplitError} /> : <GeoBarChart data={geoStr} height={180} />}
           </ChartCard>
         </div>
 
         {/* Device split */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <ChartCard title="Devices — Registered Scanners" subtitle="Device type breakdown" loading={loadingDevSplit}>
-            <DevicePieChart data={devReg} height={180} />
+            {devSplitError ? <ErrorState message={devSplitError} /> : <DevicePieChart data={devReg} height={180} />}
           </ChartCard>
           <ChartCard title="Devices — Anonymous Strangers" subtitle="Device type breakdown" loading={loadingDevSplit}>
-            <DevicePieChart
-              data={devStr}
-              height={180}
-              colors={{ mobile: "#f59e0b", desktop: "#fb923c", tablet: "#fbbf24", unknown: "#94a3b8" }}
-            />
+            {devSplitError ? <ErrorState message={devSplitError} /> : (
+              <DevicePieChart
+                data={devStr}
+                height={180}
+                colors={{ mobile: "#f59e0b", desktop: "#fb923c", tablet: "#fbbf24", unknown: "#94a3b8" }}
+              />
+            )}
           </ChartCard>
         </div>
       </div>
