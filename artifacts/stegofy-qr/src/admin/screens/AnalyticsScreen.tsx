@@ -168,28 +168,40 @@ export function AnalyticsScreen() {
   const [peakHours, setPeakHours] = useState<{ hour: number; count: number }[]>([]);
   const [geo, setGeo] = useState<GeoBreakdownRow[]>([]);
   const [devices, setDevices] = useState<DeviceBreakdownRow[]>([]);
-  const [loading, setLoading] = useState(true);
+
+  const [loadingCore, setLoadingCore] = useState(true);
+  const [loadingGeo, setLoadingGeo] = useState(true);
+  const [loadingDevices, setLoadingDevices] = useState(true);
+  const [geoError, setGeoError] = useState<string | null>(null);
+  const [deviceError, setDeviceError] = useState<string | null>(null);
 
   useEffect(() => {
     const to = new Date();
     const from = new Date(); from.setDate(from.getDate() - 13); from.setHours(0, 0, 0, 0);
+
     Promise.all([
       getScansPerDay(from, to),
       getRequestsByType(),
       getTopQRCategories(),
       getPeakHourData(),
-      adminGetGeoBreakdown(),
-      adminGetDeviceBreakdown(),
-    ]).then(([s, r, c, h, g, d]) => {
+    ]).then(([s, r, c, h]) => {
       setScans(s);
       setReqTypes(r);
       setQrCats(c);
       setPeakHours(h);
-      setGeo(g);
-      setDevices(d);
     })
     .catch(() => {})
-    .finally(() => setLoading(false));
+    .finally(() => setLoadingCore(false));
+
+    adminGetGeoBreakdown()
+      .then(setGeo)
+      .catch((e) => setGeoError(e instanceof Error ? e.message : "Failed to load geo data"))
+      .finally(() => setLoadingGeo(false));
+
+    adminGetDeviceBreakdown()
+      .then(setDevices)
+      .catch((e) => setDeviceError(e instanceof Error ? e.message : "Failed to load device data"))
+      .finally(() => setLoadingDevices(false));
   }, []);
 
   return (
@@ -201,7 +213,7 @@ export function AnalyticsScreen() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Scan trend */}
-        <ChartCard title="QR Scans — Last 14 Days" loading={loading}>
+        <ChartCard title="QR Scans — Last 14 Days" loading={loadingCore}>
           <ResponsiveContainer width="100%" height={210}>
             <LineChart data={scans}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -214,7 +226,7 @@ export function AnalyticsScreen() {
         </ChartCard>
 
         {/* Request types pie */}
-        <ChartCard title="Contact Requests by Type" loading={loading}>
+        <ChartCard title="Contact Requests by Type" loading={loadingCore}>
           {reqTypes.length === 0 ? (
             <div className="h-[210px] flex items-center justify-center text-sm text-slate-400">No data yet</div>
           ) : (
@@ -235,22 +247,36 @@ export function AnalyticsScreen() {
         <ChartCard
           title="Top Countries by Scan Count"
           subtitle="Based on IP geolocation data"
-          loading={loading}
+          loading={loadingGeo}
         >
-          <GeoBarChart data={geo} />
+          {geoError ? (
+            <div className="h-[210px] flex flex-col items-center justify-center gap-2">
+              <p className="text-sm font-semibold text-red-600">Failed to load geo data</p>
+              <p className="text-xs font-mono text-red-500 bg-red-50 rounded-lg px-3 py-2 max-w-full text-center">{geoError}</p>
+            </div>
+          ) : (
+            <GeoBarChart data={geo} />
+          )}
         </ChartCard>
 
         {/* Device breakdown */}
         <ChartCard
           title="Devices & Browsers"
           subtitle="Scanner device type distribution"
-          loading={loading}
+          loading={loadingDevices}
         >
-          <DevicePieChart data={devices} />
+          {deviceError ? (
+            <div className="h-[210px] flex flex-col items-center justify-center gap-2">
+              <p className="text-sm font-semibold text-red-600">Failed to load device data</p>
+              <p className="text-xs font-mono text-red-500 bg-red-50 rounded-lg px-3 py-2 max-w-full text-center">{deviceError}</p>
+            </div>
+          ) : (
+            <DevicePieChart data={devices} />
+          )}
         </ChartCard>
 
         {/* QR categories horizontal bar */}
-        <ChartCard title="Top QR Code Categories" loading={loading}>
+        <ChartCard title="Top QR Code Categories" loading={loadingCore}>
           {qrCats.length === 0 ? (
             <div className="h-[210px] flex items-center justify-center text-sm text-slate-400">No data yet</div>
           ) : (
@@ -267,7 +293,7 @@ export function AnalyticsScreen() {
         </ChartCard>
 
         {/* Peak hour heatmap grid */}
-        <ChartCard title="Peak Scan Hours — 24-Hour Heatmap" loading={loading}>
+        <ChartCard title="Peak Scan Hours — 24-Hour Heatmap" loading={loadingCore}>
           <PeakHourHeatmap data={peakHours} />
         </ChartCard>
       </div>
