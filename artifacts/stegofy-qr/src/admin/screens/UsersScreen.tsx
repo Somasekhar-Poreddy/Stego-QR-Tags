@@ -1257,17 +1257,54 @@ function SessionsTab({ userId, totalCount }: { userId: string; totalCount: numbe
 }
 
 /* ─────────────────────────────────────────────────
+   COUNTRY FLAG HELPER
+   ───────────────────────────────────────────────── */
+const COUNTRY_ISO: Record<string, string> = {
+  "india": "IN", "united states": "US", "united kingdom": "GB",
+  "canada": "CA", "australia": "AU", "germany": "DE", "france": "FR",
+  "japan": "JP", "china": "CN", "brazil": "BR", "russia": "RU",
+  "south korea": "KR", "mexico": "MX", "italy": "IT", "spain": "ES",
+  "netherlands": "NL", "switzerland": "CH", "sweden": "SE", "norway": "NO",
+  "denmark": "DK", "finland": "FI", "poland": "PL", "austria": "AT",
+  "belgium": "BE", "portugal": "PT", "greece": "GR", "turkey": "TR",
+  "ukraine": "UA", "singapore": "SG", "malaysia": "MY", "indonesia": "ID",
+  "thailand": "TH", "vietnam": "VN", "philippines": "PH", "pakistan": "PK",
+  "bangladesh": "BD", "sri lanka": "LK", "nepal": "NP", "new zealand": "NZ",
+  "south africa": "ZA", "nigeria": "NG", "kenya": "KE", "egypt": "EG",
+  "saudi arabia": "SA", "united arab emirates": "AE", "israel": "IL",
+  "iran": "IR", "iraq": "IQ", "argentina": "AR", "colombia": "CO",
+  "chile": "CL", "peru": "PE", "venezuela": "VE", "czech republic": "CZ",
+  "romania": "RO", "hungary": "HU", "slovakia": "SK", "croatia": "HR",
+  "serbia": "RS", "bulgaria": "BG", "ireland": "IE", "hong kong": "HK",
+  "taiwan": "TW", "myanmar": "MM", "cambodia": "KH", "qatar": "QA",
+  "kuwait": "KW", "bahrain": "BH", "oman": "OM", "jordan": "JO",
+  "lebanon": "LB", "morocco": "MA", "algeria": "DZ", "tunisia": "TN",
+  "ghana": "GH", "ethiopia": "ET", "tanzania": "TZ", "uganda": "UG",
+};
+
+function countryFlag(country: string | null): string {
+  if (!country) return "";
+  const iso = COUNTRY_ISO[country.toLowerCase()];
+  if (!iso) return "🌐";
+  return iso.toUpperCase().replace(/./g, (c) =>
+    String.fromCodePoint(0x1F1E6 + c.charCodeAt(0) - 65)
+  );
+}
+
+/* ─────────────────────────────────────────────────
    SCANS TAB
    ───────────────────────────────────────────────── */
 function ScansTab({
-  qrIds,
+  qrs,
   totalCount,
   isSuperAdmin,
 }: {
-  qrIds: string[];
+  qrs: QRRow[];
   totalCount: number;
   isSuperAdmin: boolean;
 }) {
+  const qrIds = qrs.map((q) => q.id);
+  const qrNameMap = Object.fromEntries(qrs.map((q) => [q.id, q.name || q.display_code || q.type || "QR"]));
   const [scans, setScans] = useState<QRScan[]>([]);
   const [loading, setLoading] = useState(true);
   const [limit, setLimit] = useState(30);
@@ -1356,6 +1393,8 @@ function ScansTab({
               hour: "2-digit", minute: "2-digit",
             });
             const location = [scan.city, scan.state, scan.country].filter(Boolean).join(", ");
+            const flag = countryFlag(scan.country);
+            const qrName = qrNameMap[scan.qr_id];
             const revealedIp = revealedIps[scan.id];
             const isLoadingThisIp = loadingIp[scan.id];
             return (
@@ -1369,6 +1408,11 @@ function ScansTab({
                       <p className="text-xs font-bold text-slate-700" title={ts}>
                         {formatRelativeTime(scan.created_at)}
                       </p>
+                      {qrName && (
+                        <span className="text-[10px] font-semibold text-indigo-600 bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 rounded-full flex items-center gap-1">
+                          <QrCode className="w-2.5 h-2.5" /> {qrName}
+                        </span>
+                      )}
                       {scan.is_request_made && (
                         <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">
                           Request made
@@ -1388,7 +1432,9 @@ function ScansTab({
                       )}
                       {location && (
                         <span className="flex items-center gap-1 text-[11px] text-slate-500">
-                          <MapPin className="w-3 h-3 text-slate-400 shrink-0" /> {location}
+                          {flag && <span className="text-sm leading-none">{flag}</span>}
+                          {!flag && <MapPin className="w-3 h-3 text-slate-400 shrink-0" />}
+                          {location}
                         </span>
                       )}
                     </div>
@@ -1485,13 +1531,21 @@ function UserDetailModal({ user, onRefresh, onClose }: {
 
   useEffect(() => { loadUserData(); }, [loadUserData]);
 
-  // Determine if current admin is a super-admin
+  // Determine if current admin is a super-admin (checks env list + admin_users table)
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session?.user) return;
+      const uid = session.user.id;
       const allowedIds = (import.meta.env.VITE_ADMIN_USER_IDS ?? "")
         .split(",").map((id: string) => id.trim()).filter(Boolean);
-      setIsSuperAdmin(allowedIds.includes(session.user.id));
+      if (allowedIds.includes(uid)) { setIsSuperAdmin(true); return; }
+      // Fall back to checking admin_users table
+      const { data } = await supabase
+        .from("admin_users")
+        .select("role")
+        .eq("user_id", uid)
+        .single();
+      if (data?.role === "super_admin") setIsSuperAdmin(true);
     }).catch(() => {});
   }, []);
 
@@ -1608,7 +1662,7 @@ function UserDetailModal({ user, onRefresh, onClose }: {
               {tab === "qrcodes" && <QRCodesTab qrs={qrs} contacts={contacts} onRefreshQrs={loadUserData} />}
               {tab === "activity" && <ActivityTab contacts={contacts} />}
               {tab === "sessions" && <SessionsTab userId={user.id} totalCount={sessionCount} />}
-              {tab === "scans" && <ScansTab qrIds={qrs.map((q) => q.id)} totalCount={scanCount} isSuperAdmin={isSuperAdmin} />}
+              {tab === "scans" && <ScansTab qrs={qrs} totalCount={scanCount} isSuperAdmin={isSuperAdmin} />}
             </>
           )}
         </div>
