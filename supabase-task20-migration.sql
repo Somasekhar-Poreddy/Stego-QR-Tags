@@ -1,6 +1,20 @@
 -- Task #20: QR Scan Tracking + Admin IP Access Logs
 -- Run this once in the Supabase SQL editor
 
+-- ─── Helper function: is current user an admin? ──────────────────────────────
+-- Checks the admin_users table (covers all roles: super_admin, ops_manager, etc.)
+-- SECURITY DEFINER so it can query admin_users without the caller needing direct access.
+CREATE OR REPLACE FUNCTION is_admin_user()
+RETURNS boolean
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM admin_users WHERE user_id = auth.uid()
+  );
+$$;
+
 -- ─── qr_scans table ─────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS qr_scans (
@@ -33,21 +47,16 @@ CREATE INDEX IF NOT EXISTS idx_qr_scans_session    ON qr_scans(session_id);
 
 ALTER TABLE qr_scans ENABLE ROW LEVEL SECURITY;
 
--- Anonymous visitors can insert scan events
+-- Anyone (including anonymous visitors) can insert scan events
 CREATE POLICY "Anyone can insert scans"
   ON qr_scans FOR INSERT
   WITH CHECK (true);
 
--- Authenticated users (admins) can read all scans
-CREATE POLICY "Authenticated can read all scans"
+-- Only users with an admin_users record can read scan data
+-- (service role bypasses RLS automatically for backend updates)
+CREATE POLICY "Admins only can read scans"
   ON qr_scans FOR SELECT
-  USING (auth.role() = 'authenticated');
-
--- Service role (backend) can update scans (intent + is_request_made)
-CREATE POLICY "Service role can update scans"
-  ON qr_scans FOR UPDATE
-  USING (true)
-  WITH CHECK (true);
+  USING (is_admin_user());
 
 -- ─── admin_ip_access_logs table ─────────────────────────────────────────────
 
@@ -64,12 +73,19 @@ CREATE INDEX IF NOT EXISTS idx_aial_viewed_at ON admin_ip_access_logs(viewed_at 
 
 ALTER TABLE admin_ip_access_logs ENABLE ROW LEVEL SECURITY;
 
--- Authenticated users can insert access log entries (done server-side via service role)
-CREATE POLICY "Authenticated can insert ip access logs"
-  ON admin_ip_access_logs FOR INSERT
-  WITH CHECK (auth.role() = 'authenticated');
-
--- Authenticated users can read all ip access logs
-CREATE POLICY "Authenticated can read ip access logs"
+-- Only admins can read or write IP access logs
+-- (inserts are made server-side via service role which bypasses RLS,
+--  but this policy covers any direct client access too)
+CREATE POLICY "Admins only can read ip access logs"
   ON admin_ip_access_logs FOR SELECT
-  USING (auth.role() = 'authenticated');
+  USING (is_admin_user());
+
+CREATE POLICY "Admins only can insert ip access logs"
+  ON admin_ip_access_logs FOR INSERT
+  WITH CHECK (is_admin_user());
+
+-- ─── NOTE ─────────────────────────────────────────────────────────────────────
+-- The root super admin (identified via VITE_ADMIN_USER_IDS env var) must also
+-- have a record in the admin_users table with role = 'super_admin' for direct
+-- Supabase client reads to work.  The Express API endpoints (/api/track-scan,
+-- /api/admin/decrypt-ip) always use the service role key and bypass RLS entirely.
