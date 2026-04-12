@@ -561,7 +561,7 @@ function QRPreviewCard({ qr }: { qr: { id: string; qr_url?: string | null; displ
         title="Copy URL"
         className="flex items-center gap-1 text-[9px] font-mono text-slate-500 bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded-lg transition-colors w-full justify-center group"
       >
-        <span className="truncate max-w-[90px]">{qr.display_code || "Copy URL"}</span>
+        <span className="truncate max-w-[90px]">{qrPageUrl}</span>
         {copied ? <Check className="w-2.5 h-2.5 text-green-500 shrink-0" /> : <Copy className="w-2.5 h-2.5 text-slate-400 shrink-0 group-hover:text-slate-600" />}
       </button>
       <a href={qrPageUrl} target="_blank" rel="noopener noreferrer"

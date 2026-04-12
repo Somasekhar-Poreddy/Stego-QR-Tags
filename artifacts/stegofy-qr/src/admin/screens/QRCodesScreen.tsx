@@ -317,7 +317,7 @@ function QREditModal({ qr: initialQr, owner, onClose, onUpdated, onEnable, onDis
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 px-0 sm:px-4" onClick={onClose}>
       <div
-        className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full sm:max-w-xl max-h-[92vh] flex flex-col"
+        className="bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl w-full sm:max-w-4xl max-h-[94vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -349,294 +349,329 @@ function QREditModal({ qr: initialQr, owner, onClose, onUpdated, onEnable, onDis
           </div>
         </div>
 
-        {/* Body */}
-        <div className="overflow-y-auto flex-1 p-5 space-y-4">
-          {/* QR Code Image Panel */}
-          <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-2xl p-4 flex items-center gap-4">
-            <div className="flex flex-col items-center gap-2 shrink-0">
-              <div className="bg-white p-2 rounded-xl shadow-sm">
-                <QRImage url={qrPageUrl} size={140} />
+        {/* Two-column body */}
+        <div className="flex-1 min-h-0 flex flex-col sm:flex-row overflow-hidden">
+
+          {/* ── LEFT COLUMN (40%) — QR Visual ── */}
+          <div className="sm:w-[40%] shrink-0 overflow-y-auto p-5 border-b sm:border-b-0 sm:border-r border-slate-100 flex flex-col gap-4 bg-gradient-to-b from-slate-50 to-white">
+            {/* QR Image */}
+            <div className="flex flex-col items-center gap-2">
+              <div className="bg-white p-3 rounded-2xl shadow-md border border-slate-100">
+                <QRImage url={qrPageUrl} size={160} />
               </div>
               <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Stegofy QR</p>
             </div>
-            <div className="flex flex-col gap-2 min-w-0">
-              <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">QR Page URL</p>
-              {/* Copyable URL chip */}
-              <button
-                onClick={handleCopyUrl}
-                className="flex items-center gap-1.5 text-left text-xs font-mono text-slate-600 bg-white rounded-lg px-2 py-1.5 border border-slate-200 hover:border-primary/40 transition-colors w-full group"
-                title="Click to copy URL"
-              >
-                <span className="flex-1 truncate">{qrPageUrl}</span>
-                {urlCopied
-                  ? <Check className="w-3 h-3 text-green-500 shrink-0" />
-                  : <Copy className="w-3 h-3 text-slate-300 group-hover:text-slate-500 shrink-0 transition-colors" />
-                }
-              </button>
-              <div className="flex gap-1.5 flex-wrap">
-                <a href={qrPageUrl} target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-1 text-[11px] font-semibold text-primary bg-primary/10 px-2.5 py-1.5 rounded-xl hover:bg-primary/20 transition-colors">
-                  <ExternalLink className="w-3 h-3" /> Open
+
+            {/* URL chip — opens page on click + copy icon */}
+            <div>
+              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">QR Page URL</p>
+              <div className="flex items-center gap-1 bg-white rounded-xl border border-slate-200 px-2 py-1.5 group">
+                <a
+                  href={qrPageUrl} target="_blank" rel="noopener noreferrer"
+                  className="flex-1 text-xs font-mono text-primary truncate hover:underline"
+                  title={qrPageUrl}
+                >
+                  {qrPageUrl}
                 </a>
-                <button onClick={handleShare}
-                  className="flex items-center gap-1 text-[11px] font-semibold text-slate-600 bg-white border border-slate-200 px-2.5 py-1.5 rounded-xl hover:bg-slate-50 transition-colors shadow-sm">
-                  <Share2 className="w-3 h-3" /> Share
-                </button>
-                <button onClick={handleDownloadQR}
-                  className="flex items-center gap-1 text-[11px] font-semibold text-slate-600 bg-white border border-slate-200 px-2.5 py-1.5 rounded-xl hover:bg-slate-50 transition-colors shadow-sm">
-                  <Download className="w-3 h-3" /> PNG
-                </button>
-                <button onClick={handleDownloadPDF}
-                  className="flex items-center gap-1 text-[11px] font-semibold text-red-600 bg-red-50 border border-red-100 px-2.5 py-1.5 rounded-xl hover:bg-red-100 transition-colors">
-                  <Download className="w-3 h-3" /> PDF
+                <button
+                  onClick={handleCopyUrl}
+                  title="Copy URL"
+                  className="shrink-0 p-0.5 rounded hover:bg-slate-100 transition-colors"
+                >
+                  {urlCopied
+                    ? <Check className="w-3.5 h-3.5 text-green-500" />
+                    : <Copy className="w-3.5 h-3.5 text-slate-300 group-hover:text-slate-500 transition-colors" />
+                  }
                 </button>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] text-slate-400">Scans:</span>
-                <span className="text-xs font-bold text-slate-700">{qr.scans ?? 0}</span>
-                {qr.display_code && (
-                  <>
-                    <span className="text-[10px] text-slate-300">·</span>
-                    <span className="text-[10px] font-mono text-slate-500 bg-slate-200 px-1.5 py-0.5 rounded">{qr.display_code}</span>
-                  </>
-                )}
-              </div>
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex flex-wrap gap-2">
+              <button onClick={handleShare}
+                className="flex items-center gap-1 text-[11px] font-semibold text-slate-600 bg-white border border-slate-200 px-3 py-2 rounded-xl hover:bg-slate-50 transition-colors shadow-sm flex-1 justify-center">
+                <Share2 className="w-3 h-3" /> Share
+              </button>
+              <button onClick={handleDownloadQR}
+                className="flex items-center gap-1 text-[11px] font-semibold text-slate-600 bg-white border border-slate-200 px-3 py-2 rounded-xl hover:bg-slate-50 transition-colors shadow-sm flex-1 justify-center">
+                <Download className="w-3 h-3" /> PNG
+              </button>
+              <button onClick={handleDownloadPDF}
+                className="flex items-center gap-1 text-[11px] font-semibold text-red-600 bg-red-50 border border-red-100 px-3 py-2 rounded-xl hover:bg-red-100 transition-colors flex-1 justify-center">
+                <Download className="w-3 h-3" /> PDF
+              </button>
+            </div>
+
+            {/* Scan / code info */}
+            <div className="flex items-center gap-2 flex-wrap text-xs">
+              <span className="text-slate-400">Scans:</span>
+              <span className="font-bold text-slate-700">{qr.scans ?? 0}</span>
+              {qr.display_code && (
+                <>
+                  <span className="text-slate-300">·</span>
+                  <span className="font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">{qr.display_code}</span>
+                </>
+              )}
+              <span className="text-slate-300">·</span>
+              <span className="text-slate-500">{qr.created_at ? new Date(qr.created_at).toLocaleDateString("en-IN") : "—"}</span>
             </div>
           </div>
 
-          {/* Basic Info */}
-          <div className="bg-slate-50 rounded-2xl p-4 space-y-3">
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">Basic Info</p>
-            {editing ? (
-              <div className="grid grid-cols-2 gap-2">
-                <div className="col-span-2">
-                  <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">QR Name</label>
-                  <input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                    placeholder="QR Code name"
-                    className="w-full mt-0.5 px-3 py-2 rounded-xl border border-slate-200 text-sm focus:border-primary outline-none" />
-                </div>
+          {/* ── RIGHT COLUMN (60%) — Details ── */}
+          <div className="flex-1 overflow-y-auto p-5 space-y-4">
+
+            {/* Section 1: Identity */}
+            <div className="bg-slate-50 rounded-2xl p-4">
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Identity</p>
+              <div className="flex items-center gap-3 mb-3">
+                <span className="text-2xl">{getTypeEmoji(qr.type)}</span>
                 <div>
-                  <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Primary Contact</label>
-                  <input value={form.primary_contact} onChange={(e) => setForm((f) => ({ ...f, primary_contact: e.target.value }))}
-                    placeholder="+91 phone"
-                    className="w-full mt-0.5 px-3 py-2 rounded-xl border border-slate-200 text-sm focus:border-primary outline-none" />
+                  <p className="text-sm font-bold text-slate-900">{qr.name}</p>
+                  <p className="text-xs text-slate-500 capitalize">{qr.type} QR Code</p>
                 </div>
-                <div>
-                  <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Secondary Phone</label>
-                  <input value={form.secondary_phone} onChange={(e) => setForm((f) => ({ ...f, secondary_phone: e.target.value }))}
-                    placeholder="+91 phone"
-                    className="w-full mt-0.5 px-3 py-2 rounded-xl border border-slate-200 text-sm focus:border-primary outline-none" />
-                </div>
-                <div className="col-span-2">
-                  <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Emergency Contact</label>
-                  <input value={form.emergency_contact} onChange={(e) => setForm((f) => ({ ...f, emergency_contact: e.target.value }))}
-                    placeholder="+91 phone"
-                    className="w-full mt-0.5 px-3 py-2 rounded-xl border border-slate-200 text-sm focus:border-primary outline-none" />
+                <div className="ml-auto flex flex-col items-end gap-1">
+                  <Badge label={inactive ? "Inactive" : "Active"}
+                    color={inactive ? "bg-slate-100 text-slate-500" : "bg-green-100 text-green-700"} />
+                  <span className="text-[10px] text-slate-400">{qr.scans ?? 0} scans</span>
                 </div>
               </div>
-            ) : (
-              <div className="space-y-2 text-sm">
-                {[
-                  { label: "Primary Contact", val: qr.primary_contact },
-                  { label: "Secondary Phone", val: qr.secondary_phone },
-                  { label: "Emergency Contact", val: qr.emergency_contact },
-                ].map(({ label, val }) => val ? (
-                  <div key={label} className="flex items-center gap-2">
-                    <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                    <span className="text-[11px] text-slate-500">{label}:</span>
-                    <span className="text-sm font-semibold text-slate-800 font-mono">{maskContact(val)}</span>
+              {qr.display_code && (
+                <span className="text-[11px] font-mono text-slate-500 bg-slate-200 px-2 py-0.5 rounded-lg">{qr.display_code}</span>
+              )}
+            </div>
+
+            {/* Section 2: Owner */}
+            {owner && (
+              <div className="bg-slate-50 rounded-2xl p-4">
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Owner</p>
+                <div className="flex items-center gap-3">
+                  <OwnerAvatar name={ownerName} />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-bold text-slate-900 truncate">{ownerName}</p>
+                    {owner.email && <p className="text-xs text-slate-500 truncate">{owner.email}</p>}
+                    {owner.sgy_id && (
+                      <div className="flex items-center gap-1 mt-0.5">
+                        <span className="text-[10px] font-mono text-slate-400 bg-slate-200 rounded px-1.5 py-0.5">{owner.sgy_id}</span>
+                        <button
+                          onClick={() => navigator.clipboard.writeText(owner.sgy_id!)}
+                          title="Copy SGY ID"
+                          className="p-0.5 rounded hover:bg-slate-200 transition-colors"
+                        >
+                          <Copy className="w-3 h-3 text-slate-400 hover:text-slate-600" />
+                        </button>
+                      </div>
+                    )}
                   </div>
-                ) : null)}
-                {!qr.primary_contact && !qr.secondary_phone && !qr.emergency_contact && (
-                  <p className="text-xs text-slate-400 italic">No contact numbers set</p>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Privacy Settings */}
-          <div className="bg-slate-50 rounded-2xl p-4">
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-2">
-              <Settings className="w-3.5 h-3.5" /> Privacy Settings
-            </p>
-            {editing ? (
-              <div className="divide-y divide-slate-100">
-                <SettingToggle label="Allow Contact" value={form.allow_contact} onChange={(v) => setForm((f) => ({ ...f, allow_contact: v }))} />
-                <SettingToggle label="Strict Mode" value={form.strict_mode} onChange={(v) => setForm((f) => ({ ...f, strict_mode: v }))} />
-                <SettingToggle label="Mask Phone Number" value={form.maskPhone} onChange={(v) => setForm((f) => ({ ...f, maskPhone: v }))} />
-                <SettingToggle label="WhatsApp Only" value={form.whatsappOnly} onChange={(v) => setForm((f) => ({ ...f, whatsappOnly: v }))} />
-                <SettingToggle label="Allow Video Call" value={form.videoCall} onChange={(v) => setForm((f) => ({ ...f, videoCall: v }))} />
-                <SettingToggle label="Emergency Priority" value={form.emergencyPriority} onChange={(v) => setForm((f) => ({ ...f, emergencyPriority: v }))} />
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {PRIVACY_SETTING_DEFS.map(({ key, label, desc, Icon, color }) => {
-                  const val = key === "allow_contact" ? qr.allow_contact
-                    : key === "strict_mode" ? qr.strict_mode
-                    : key === "maskPhone" ? (qr.privacy?.maskPhone)
-                    : key === "whatsappOnly" ? (qr.privacy?.whatsappOnly ?? qr.whatsapp_enabled)
-                    : key === "videoCall" ? (qr.privacy?.videoCall ?? qr.allow_video_call)
-                    : qr.privacy?.emergencyPriority;
-                  return (
-                    <div key={key} className="flex items-center gap-3 py-1.5 border-b border-slate-100 last:border-0">
-                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${val ? "bg-slate-100" : "bg-slate-50"}`}>
-                        <Icon className={`w-3.5 h-3.5 ${val ? color : "text-slate-300"}`} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className={`text-xs font-semibold ${val ? "text-slate-800" : "text-slate-400"}`}>{label}</p>
-                        <p className="text-[10px] text-slate-400 leading-relaxed">{desc}</p>
-                      </div>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${val ? "bg-green-100 text-green-600" : "bg-slate-100 text-slate-400"}`}>
-                        {val ? "ON" : "OFF"}
-                      </span>
-                    </div>
-                  );
-                })}
-                <div className="flex items-center gap-2 pt-1">
-                  <span className="text-[10px] text-slate-400">Privacy Mode:</span>
-                  <span className="text-[10px] font-bold text-slate-700 capitalize bg-slate-100 px-2 py-0.5 rounded-full">
-                    {qr.privacy_mode || "show"}
-                  </span>
                 </div>
               </div>
             )}
-          </div>
 
-          {/* PIN Management */}
-          <div className="bg-slate-50 rounded-2xl p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Key className="w-4 h-4 text-slate-400" />
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">PIN Code</p>
-                <span className={`text-[11px] font-semibold ${qr.pin_code ? "text-green-600" : "text-slate-400"}`}>
-                  {qr.pin_code ? "•••• (set)" : "Not set"}
-                </span>
-              </div>
-              {editing && (
-                <div className="flex items-center gap-2">
-                  <button onClick={() => setShowPinChange((s) => !s)}
-                    className="text-[11px] font-semibold text-primary hover:underline">
-                    {showPinChange ? "Cancel" : "Change PIN"}
-                  </button>
-                  {qr.pin_code && !showPinChange && (
-                    <button onClick={() => { setForm((f) => ({ ...f, newPin: "" })); setShowPinChange(true); }}
-                      className="text-[11px] font-semibold text-red-500 hover:underline">Remove</button>
+            {/* Section 3: Contacts (view/edit) */}
+            <div className="bg-slate-50 rounded-2xl p-4 space-y-3">
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">Contact Numbers</p>
+              {editing ? (
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="col-span-2">
+                    <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">QR Name</label>
+                    <input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                      placeholder="QR Code name"
+                      className="w-full mt-0.5 px-3 py-2 rounded-xl border border-slate-200 text-sm focus:border-primary outline-none" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Primary Contact</label>
+                    <input value={form.primary_contact} onChange={(e) => setForm((f) => ({ ...f, primary_contact: e.target.value }))}
+                      placeholder="+91 phone"
+                      className="w-full mt-0.5 px-3 py-2 rounded-xl border border-slate-200 text-sm focus:border-primary outline-none" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Secondary Phone</label>
+                    <input value={form.secondary_phone} onChange={(e) => setForm((f) => ({ ...f, secondary_phone: e.target.value }))}
+                      placeholder="+91 phone"
+                      className="w-full mt-0.5 px-3 py-2 rounded-xl border border-slate-200 text-sm focus:border-primary outline-none" />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Emergency Contact</label>
+                    <input value={form.emergency_contact} onChange={(e) => setForm((f) => ({ ...f, emergency_contact: e.target.value }))}
+                      placeholder="+91 phone"
+                      className="w-full mt-0.5 px-3 py-2 rounded-xl border border-slate-200 text-sm focus:border-primary outline-none" />
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2 text-sm">
+                  {[
+                    { label: "Primary Contact", val: qr.primary_contact },
+                    { label: "Secondary Phone", val: qr.secondary_phone },
+                    { label: "Emergency Contact", val: qr.emergency_contact },
+                  ].map(({ label, val }) => val ? (
+                    <div key={label} className="flex items-center gap-2">
+                      <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <span className="text-[11px] text-slate-500">{label}:</span>
+                      <span className="text-sm font-semibold text-slate-800 font-mono">{maskContact(val)}</span>
+                    </div>
+                  ) : null)}
+                  {!qr.primary_contact && !qr.secondary_phone && !qr.emergency_contact && (
+                    <p className="text-xs text-slate-400 italic">No contact numbers set</p>
                   )}
                 </div>
               )}
             </div>
-            {editing && showPinChange && (
-              <div className="mt-2">
-                <input
-                  type="text"
-                  maxLength={4}
-                  value={form.newPin}
-                  onChange={(e) => setForm((f) => ({ ...f, newPin: e.target.value.replace(/\D/g, "").slice(0, 4) }))}
-                  placeholder="Enter new 4-digit PIN (leave blank to remove)"
-                  className="w-full mt-1 px-3 py-2 rounded-xl border border-slate-200 text-sm focus:border-primary outline-none font-mono tracking-widest"
-                />
-              </div>
-            )}
-          </div>
 
-          {/* Owner Info */}
-          {owner && (
+            {/* Section 4: Privacy Settings */}
             <div className="bg-slate-50 rounded-2xl p-4">
-              <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Owner</p>
-              <div className="flex items-center gap-3">
-                <OwnerAvatar name={ownerName} />
-                <div className="min-w-0">
-                  <p className="text-sm font-bold text-slate-900 truncate">{ownerName}</p>
-                  {owner.email && <p className="text-xs text-slate-500 truncate">{owner.email}</p>}
-                  {owner.sgy_id && (
-                    <p className="text-[10px] font-mono text-slate-400 bg-slate-200 rounded px-1.5 py-0.5 mt-0.5 inline-block">{owner.sgy_id}</p>
-                  )}
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-2">
+                <Settings className="w-3.5 h-3.5" /> Privacy Settings
+              </p>
+              {editing ? (
+                <div className="divide-y divide-slate-100">
+                  <SettingToggle label="Allow Contact" value={form.allow_contact} onChange={(v) => setForm((f) => ({ ...f, allow_contact: v }))} />
+                  <SettingToggle label="Strict Mode" value={form.strict_mode} onChange={(v) => setForm((f) => ({ ...f, strict_mode: v }))} />
+                  <SettingToggle label="Mask Phone Number" value={form.maskPhone} onChange={(v) => setForm((f) => ({ ...f, maskPhone: v }))} />
+                  <SettingToggle label="WhatsApp Only" value={form.whatsappOnly} onChange={(v) => setForm((f) => ({ ...f, whatsappOnly: v }))} />
+                  <SettingToggle label="Allow Video Call" value={form.videoCall} onChange={(v) => setForm((f) => ({ ...f, videoCall: v }))} />
+                  <SettingToggle label="Emergency Priority" value={form.emergencyPriority} onChange={(v) => setForm((f) => ({ ...f, emergencyPriority: v }))} />
                 </div>
-              </div>
-            </div>
-          )}
-
-          {/* Status info */}
-          <div className="bg-slate-50 rounded-2xl p-4">
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">QR Details</p>
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <div><span className="text-slate-400">Mode:</span> <span className="font-semibold text-slate-700 capitalize">{qr.privacy_mode || "show"}</span></div>
-              <div><span className="text-slate-400">Scans:</span> <span className="font-semibold text-slate-700">{qr.scans ?? 0}</span></div>
-              <div><span className="text-slate-400">Code:</span> <span className="font-mono text-slate-700">{qr.display_code || "—"}</span></div>
-              <div><span className="text-slate-400">Created:</span> <span className="font-semibold text-slate-700">{qr.created_at ? new Date(qr.created_at).toLocaleDateString("en-IN") : "—"}</span></div>
-            </div>
-          </div>
-
-          {/* QR Data Fields — dynamic key-value pairs from data JSONB */}
-          {(() => {
-            const data = qr.data;
-            if (!data || typeof data !== "object") return null;
-            const SKIP_KEYS = new Set(["photo", "image", "mask_phone", "whatsapp_only", "video_call",
-              "emergency_priority", "strict_mode", "allow_contact", "maskPhone", "whatsappOnly",
-              "videoCall", "emergencyPriority", "strictMode"]);
-            const isPhone = (k: string) => /phone|contact|mobile|number/.test(k.toLowerCase());
-            const entries = Object.entries(data).filter(([k, v]) =>
-              !SKIP_KEYS.has(k) && v !== "" && v !== null && v !== undefined && typeof v !== "boolean"
-            );
-            if (entries.length === 0) return null;
-            return (
-              <div className="bg-slate-50 rounded-2xl p-4">
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">QR Data Fields</p>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                  {entries.map(([key, value]) => {
-                    const label = DATA_FIELD_LABELS[key] || key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-                    const strVal = String(value);
-                    const displayVal = isPhone(key) ? maskContact(strVal) : strVal;
+              ) : (
+                <div className="space-y-2">
+                  {PRIVACY_SETTING_DEFS.map(({ key, label, desc, Icon, color }) => {
+                    const val = key === "allow_contact" ? qr.allow_contact
+                      : key === "strict_mode" ? qr.strict_mode
+                      : key === "maskPhone" ? (qr.privacy?.maskPhone)
+                      : key === "whatsappOnly" ? (qr.privacy?.whatsappOnly ?? qr.whatsapp_enabled)
+                      : key === "videoCall" ? (qr.privacy?.videoCall ?? qr.allow_video_call)
+                      : qr.privacy?.emergencyPriority;
                     return (
-                      <div key={key} className="col-span-1">
-                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">{label}</p>
-                        <p className="text-xs text-slate-700 font-medium truncate" title={strVal}>{displayVal}</p>
+                      <div key={key} className="flex items-center gap-3 py-1.5 border-b border-slate-100 last:border-0">
+                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${val ? "bg-slate-100" : "bg-slate-50"}`}>
+                          <Icon className={`w-3.5 h-3.5 ${val ? color : "text-slate-300"}`} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-xs font-semibold ${val ? "text-slate-800" : "text-slate-400"}`}>{label}</p>
+                          <p className="text-[10px] text-slate-400 leading-relaxed">{desc}</p>
+                        </div>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${val ? "bg-green-100 text-green-600" : "bg-slate-100 text-slate-400"}`}>
+                          {val ? "ON" : "OFF"}
+                        </span>
                       </div>
                     );
                   })}
+                  <div className="flex items-center gap-2 pt-1">
+                    <span className="text-[10px] text-slate-400">Privacy Mode:</span>
+                    <span className="text-[10px] font-bold text-slate-700 capitalize bg-slate-100 px-2 py-0.5 rounded-full">
+                      {qr.privacy_mode || "show"}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            );
-          })()}
-
-          {/* Save row (edit mode) */}
-          {editing && (
-            <div className="flex items-center gap-3 pb-2">
-              <button onClick={handleSave} disabled={saving}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50">
-                {saving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                Save Settings
-              </button>
-              <button onClick={handleCancel} className="px-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 transition-colors">
-                Cancel
-              </button>
-            </div>
-          )}
-          {saveMsg && (
-            <p className={`text-xs font-semibold ${saveMsg.ok ? "text-green-600" : "text-red-600"}`}>{saveMsg.text}</p>
-          )}
-
-          {/* Actions row (always visible) */}
-          {!editing && (
-            <div className="border-t border-slate-100 pt-4 flex items-center gap-3 flex-wrap">
-              {inactive ? (
-                <button onClick={() => { onEnable(qr.id); onClose(); }}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-green-600 text-white text-xs font-semibold hover:bg-green-700 transition-colors">
-                  <ShieldCheck className="w-3.5 h-3.5" /> Enable QR
-                </button>
-              ) : (
-                <button onClick={() => { onDisable(qr.id); onClose(); }}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-700 text-white text-xs font-semibold hover:bg-slate-800 transition-colors">
-                  <PauseCircle className="w-3.5 h-3.5" /> Disable QR
-                </button>
               )}
-              <button
-                onClick={() => { onDelete(qr.id); onClose(); }}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-red-200 text-red-600 text-xs font-semibold hover:bg-red-50 transition-colors ml-auto">
-                <Trash2 className="w-3.5 h-3.5" /> Delete QR
-              </button>
             </div>
-          )}
+
+            {/* Section 5: PIN Management */}
+            <div className="bg-slate-50 rounded-2xl p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Key className="w-4 h-4 text-slate-400" />
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">PIN Code</p>
+                  <span className={`text-[11px] font-semibold ${qr.pin_code ? "text-green-600" : "text-slate-400"}`}>
+                    {qr.pin_code ? "Protected (4-digit PIN set)" : "None"}
+                  </span>
+                </div>
+                {editing && (
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => setShowPinChange((s) => !s)}
+                      className="text-[11px] font-semibold text-primary hover:underline">
+                      {showPinChange ? "Cancel" : "Change PIN"}
+                    </button>
+                    {qr.pin_code && !showPinChange && (
+                      <button onClick={() => { setForm((f) => ({ ...f, newPin: "" })); setShowPinChange(true); }}
+                        className="text-[11px] font-semibold text-red-500 hover:underline">Remove</button>
+                    )}
+                  </div>
+                )}
+              </div>
+              {editing && showPinChange && (
+                <div className="mt-2">
+                  <input
+                    type="text"
+                    maxLength={4}
+                    value={form.newPin}
+                    onChange={(e) => setForm((f) => ({ ...f, newPin: e.target.value.replace(/\D/g, "").slice(0, 4) }))}
+                    placeholder="Enter new 4-digit PIN (leave blank to remove)"
+                    className="w-full mt-1 px-3 py-2 rounded-xl border border-slate-200 text-sm focus:border-primary outline-none font-mono tracking-widest"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Section 6: QR Data Fields — dynamic key-value pairs from data JSONB */}
+            {(() => {
+              const data = qr.data;
+              if (!data || typeof data !== "object") return null;
+              const SKIP_KEYS = new Set(["photo", "image", "mask_phone", "whatsapp_only", "video_call",
+                "emergency_priority", "strict_mode", "allow_contact", "maskPhone", "whatsappOnly",
+                "videoCall", "emergencyPriority", "strictMode"]);
+              const isPhone = (k: string) => /phone|contact|mobile|number/.test(k.toLowerCase());
+              const entries = Object.entries(data).filter(([k, v]) =>
+                !SKIP_KEYS.has(k) && v !== "" && v !== null && v !== undefined && typeof v !== "boolean"
+              );
+              if (entries.length === 0) return null;
+              return (
+                <div className="bg-slate-50 rounded-2xl p-4">
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">QR Data Fields</p>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                    {entries.map(([key, value]) => {
+                      const label = DATA_FIELD_LABELS[key] || key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+                      const strVal = String(value);
+                      const displayVal = isPhone(key) ? maskContact(strVal) : strVal;
+                      return (
+                        <div key={key} className="col-span-1">
+                          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">{label}</p>
+                          <p className="text-xs text-slate-700 font-medium truncate" title={strVal}>{displayVal}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Save row (edit mode) */}
+            {editing && (
+              <div className="flex items-center gap-3 pb-2">
+                <button onClick={handleSave} disabled={saving}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50">
+                  {saving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                  Save Settings
+                </button>
+                <button onClick={handleCancel} className="px-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 transition-colors">
+                  Cancel
+                </button>
+              </div>
+            )}
+            {saveMsg && (
+              <p className={`text-xs font-semibold ${saveMsg.ok ? "text-green-600" : "text-red-600"}`}>{saveMsg.text}</p>
+            )}
+
+            {/* Actions row (always visible, view mode) */}
+            {!editing && (
+              <div className="border-t border-slate-100 pt-4 flex items-center gap-3 flex-wrap">
+                {inactive ? (
+                  <button onClick={() => { onEnable(qr.id); onClose(); }}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-green-600 text-white text-xs font-semibold hover:bg-green-700 transition-colors">
+                    <ShieldCheck className="w-3.5 h-3.5" /> Enable QR
+                  </button>
+                ) : (
+                  <button onClick={() => { onDisable(qr.id); onClose(); }}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-700 text-white text-xs font-semibold hover:bg-slate-800 transition-colors">
+                    <PauseCircle className="w-3.5 h-3.5" /> Disable QR
+                  </button>
+                )}
+                <button
+                  onClick={() => { onDelete(qr.id); onClose(); }}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-red-200 text-red-600 text-xs font-semibold hover:bg-red-50 transition-colors ml-auto">
+                  <Trash2 className="w-3.5 h-3.5" /> Delete QR
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
