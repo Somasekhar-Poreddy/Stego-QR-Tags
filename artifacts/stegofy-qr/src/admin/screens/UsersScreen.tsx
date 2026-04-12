@@ -4,7 +4,9 @@ import {
   Trash2, ShieldOff, ShieldCheck, Copy, Check, ChevronDown, ChevronUp,
   Phone, MapPin, Globe, Calendar, Instagram, Twitter, Facebook,
   Save, Edit3, RefreshCw, Filter, Home, Activity, Plus, Key, Link2,
+  ExternalLink, Download,
 } from "lucide-react";
+import QRCodeLib from "qrcode";
 import {
   adminGetAllUsers, adminBlockUser, adminUnblockUser, adminDeleteUser,
   adminGetUserQRCodes, adminUpdateUserProfile, adminGetAllContactRequestsForUser,
@@ -32,6 +34,7 @@ interface QRPrivacy {
 }
 interface QRRow {
   id: string; name: string; type: string; status: string; display_code: string | null;
+  qr_url?: string | null;
   created_at?: string; scan_count?: number | null; scans?: number | null; is_active?: boolean;
   primary_contact?: string | null; secondary_phone?: string | null;
   emergency_contact?: string | null; allow_contact?: boolean | null;
@@ -493,6 +496,39 @@ function ProfileTab({ user, onRefresh, onUserUpdated }: {
 }
 
 /* ─────────────────────────────────────────────────
+   QR CODE IMAGE (small preview)
+   ───────────────────────────────────────────────── */
+function QRImage({ url, size = 128 }: { url: string; size?: number }) {
+  const [dataUrl, setDataUrl] = useState<string | null>(null);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    setDataUrl(null);
+    setError(false);
+    QRCodeLib.toDataURL(url, {
+      width: size * 2,
+      margin: 2,
+      color: { dark: "#1e293b", light: "#ffffff" },
+      errorCorrectionLevel: "M",
+    }).then(setDataUrl).catch(() => setError(true));
+  }, [url, size]);
+
+  if (error) return (
+    <div style={{ width: size, height: size }}
+      className="bg-slate-100 rounded-xl flex items-center justify-center">
+      <span className="text-[10px] text-slate-400">Error</span>
+    </div>
+  );
+  if (!dataUrl) return (
+    <div style={{ width: size, height: size }} className="bg-slate-100 rounded-xl animate-pulse" />
+  );
+  return (
+    <img src={dataUrl} alt="QR Code" style={{ width: size, height: size }}
+      className="rounded-xl shadow-sm" />
+  );
+}
+
+/* ─────────────────────────────────────────────────
    QR SETTINGS TOGGLE (reusable)
    ───────────────────────────────────────────────── */
 function SettingToggle({ label, value, onChange, disabled }: {
@@ -779,6 +815,42 @@ function QRCard({ qr: initialQr, contacts, onToggle, onDelete, onUpdated }: {
               </div>
             )}
           </div>
+
+          {/* QR Code Image Preview */}
+          {(() => {
+            const qrPageUrl = qr.qr_url || `${window.location.origin}/qr/${qr.id}`;
+            const handleDl = async () => {
+              try {
+                const d = await QRCodeLib.toDataURL(qrPageUrl, { width: 512, margin: 3, color: { dark: "#1e293b", light: "#ffffff" } });
+                const a = document.createElement("a"); a.href = d;
+                a.download = `${qr.name || qr.id}.png`; a.click();
+              } catch { /* ignore */ }
+            };
+            return (
+              <div className="px-4 py-3 flex items-center gap-4 bg-slate-50 rounded-2xl mx-4">
+                <div className="flex flex-col items-center gap-1.5 shrink-0">
+                  <div className="bg-white p-1.5 rounded-xl shadow-sm">
+                    <QRImage url={qrPageUrl} size={100} />
+                  </div>
+                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Stegofy</p>
+                </div>
+                <div className="flex flex-col gap-2 min-w-0">
+                  <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Scannable QR</p>
+                  <p className="text-[10px] font-mono text-slate-500 break-all leading-relaxed">{qrPageUrl}</p>
+                  <div className="flex gap-2 flex-wrap">
+                    <a href={qrPageUrl} target="_blank" rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-[11px] font-semibold text-primary bg-primary/10 px-2.5 py-1 rounded-lg hover:bg-primary/20 transition-colors">
+                      <ExternalLink className="w-3 h-3" /> Open QR Page
+                    </a>
+                    <button onClick={handleDl}
+                      className="flex items-center gap-1 text-[11px] font-semibold text-slate-600 bg-white border border-slate-200 px-2.5 py-1 rounded-lg hover:bg-slate-50 transition-colors">
+                      <Download className="w-3 h-3" /> PNG
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Contact Activity */}
           <div className="px-4 py-3">
