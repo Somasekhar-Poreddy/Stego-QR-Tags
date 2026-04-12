@@ -526,6 +526,8 @@ export function PublicProfileScreen() {
 
   // Reactive scan ID — triggers intent-update effect when it arrives after async POST
   const [scanId, setScanId] = useState<string | null>(null);
+  // Tracks whether the visitor submitted a contact request (for replay when scanId arrives late)
+  const [pendingRequestMade, setPendingRequestMade] = useState(false);
 
   // Extract QR id from path: /qr/<id>
   const qrId = (() => {
@@ -576,6 +578,17 @@ export function PublicProfileScreen() {
     }).catch(() => {});
   }, [selectedIntent, scanId]);
 
+  // Fire-and-forget: mark is_request_made when contact request was submitted.
+  // Fires when scanId arrives late (user submitted before POST returned).
+  useEffect(() => {
+    if (!pendingRequestMade || !scanId) return;
+    fetch(`/api/track-scan/${scanId}/intent`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ intent: selectedIntent, is_request_made: true }),
+    }).catch(() => {});
+  }, [pendingRequestMade, scanId, selectedIntent]);
+
   /** Returns null on success, or an error message on DB failure */
   const handleVerified = async (phone: string): Promise<string | null> => {
     if (qrData) {
@@ -611,14 +624,9 @@ export function PublicProfileScreen() {
         console.error("contact_requests insert failed:", error);
         return "Failed to send request. Please check your connection and try again.";
       }
-      // Fire-and-forget: mark request made + update intent on scan row
-      if (scanId) {
-        fetch(`/api/track-scan/${scanId}/intent`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ intent: selectedIntent, is_request_made: true }),
-        }).catch(() => {});
-      }
+      // Signal that contact request was submitted; effect sends is_request_made update
+      // (handles both fast path where scanId exists, and late-arriving scanId race)
+      setPendingRequestMade(true);
     }
     setShowVerify(false);
     setSubmitted(true);
