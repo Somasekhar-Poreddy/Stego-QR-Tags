@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import {
   Search, ChevronLeft, ChevronRight, X, User, QrCode, MessageSquare,
   Trash2, ShieldOff, ShieldCheck, Copy, Check, ChevronDown, ChevronUp,
@@ -1303,8 +1303,11 @@ function ScansTab({
   totalCount: number;
   isSuperAdmin: boolean;
 }) {
-  const qrIds = qrs.map((q) => q.id);
-  const qrNameMap = Object.fromEntries(qrs.map((q) => [q.id, q.name || q.display_code || q.type || "QR"]));
+  const qrIds = useMemo(() => qrs.map((q) => q.id), [qrs]);
+  const qrNameMap = useMemo(
+    () => Object.fromEntries(qrs.map((q) => [q.id, q.name || q.display_code || q.type || "QR"])),
+    [qrs],
+  );
   const [scans, setScans] = useState<QRScan[]>([]);
   const [loading, setLoading] = useState(true);
   const [limit, setLimit] = useState(30);

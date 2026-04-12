@@ -146,8 +146,9 @@ router.put("/track-scan/:id/intent", async (req: Request, res: Response) => {
   }
 
   const { id } = req.params;
-  const { intent } = req.body as {
+  const { intent, is_request_made } = req.body as {
     intent?: string | null;
+    is_request_made?: boolean;
   };
 
   if (!id) {
@@ -155,10 +156,9 @@ router.put("/track-scan/:id/intent", async (req: Request, res: Response) => {
     return;
   }
 
-  const updates: Record<string, unknown> = {
-    is_request_made: true,
-  };
+  const updates: Record<string, unknown> = {};
   if (intent !== undefined) updates.intent = intent ?? null;
+  if (is_request_made === true) updates.is_request_made = true;
 
   try {
     const dbRes = await fetch(

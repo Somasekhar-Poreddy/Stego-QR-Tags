@@ -564,6 +564,17 @@ export function PublicProfileScreen() {
     })();
   }, [qrId]);
 
+  // Fire-and-forget: update scan row with selected intent whenever it changes
+  useEffect(() => {
+    if (!selectedIntent || !scanIdRef.current) return;
+    const sid = scanIdRef.current;
+    fetch(`/api/track-scan/${sid}/intent`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ intent: selectedIntent }),
+    }).catch(() => {});
+  }, [selectedIntent]);
+
   /** Returns null on success, or an error message on DB failure */
   const handleVerified = async (phone: string): Promise<string | null> => {
     if (qrData) {
@@ -599,13 +610,13 @@ export function PublicProfileScreen() {
         console.error("contact_requests insert failed:", error);
         return "Failed to send request. Please check your connection and try again.";
       }
-      // Fire-and-forget: update scan row with intent + mark request made
+      // Fire-and-forget: mark request made + update intent on scan row
       if (scanIdRef.current) {
         const sid = scanIdRef.current;
         fetch(`/api/track-scan/${sid}/intent`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ intent: selectedIntent }),
+          body: JSON.stringify({ intent: selectedIntent, is_request_made: true }),
         }).catch(() => {});
       }
     }
