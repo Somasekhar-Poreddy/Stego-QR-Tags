@@ -1531,23 +1531,29 @@ function UserDetailModal({ user, onRefresh, onClose }: {
 
   const loadUserData = useCallback(async () => {
     setLoadingData(true);
-    const [userQrs, allContacts, count] = await Promise.all([
-      adminGetUserQRCodes(user.id) as Promise<QRRow[]>,
-      adminGetAllContactRequestsForUser(user.id) as Promise<ContactRow[]>,
-      adminGetUserActivityLogCount(user.id),
-    ]);
-    setQrs(userQrs);
-    setContacts(allContacts);
-    setSessionCount(count);
-    // Fetch scan count from qr_scans using these user's QR IDs
-    const qrIds = userQrs.map((q) => q.id);
-    if (qrIds.length > 0) {
-      const sc = await adminGetScanCountByQRIds(qrIds);
-      setScanCount(sc);
-    } else {
-      setScanCount(0);
+    try {
+      const [userQrs, allContacts, count] = await Promise.all([
+        adminGetUserQRCodes(user.id) as Promise<QRRow[]>,
+        adminGetAllContactRequestsForUser(user.id) as Promise<ContactRow[]>,
+        adminGetUserActivityLogCount(user.id),
+      ]);
+      setQrs(userQrs);
+      setContacts(allContacts);
+      setSessionCount(count);
+      const qrIds = userQrs.map((q) => q.id);
+      if (qrIds.length > 0) {
+        try {
+          const sc = await adminGetScanCountByQRIds(qrIds);
+          setScanCount(sc);
+        } catch {
+          setScanCount(0);
+        }
+      } else {
+        setScanCount(0);
+      }
+    } finally {
+      setLoadingData(false);
     }
-    setLoadingData(false);
   }, [user.id]);
 
   useEffect(() => { loadUserData(); }, [loadUserData]);
