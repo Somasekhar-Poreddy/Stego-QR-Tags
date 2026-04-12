@@ -121,7 +121,13 @@ function CopyBtn({ text, className = "" }: { text: string; className?: string })
 /* ─────────────────────────────────────────────────
    PROFILE TAB
    ───────────────────────────────────────────────── */
-function genId() { return `addr_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`; }
+function genUUID() {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = Math.random() * 16 | 0;
+    return (c === "x" ? r : (r & 0x3 | 0x8)).toString(16);
+  });
+}
 
 function ProfileTab({ user, onRefresh, onUserUpdated }: {
   user: UserRow; onRefresh: () => void;
@@ -184,7 +190,12 @@ function ProfileTab({ user, onRefresh, onUserUpdated }: {
   const handleSave = async () => {
     setSaving(true);
     setSaveMsg(null);
-    const cleanAddresses = editAddresses.filter((a) => a.line1 || a.city);
+    const cleanAddresses = editAddresses.filter((a) => a.line1?.trim() && a.city?.trim());
+    const cleanSocial: SocialLinks = {
+      instagram: editSocial.instagram?.trim() || undefined,
+      facebook: editSocial.facebook?.trim() || undefined,
+      twitter: editSocial.twitter?.trim() || undefined,
+    };
     const { error } = await adminUpdateUserProfile(user.id, {
       first_name: form.first_name || null,
       last_name: form.last_name || null,
@@ -193,16 +204,13 @@ function ProfileTab({ user, onRefresh, onUserUpdated }: {
       gender: form.gender || null,
       status: form.status || "active",
       addresses: cleanAddresses,
-      social_links: {
-        instagram: editSocial.instagram?.trim() || null,
-        facebook: editSocial.facebook?.trim() || null,
-        twitter: editSocial.twitter?.trim() || null,
-      },
+      social_links: cleanSocial,
     });
     setSaving(false);
     if (error) {
       setSaveMsg({ ok: false, text: "Failed to save. Please try again." });
     } else {
+      setEditSocial(cleanSocial);
       const updatedFields: Partial<UserRow> = {
         first_name: form.first_name || null,
         last_name: form.last_name || null,
@@ -211,7 +219,7 @@ function ProfileTab({ user, onRefresh, onUserUpdated }: {
         gender: form.gender || null,
         status: form.status || "active",
         addresses: cleanAddresses,
-        social_links: editSocial,
+        social_links: cleanSocial,
       };
       setSaveMsg({ ok: true, text: "All changes saved!" });
       setEditing(false);
@@ -234,7 +242,7 @@ function ProfileTab({ user, onRefresh, onUserUpdated }: {
   };
 
   const addAddress = () => {
-    setEditAddresses((prev) => [...prev, { id: genId(), label: "Home", line1: "", line2: "", city: "", state: "", pincode: "", is_default: prev.length === 0 }]);
+    setEditAddresses((prev) => [...prev, { id: genUUID(), label: "Home", line1: "", line2: "", city: "", state: "", pincode: "", is_default: prev.length === 0 }]);
   };
   const removeAddress = (idx: number) => {
     setEditAddresses((prev) => {
@@ -831,6 +839,7 @@ function QRCodesTab({ qrs: initialQrs, contacts, onRefreshQrs }: {
   qrs: QRRow[]; contacts: ContactRow[]; onRefreshQrs: () => void;
 }) {
   const [qrs, setQrs] = useState<QRRow[]>(initialQrs);
+  useEffect(() => { setQrs(initialQrs); }, [initialQrs]);
   const totalScans = qrs.reduce((sum, q) => sum + (q.scan_count ?? q.scans ?? 0), 0);
   const contactsByQr: Record<string, ContactRow[]> = {};
   contacts.forEach((c) => {
