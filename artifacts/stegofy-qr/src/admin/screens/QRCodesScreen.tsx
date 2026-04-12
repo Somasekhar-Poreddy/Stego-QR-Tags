@@ -365,10 +365,10 @@ function QREditModal({ qr: initialQr, owner, onClose, onUpdated, onEnable, onDis
             {/* URL chip — opens page on click + copy icon */}
             <div>
               <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">QR Page URL</p>
-              <div className="flex items-center gap-1 bg-white rounded-xl border border-slate-200 px-2 py-1.5 group">
+              <div className="flex items-start gap-1 bg-white rounded-xl border border-slate-200 px-2 py-1.5 group">
                 <a
                   href={qrPageUrl} target="_blank" rel="noopener noreferrer"
-                  className="flex-1 text-xs font-mono text-primary truncate hover:underline"
+                  className="flex-1 text-xs font-mono text-primary break-all hover:underline"
                   title={qrPageUrl}
                 >
                   {qrPageUrl}
@@ -556,8 +556,8 @@ function QREditModal({ qr: initialQr, owner, onClose, onUpdated, onEnable, onDis
                   })}
                   <div className="flex items-center gap-2 pt-1">
                     <span className="text-[10px] text-slate-400">Privacy Mode:</span>
-                    <span className="text-[10px] font-bold text-slate-700 capitalize bg-slate-100 px-2 py-0.5 rounded-full">
-                      {qr.privacy_mode || "show"}
+                    <span className="text-[10px] font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-full">
+                      {({ show: "Show", mask: "Masked", whatsapp: "WhatsApp Only", emergency: "Emergency" } as Record<string, string>)[qr.privacy_mode || "show"] ?? (qr.privacy_mode || "Show")}
                     </span>
                   </div>
                 </div>
