@@ -61,6 +61,22 @@ export async function adminGetContactRequestsByQR(qrId: string) {
   const { data } = await supabase.from("contact_requests").select("*").eq("qr_id", qrId).order("created_at", { ascending: false });
   return data ?? [];
 }
+export async function adminUpdateUserProfile(id: string, updates: Record<string, unknown>) {
+  return supabase.from("user_profiles").update(updates).eq("id", id);
+}
+export async function adminGetAllContactRequestsForUser(userId: string) {
+  const { data: qrs } = await supabase.from("qr_codes").select("id, name").eq("user_id", userId);
+  if (!qrs || qrs.length === 0) return [];
+  const qrIds = qrs.map((q) => q.id as string);
+  const qrNameMap: Record<string, string> = {};
+  qrs.forEach((q) => { qrNameMap[q.id as string] = (q.name as string) || "Unnamed QR"; });
+  const { data } = await supabase
+    .from("contact_requests")
+    .select("*")
+    .in("qr_id", qrIds)
+    .order("created_at", { ascending: false });
+  return (data ?? []).map((row) => ({ ...row, qr_name: qrNameMap[row.qr_id as string] ?? "—" }));
+}
 
 /* ═══════════════════════════════════════════════════
    QR CODES (admin view)

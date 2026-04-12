@@ -7,6 +7,11 @@ export interface ContactRequest {
   message: string | null;
   action_type: string | null;
   requester_phone: string | null;
+  ip_address?: string | null;
+  location?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  scanner_name?: string | null;
   status: string;
   created_at?: string;
 }

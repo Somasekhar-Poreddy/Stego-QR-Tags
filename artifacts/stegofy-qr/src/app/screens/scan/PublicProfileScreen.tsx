@@ -549,12 +549,32 @@ export function PublicProfileScreen() {
   /** Returns null on success, or an error message on DB failure */
   const handleVerified = async (phone: string): Promise<string | null> => {
     if (qrData) {
+      let ip_address: string | null = null;
+      let location: string | null = null;
+      let latitude: number | null = null;
+      let longitude: number | null = null;
+      try {
+        const geoRes = await fetch("https://ipapi.co/json/", { signal: AbortSignal.timeout(4000) });
+        if (geoRes.ok) {
+          const geo = await geoRes.json() as { ip?: string; city?: string; country_name?: string; latitude?: number; longitude?: number };
+          ip_address = geo.ip ?? null;
+          const parts = [geo.city, geo.country_name].filter(Boolean);
+          location = parts.length > 0 ? parts.join(", ") : null;
+          latitude = geo.latitude ?? null;
+          longitude = geo.longitude ?? null;
+        }
+      } catch { /* silently skip geo — don't block submission */ }
+
       const { error } = await supabase.from("contact_requests").insert({
         qr_id: qrData.id,
         intent: selectedIntent,
         message: selectedIntent === "others" ? (customMessage || null) : null,
         action_type: actionType,
         requester_phone: phone || null,
+        ip_address,
+        location,
+        latitude,
+        longitude,
         status: "pending",
       });
       if (error) {
