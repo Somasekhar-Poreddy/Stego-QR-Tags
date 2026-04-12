@@ -104,6 +104,9 @@ export async function adminEnableQRCode(id: string) {
 export async function adminDeleteQRCode(id: string) {
   return supabase.from("qr_codes").delete().eq("id", id);
 }
+export async function adminUpdateQRCode(id: string, updates: Record<string, unknown>) {
+  return supabase.from("qr_codes").update(updates).eq("id", id);
+}
 
 /* ═══════════════════════════════════════════════════
    CONTACT REQUESTS (admin view)

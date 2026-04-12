@@ -3,12 +3,13 @@ import {
   Search, ChevronLeft, ChevronRight, X, User, QrCode, MessageSquare,
   Trash2, ShieldOff, ShieldCheck, Copy, Check, ChevronDown, ChevronUp,
   Phone, MapPin, Globe, Calendar, Instagram, Twitter, Facebook,
-  Save, Edit3, RefreshCw, Filter, Home, Activity,
+  Save, Edit3, RefreshCw, Filter, Home, Activity, Plus, Key, Link2,
 } from "lucide-react";
 import {
   adminGetAllUsers, adminBlockUser, adminUnblockUser, adminDeleteUser,
   adminGetUserQRCodes, adminUpdateUserProfile, adminGetAllContactRequestsForUser,
   adminGetQRCountsByUser, adminDisableQRCode, adminEnableQRCode, adminDeleteQRCode,
+  adminUpdateQRCode,
 } from "@/services/adminService";
 
 /* ─────────────────────────────────────────────────
@@ -25,9 +26,18 @@ interface UserRow {
   email: string | null; mobile: string | null; age_group: string | null; gender: string | null;
   created_at?: string; status?: string | null; addresses?: Address[]; social_links?: SocialLinks;
 }
+interface QRPrivacy {
+  maskPhone?: boolean; whatsappOnly?: boolean; videoCall?: boolean;
+  emergencyPriority?: boolean; strictMode?: boolean;
+}
 interface QRRow {
   id: string; name: string; type: string; status: string; display_code: string | null;
   created_at?: string; scan_count?: number | null; scans?: number | null; is_active?: boolean;
+  primary_contact?: string | null; secondary_phone?: string | null;
+  emergency_contact?: string | null; allow_contact?: boolean | null;
+  strict_mode?: boolean | null; whatsapp_enabled?: boolean | null;
+  allow_video_call?: boolean | null; privacy?: QRPrivacy | null;
+  privacy_mode?: string | null; pin_code?: string | null;
 }
 interface ContactRow {
   id?: string; qr_id: string; intent: string | null; message: string | null;
@@ -111,6 +121,8 @@ function CopyBtn({ text, className = "" }: { text: string; className?: string })
 /* ─────────────────────────────────────────────────
    PROFILE TAB
    ───────────────────────────────────────────────── */
+function genId() { return `addr_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`; }
+
 function ProfileTab({ user, onRefresh, onUserUpdated }: {
   user: UserRow; onRefresh: () => void;
   onUserUpdated: (updates: Partial<UserRow>) => void;
@@ -126,7 +138,10 @@ function ProfileTab({ user, onRefresh, onUserUpdated }: {
     gender: user.gender ?? "",
     status: user.status ?? "active",
   });
-  const [expandAddresses, setExpandAddresses] = useState(false);
+  const [editAddresses, setEditAddresses] = useState<Address[]>(
+    Array.isArray(user.addresses) ? user.addresses.map((a) => ({ ...a })) : []
+  );
+  const [editSocial, setEditSocial] = useState<SocialLinks>(user.social_links ?? {});
 
   const textField = (key: keyof typeof form, label: string, prefix?: string) => (
     <div key={key}>
@@ -169,6 +184,7 @@ function ProfileTab({ user, onRefresh, onUserUpdated }: {
   const handleSave = async () => {
     setSaving(true);
     setSaveMsg(null);
+    const cleanAddresses = editAddresses.filter((a) => a.line1 || a.city);
     const { error } = await adminUpdateUserProfile(user.id, {
       first_name: form.first_name || null,
       last_name: form.last_name || null,
@@ -176,6 +192,12 @@ function ProfileTab({ user, onRefresh, onUserUpdated }: {
       age_group: form.age_group || null,
       gender: form.gender || null,
       status: form.status || "active",
+      addresses: cleanAddresses,
+      social_links: {
+        instagram: editSocial.instagram?.trim() || null,
+        facebook: editSocial.facebook?.trim() || null,
+        twitter: editSocial.twitter?.trim() || null,
+      },
     });
     setSaving(false);
     if (error) {
@@ -188,8 +210,10 @@ function ProfileTab({ user, onRefresh, onUserUpdated }: {
         age_group: form.age_group || null,
         gender: form.gender || null,
         status: form.status || "active",
+        addresses: cleanAddresses,
+        social_links: editSocial,
       };
-      setSaveMsg({ ok: true, text: "Changes saved successfully!" });
+      setSaveMsg({ ok: true, text: "All changes saved!" });
       setEditing(false);
       onUserUpdated(updatedFields);
       onRefresh();
@@ -197,8 +221,37 @@ function ProfileTab({ user, onRefresh, onUserUpdated }: {
     }
   };
 
-  const addresses: Address[] = Array.isArray(user.addresses) ? user.addresses : [];
-  const social: SocialLinks = user.social_links ?? {};
+  const handleCancelEdit = () => {
+    setEditing(false);
+    setSaveMsg(null);
+    setForm({
+      first_name: user.first_name ?? "", last_name: user.last_name ?? "",
+      mobile: user.mobile ?? "", age_group: user.age_group ?? "",
+      gender: user.gender ?? "", status: user.status ?? "active",
+    });
+    setEditAddresses(Array.isArray(user.addresses) ? user.addresses.map((a) => ({ ...a })) : []);
+    setEditSocial(user.social_links ?? {});
+  };
+
+  const addAddress = () => {
+    setEditAddresses((prev) => [...prev, { id: genId(), label: "Home", line1: "", line2: "", city: "", state: "", pincode: "", is_default: prev.length === 0 }]);
+  };
+  const removeAddress = (idx: number) => {
+    setEditAddresses((prev) => {
+      const next = prev.filter((_, i) => i !== idx);
+      if (next.length > 0 && !next.some((a) => a.is_default)) next[0].is_default = true;
+      return next;
+    });
+  };
+  const setDefault = (idx: number) => {
+    setEditAddresses((prev) => prev.map((a, i) => ({ ...a, is_default: i === idx })));
+  };
+  const updateAddr = (idx: number, field: keyof Address, value: string) => {
+    setEditAddresses((prev) => prev.map((a, i) => i === idx ? { ...a, [field]: value } : a));
+  };
+
+  const readAddresses: Address[] = Array.isArray(user.addresses) ? user.addresses : [];
+  const readSocial: SocialLinks = user.social_links ?? {};
 
   return (
     <div className="p-5 space-y-5">
@@ -207,11 +260,11 @@ function ProfileTab({ user, onRefresh, onUserUpdated }: {
         <div className="flex items-center justify-between mb-4">
           <h4 className="text-sm font-bold text-slate-700">Personal Information</h4>
           <button
-            onClick={() => { setEditing((e) => !e); setSaveMsg(null); }}
+            onClick={() => { editing ? handleCancelEdit() : setEditing(true); }}
             className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl transition-colors ${editing ? "bg-slate-200 text-slate-700" : "bg-primary/10 text-primary hover:bg-primary/20"}`}
           >
             <Edit3 className="w-3.5 h-3.5" />
-            {editing ? "Cancel" : "Edit"}
+            {editing ? "Cancel" : "Edit All"}
           </button>
         </div>
         <div className="grid grid-cols-2 gap-4">
@@ -222,21 +275,6 @@ function ProfileTab({ user, onRefresh, onUserUpdated }: {
           {selectField("gender", "Gender", ["Male", "Female", "Other", "Prefer not to say"])}
           {selectField("status", "Status", ["active", "blocked"])}
         </div>
-        {editing && (
-          <div className="mt-4 flex items-center gap-3">
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
-            >
-              {saving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-              Save Changes
-            </button>
-          </div>
-        )}
-        {saveMsg && (
-          <p className={`mt-3 text-xs font-semibold ${saveMsg.ok ? "text-green-600" : "text-red-600"}`}>{saveMsg.text}</p>
-        )}
       </div>
 
       {/* Account Information */}
@@ -275,17 +313,73 @@ function ProfileTab({ user, onRefresh, onUserUpdated }: {
       </div>
 
       {/* Addresses */}
-      {addresses.length > 0 && (
-        <div className="bg-slate-50 rounded-2xl p-4">
-          <button onClick={() => setExpandAddresses((e) => !e)} className="flex items-center justify-between w-full">
-            <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2">
-              <Home className="w-4 h-4 text-slate-400" /> Addresses ({addresses.length})
-            </h4>
-            {expandAddresses ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
-          </button>
-          {expandAddresses && (
-            <div className="mt-3 space-y-2">
-              {addresses.map((addr, i) => (
+      <div className="bg-slate-50 rounded-2xl p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2">
+            <Home className="w-4 h-4 text-slate-400" /> Addresses
+            {(editing ? editAddresses : readAddresses).length > 0 && (
+              <span className="text-[11px] font-bold text-slate-400">({(editing ? editAddresses : readAddresses).length})</span>
+            )}
+          </h4>
+          {editing && (
+            <button onClick={addAddress}
+              className="flex items-center gap-1 text-xs font-semibold text-primary bg-primary/10 px-2.5 py-1.5 rounded-xl hover:bg-primary/20 transition-colors">
+              <Plus className="w-3.5 h-3.5" /> Add
+            </button>
+          )}
+        </div>
+        {editing ? (
+          editAddresses.length === 0 ? (
+            <p className="text-xs text-slate-400 italic text-center py-3">No addresses. Click "Add" to add one.</p>
+          ) : (
+            <div className="space-y-3">
+              {editAddresses.map((addr, idx) => (
+                <div key={addr.id ?? idx} className="bg-white rounded-xl p-3 border border-slate-200 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <select
+                      value={addr.label || "Home"}
+                      onChange={(e) => updateAddr(idx, "label", e.target.value)}
+                      className="text-xs font-bold border border-slate-200 rounded-lg px-2 py-1 bg-white text-slate-700 focus:border-primary outline-none"
+                    >
+                      {["Home", "Work", "Other"].map((l) => <option key={l} value={l}>{l}</option>)}
+                    </select>
+                    <div className="flex items-center gap-2">
+                      {!addr.is_default && (
+                        <button onClick={() => setDefault(idx)}
+                          className="text-[10px] font-semibold text-primary border border-primary/30 px-2 py-0.5 rounded-full hover:bg-primary/10 transition-colors">
+                          Set Default
+                        </button>
+                      )}
+                      {addr.is_default && (
+                        <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full">Default</span>
+                      )}
+                      <button onClick={() => removeAddress(idx)} className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input placeholder="Line 1" value={addr.line1 || ""} onChange={(e) => updateAddr(idx, "line1", e.target.value)}
+                      className="col-span-2 px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs focus:border-primary outline-none" />
+                    <input placeholder="Line 2" value={addr.line2 || ""} onChange={(e) => updateAddr(idx, "line2", e.target.value)}
+                      className="col-span-2 px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs focus:border-primary outline-none" />
+                    <input placeholder="City" value={addr.city || ""} onChange={(e) => updateAddr(idx, "city", e.target.value)}
+                      className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs focus:border-primary outline-none" />
+                    <input placeholder="State" value={addr.state || ""} onChange={(e) => updateAddr(idx, "state", e.target.value)}
+                      className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs focus:border-primary outline-none" />
+                    <input placeholder="Pincode" value={addr.pincode || ""} onChange={(e) => updateAddr(idx, "pincode", e.target.value)}
+                      className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs focus:border-primary outline-none" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        ) : (
+          readAddresses.length === 0 ? (
+            <p className="text-xs text-slate-400 italic text-center py-3">No addresses added yet</p>
+          ) : (
+            <div className="space-y-2">
+              {readAddresses.map((addr, i) => (
                 <div key={addr.id ?? i} className="bg-white rounded-xl p-3 border border-slate-100">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-xs font-bold text-slate-600 capitalize">{addr.label || "Address"}</span>
@@ -295,48 +389,220 @@ function ProfileTab({ user, onRefresh, onUserUpdated }: {
                 </div>
               ))}
             </div>
+          )
+        )}
+      </div>
+
+      {/* Social Links */}
+      <div className="bg-slate-50 rounded-2xl p-4">
+        <h4 className="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2">
+          <Link2 className="w-4 h-4 text-slate-400" /> Social Links
+        </h4>
+        {editing ? (
+          <div className="space-y-2.5">
+            {([
+              { key: "instagram" as keyof SocialLinks, icon: <Instagram className="w-4 h-4 text-pink-500" />, placeholder: "Instagram handle (without @)" },
+              { key: "facebook" as keyof SocialLinks, icon: <Facebook className="w-4 h-4 text-blue-600" />, placeholder: "Facebook handle or URL" },
+              { key: "twitter" as keyof SocialLinks, icon: <Twitter className="w-4 h-4 text-sky-500" />, placeholder: "Twitter / X handle (without @)" },
+            ]).map(({ key, icon, placeholder }) => (
+              <div key={key} className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2 focus-within:border-primary transition-colors">
+                {icon}
+                <input
+                  value={editSocial[key] || ""}
+                  onChange={(e) => setEditSocial((s) => ({ ...s, [key]: e.target.value }))}
+                  placeholder={placeholder}
+                  className="flex-1 text-sm bg-transparent outline-none text-slate-800 placeholder:text-slate-400"
+                />
+                {editSocial[key] && (
+                  <button onClick={() => setEditSocial((s) => ({ ...s, [key]: "" }))} className="text-slate-400 hover:text-slate-600">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          readSocial.instagram || readSocial.facebook || readSocial.twitter ? (
+            <div className="space-y-2">
+              {readSocial.instagram && (
+                <a href={`https://instagram.com/${readSocial.instagram}`} target="_blank" rel="noreferrer"
+                  className="flex items-center gap-2 text-sm text-slate-700 hover:text-pink-600 transition-colors">
+                  <Instagram className="w-4 h-4 text-pink-500" /> @{readSocial.instagram}
+                </a>
+              )}
+              {readSocial.facebook && (
+                <a href={`https://facebook.com/${readSocial.facebook}`} target="_blank" rel="noreferrer"
+                  className="flex items-center gap-2 text-sm text-slate-700 hover:text-blue-600 transition-colors">
+                  <Facebook className="w-4 h-4 text-blue-600" /> {readSocial.facebook}
+                </a>
+              )}
+              {readSocial.twitter && (
+                <a href={`https://twitter.com/${readSocial.twitter}`} target="_blank" rel="noreferrer"
+                  className="flex items-center gap-2 text-sm text-slate-700 hover:text-sky-500 transition-colors">
+                  <Twitter className="w-4 h-4 text-sky-500" /> @{readSocial.twitter}
+                </a>
+              )}
+            </div>
+          ) : (
+            <p className="text-xs text-slate-400 italic text-center py-2">No social links added yet</p>
+          )
+        )}
+      </div>
+
+      {/* Save / Cancel row — only show when editing */}
+      {editing && (
+        <div className="flex items-center gap-3 pb-2">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
+          >
+            {saving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+            Save All Changes
+          </button>
+          <button onClick={handleCancelEdit} className="px-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 transition-colors">
+            Cancel
+          </button>
+          {saveMsg && (
+            <p className={`text-xs font-semibold ${saveMsg.ok ? "text-green-600" : "text-red-600"}`}>{saveMsg.text}</p>
           )}
         </div>
       )}
-
-      {/* Social Links */}
-      {(social.instagram || social.facebook || social.twitter) && (
-        <div className="bg-slate-50 rounded-2xl p-4">
-          <h4 className="text-sm font-bold text-slate-700 mb-3">Social Links</h4>
-          <div className="space-y-2">
-            {social.instagram && (
-              <a href={`https://instagram.com/${social.instagram}`} target="_blank" rel="noreferrer"
-                className="flex items-center gap-2 text-sm text-slate-700 hover:text-pink-600 transition-colors">
-                <Instagram className="w-4 h-4 text-pink-500" /> @{social.instagram}
-              </a>
-            )}
-            {social.facebook && (
-              <a href={`https://facebook.com/${social.facebook}`} target="_blank" rel="noreferrer"
-                className="flex items-center gap-2 text-sm text-slate-700 hover:text-blue-600 transition-colors">
-                <Facebook className="w-4 h-4 text-blue-600" /> {social.facebook}
-              </a>
-            )}
-            {social.twitter && (
-              <a href={`https://twitter.com/${social.twitter}`} target="_blank" rel="noreferrer"
-                className="flex items-center gap-2 text-sm text-slate-700 hover:text-sky-500 transition-colors">
-                <Twitter className="w-4 h-4 text-sky-500" /> @{social.twitter}
-              </a>
-            )}
-          </div>
-        </div>
+      {!editing && saveMsg && (
+        <p className={`text-xs font-semibold ${saveMsg.ok ? "text-green-600" : "text-red-600"}`}>{saveMsg.text}</p>
       )}
     </div>
   );
 }
 
 /* ─────────────────────────────────────────────────
-   QR CARD (expandable with activity timeline)
+   QR SETTINGS TOGGLE (reusable)
    ───────────────────────────────────────────────── */
-function QRCard({ qr, contacts, onToggle, onDelete }: {
-  qr: QRRow; contacts: ContactRow[];
-  onToggle: (id: string, currentStatus: string) => void; onDelete: (id: string) => void;
+function SettingToggle({ label, value, onChange, disabled }: {
+  label: string; value: boolean; onChange: (v: boolean) => void; disabled?: boolean;
 }) {
+  return (
+    <div className="flex items-center justify-between py-1.5">
+      <span className="text-xs text-slate-700 font-medium">{label}</span>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => onChange(!value)}
+        className={`relative w-9 h-5 rounded-full transition-colors duration-200 focus:outline-none ${value ? "bg-primary" : "bg-slate-200"} ${disabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}
+      >
+        <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${value ? "translate-x-4" : "translate-x-0"}`} />
+      </button>
+    </div>
+  );
+}
+
+function computePrivacyMode(p: QRPrivacy): string {
+  if (p.emergencyPriority) return "emergency";
+  if (p.whatsappOnly) return "whatsapp";
+  if (p.maskPhone) return "mask";
+  return "show";
+}
+
+/* ─────────────────────────────────────────────────
+   QR CARD (expandable with activity + settings edit)
+   ───────────────────────────────────────────────── */
+function QRCard({ qr: initialQr, contacts, onToggle, onDelete, onUpdated }: {
+  qr: QRRow; contacts: ContactRow[];
+  onToggle: (id: string, currentStatus: string) => void;
+  onDelete: (id: string) => void;
+  onUpdated: (id: string, updates: Partial<QRRow>) => void;
+}) {
+  const [qr, setQr] = useState<QRRow>(initialQr);
   const [expanded, setExpanded] = useState(false);
+  const [editingSettings, setEditingSettings] = useState(false);
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [settingsMsg, setSettingsMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [showPinChange, setShowPinChange] = useState(false);
+
+  const [editQR, setEditQR] = useState({
+    name: qr.name || "",
+    primary_contact: qr.primary_contact || "",
+    secondary_phone: qr.secondary_phone || "",
+    emergency_contact: qr.emergency_contact || "",
+    allow_contact: qr.allow_contact ?? false,
+    strict_mode: qr.strict_mode ?? false,
+    maskPhone: qr.privacy?.maskPhone ?? false,
+    whatsappOnly: qr.privacy?.whatsappOnly ?? (qr.whatsapp_enabled ?? false),
+    videoCall: qr.privacy?.videoCall ?? (qr.allow_video_call ?? false),
+    emergencyPriority: qr.privacy?.emergencyPriority ?? false,
+    pin_code: qr.pin_code || "",
+    newPin: "",
+  });
+
+  const syncFromQR = (q: QRRow) => {
+    setEditQR({
+      name: q.name || "",
+      primary_contact: q.primary_contact || "",
+      secondary_phone: q.secondary_phone || "",
+      emergency_contact: q.emergency_contact || "",
+      allow_contact: q.allow_contact ?? false,
+      strict_mode: q.strict_mode ?? false,
+      maskPhone: q.privacy?.maskPhone ?? false,
+      whatsappOnly: q.privacy?.whatsappOnly ?? (q.whatsapp_enabled ?? false),
+      videoCall: q.privacy?.videoCall ?? (q.allow_video_call ?? false),
+      emergencyPriority: q.privacy?.emergencyPriority ?? false,
+      pin_code: q.pin_code || "",
+      newPin: "",
+    });
+    setShowPinChange(false);
+  };
+
+  const handleCancelSettings = () => {
+    setEditingSettings(false);
+    setSettingsMsg(null);
+    syncFromQR(qr);
+  };
+
+  const handleSaveSettings = async () => {
+    if (editQR.newPin && editQR.newPin.length !== 4) {
+      setSettingsMsg({ ok: false, text: "PIN must be exactly 4 digits." });
+      return;
+    }
+    setSavingSettings(true);
+    setSettingsMsg(null);
+    const privacy: QRPrivacy = {
+      maskPhone: editQR.maskPhone,
+      whatsappOnly: editQR.whatsappOnly,
+      videoCall: editQR.videoCall,
+      emergencyPriority: editQR.emergencyPriority,
+      strictMode: editQR.strict_mode,
+    };
+    const pinToSave = showPinChange
+      ? (editQR.newPin || null)
+      : qr.pin_code;
+    const updates: Record<string, unknown> = {
+      name: editQR.name || qr.name,
+      primary_contact: editQR.primary_contact || null,
+      secondary_phone: editQR.secondary_phone || null,
+      emergency_contact: editQR.emergency_contact || null,
+      allow_contact: editQR.allow_contact,
+      strict_mode: editQR.strict_mode,
+      whatsapp_enabled: editQR.whatsappOnly,
+      allow_video_call: editQR.videoCall,
+      privacy,
+      privacy_mode: computePrivacyMode(privacy),
+      pin_code: pinToSave,
+    };
+    const { error } = await adminUpdateQRCode(qr.id, updates);
+    setSavingSettings(false);
+    if (error) {
+      setSettingsMsg({ ok: false, text: "Failed to save. Please try again." });
+    } else {
+      const updated: QRRow = { ...qr, ...updates as Partial<QRRow>, pin_code: pinToSave };
+      setQr(updated);
+      onUpdated(qr.id, updates as Partial<QRRow>);
+      setEditingSettings(false);
+      setSettingsMsg({ ok: true, text: "QR settings saved!" });
+      setShowPinChange(false);
+      setTimeout(() => setSettingsMsg(null), 3000);
+    }
+  };
+
   const scanCount = qr.scan_count ?? qr.scans ?? 0;
 
   return (
@@ -367,6 +633,137 @@ function QRCard({ qr, contacts, onToggle, onDelete }: {
 
       {expanded && (
         <div className="border-t border-slate-100">
+          {/* Settings section */}
+          <div className="px-4 py-3 border-b border-slate-50">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">QR Settings</p>
+              {!editingSettings ? (
+                <button onClick={() => { setEditingSettings(true); setSettingsMsg(null); }}
+                  className="flex items-center gap-1 text-xs font-semibold text-primary bg-primary/10 px-2.5 py-1.5 rounded-xl hover:bg-primary/20 transition-colors">
+                  <Edit3 className="w-3 h-3" /> Edit Settings
+                </button>
+              ) : (
+                <button onClick={handleCancelSettings} className="text-xs font-semibold text-slate-500 hover:text-slate-700">Cancel</button>
+              )}
+            </div>
+
+            {editingSettings ? (
+              <div className="space-y-3">
+                {/* Basic Info */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="col-span-2">
+                    <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">QR Name</label>
+                    <input value={editQR.name} onChange={(e) => setEditQR((f) => ({ ...f, name: e.target.value }))}
+                      placeholder="QR Code name"
+                      className="w-full mt-0.5 px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs focus:border-primary outline-none" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Primary Contact</label>
+                    <input value={editQR.primary_contact} onChange={(e) => setEditQR((f) => ({ ...f, primary_contact: e.target.value }))}
+                      placeholder="+91 phone"
+                      className="w-full mt-0.5 px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs focus:border-primary outline-none" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Secondary Phone</label>
+                    <input value={editQR.secondary_phone} onChange={(e) => setEditQR((f) => ({ ...f, secondary_phone: e.target.value }))}
+                      placeholder="+91 phone"
+                      className="w-full mt-0.5 px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs focus:border-primary outline-none" />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Emergency Contact</label>
+                    <input value={editQR.emergency_contact} onChange={(e) => setEditQR((f) => ({ ...f, emergency_contact: e.target.value }))}
+                      placeholder="+91 phone"
+                      className="w-full mt-0.5 px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs focus:border-primary outline-none" />
+                  </div>
+                </div>
+
+                {/* Privacy Toggles */}
+                <div className="bg-slate-50 rounded-xl px-3 py-2 divide-y divide-slate-100">
+                  <SettingToggle label="Allow Contact" value={editQR.allow_contact} onChange={(v) => setEditQR((f) => ({ ...f, allow_contact: v }))} />
+                  <SettingToggle label="Strict Mode" value={editQR.strict_mode} onChange={(v) => setEditQR((f) => ({ ...f, strict_mode: v }))} />
+                  <SettingToggle label="Mask Phone Number" value={editQR.maskPhone} onChange={(v) => setEditQR((f) => ({ ...f, maskPhone: v }))} />
+                  <SettingToggle label="WhatsApp Only" value={editQR.whatsappOnly} onChange={(v) => setEditQR((f) => ({ ...f, whatsappOnly: v }))} />
+                  <SettingToggle label="Allow Video Call" value={editQR.videoCall} onChange={(v) => setEditQR((f) => ({ ...f, videoCall: v }))} />
+                  <SettingToggle label="Emergency Priority" value={editQR.emergencyPriority} onChange={(v) => setEditQR((f) => ({ ...f, emergencyPriority: v }))} />
+                </div>
+
+                {/* PIN Management */}
+                <div className="bg-slate-50 rounded-xl px-3 py-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Key className="w-3.5 h-3.5 text-slate-400" />
+                      <span className="text-xs font-semibold text-slate-700">PIN Code</span>
+                      <span className="text-xs text-slate-500">
+                        {qr.pin_code ? "•••• (set)" : "Not set"}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => setShowPinChange((s) => !s)}
+                        className="text-[11px] font-semibold text-primary hover:underline">
+                        {showPinChange ? "Cancel" : "Change"}
+                      </button>
+                      {qr.pin_code && !showPinChange && (
+                        <button onClick={() => { setEditQR((f) => ({ ...f, newPin: "" })); setShowPinChange(true); }}
+                          className="text-[11px] font-semibold text-red-500 hover:underline">Remove</button>
+                      )}
+                    </div>
+                  </div>
+                  {showPinChange && (
+                    <div className="mt-2">
+                      <input
+                        type="text"
+                        maxLength={4}
+                        value={editQR.newPin}
+                        onChange={(e) => setEditQR((f) => ({ ...f, newPin: e.target.value.replace(/\D/g, "").slice(0, 4) }))}
+                        placeholder="Enter 4-digit PIN (leave blank to remove)"
+                        className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs focus:border-primary outline-none font-mono tracking-widest"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Save row */}
+                <div className="flex items-center gap-2 pt-1">
+                  <button onClick={handleSaveSettings} disabled={savingSettings}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-white text-xs font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50">
+                    {savingSettings ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+                    Save QR Settings
+                  </button>
+                  {settingsMsg && (
+                    <p className={`text-xs font-semibold ${settingsMsg.ok ? "text-green-600" : "text-red-600"}`}>{settingsMsg.text}</p>
+                  )}
+                </div>
+              </div>
+            ) : (
+              /* Read-only settings view */
+              <div className="space-y-1.5">
+                {settingsMsg && (
+                  <p className={`text-xs font-semibold mb-2 ${settingsMsg.ok ? "text-green-600" : "text-red-600"}`}>{settingsMsg.text}</p>
+                )}
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-slate-600">
+                  {qr.primary_contact && <span className="flex items-center gap-1"><Phone className="w-3 h-3 text-slate-400" /> {qr.primary_contact}</span>}
+                  {qr.secondary_phone && <span className="flex items-center gap-1"><Phone className="w-3 h-3 text-slate-400" /> {qr.secondary_phone} (alt)</span>}
+                </div>
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {[
+                    { label: "Allow Contact", val: qr.allow_contact },
+                    { label: "Strict Mode", val: qr.strict_mode },
+                    { label: "Mask Phone", val: qr.privacy?.maskPhone },
+                    { label: "WhatsApp Only", val: qr.privacy?.whatsappOnly ?? qr.whatsapp_enabled },
+                    { label: "Video Call", val: qr.privacy?.videoCall ?? qr.allow_video_call },
+                    { label: "Emergency", val: qr.privacy?.emergencyPriority },
+                    { label: "PIN Set", val: !!qr.pin_code },
+                  ].map(({ label, val }) => (
+                    <span key={label} className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${val ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-400"}`}>
+                      {val ? "✓" : "✗"} {label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Contact Activity */}
           <div className="px-4 py-3">
             <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Contact Activity</p>
             {contacts.length === 0 ? (
@@ -430,9 +827,10 @@ function QRCard({ qr, contacts, onToggle, onDelete }: {
 /* ─────────────────────────────────────────────────
    QR CODES TAB
    ───────────────────────────────────────────────── */
-function QRCodesTab({ qrs, contacts, onRefreshQrs }: {
+function QRCodesTab({ qrs: initialQrs, contacts, onRefreshQrs }: {
   qrs: QRRow[]; contacts: ContactRow[]; onRefreshQrs: () => void;
 }) {
+  const [qrs, setQrs] = useState<QRRow[]>(initialQrs);
   const totalScans = qrs.reduce((sum, q) => sum + (q.scan_count ?? q.scans ?? 0), 0);
   const contactsByQr: Record<string, ContactRow[]> = {};
   contacts.forEach((c) => {
@@ -451,6 +849,9 @@ function QRCodesTab({ qrs, contacts, onRefreshQrs }: {
   const handleDelete = async (qrId: string) => {
     if (!confirm("Delete this QR code? This cannot be undone.")) return;
     await adminDeleteQRCode(qrId); onRefreshQrs();
+  };
+  const handleUpdated = (qrId: string, updates: Partial<QRRow>) => {
+    setQrs((prev) => prev.map((q) => q.id === qrId ? { ...q, ...updates } : q));
   };
 
   return (
@@ -479,7 +880,7 @@ function QRCodesTab({ qrs, contacts, onRefreshQrs }: {
         <div className="space-y-3">
           {qrs.map((qr) => (
             <QRCard key={qr.id} qr={qr} contacts={contactsByQr[qr.id] ?? []}
-              onToggle={handleToggle} onDelete={handleDelete} />
+              onToggle={handleToggle} onDelete={handleDelete} onUpdated={handleUpdated} />
           ))}
         </div>
       )}
