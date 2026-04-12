@@ -62,20 +62,30 @@ export async function adminGetContactRequestsByQR(qrId: string) {
   return data ?? [];
 }
 export async function adminUpdateUserProfile(id: string, updates: Record<string, unknown>) {
-  return supabase.from("user_profiles").update(updates).eq("id", id);
+  return supabase.from("user_profiles").upsert({ id, ...updates });
 }
 export async function adminGetAllContactRequestsForUser(userId: string) {
-  const { data: qrs } = await supabase.from("qr_codes").select("id, name").eq("user_id", userId);
-  if (!qrs || qrs.length === 0) return [];
-  const qrIds = qrs.map((q) => q.id as string);
-  const qrNameMap: Record<string, string> = {};
-  qrs.forEach((q) => { qrNameMap[q.id as string] = (q.name as string) || "Unnamed QR"; });
   const { data } = await supabase
     .from("contact_requests")
-    .select("*")
-    .in("qr_id", qrIds)
+    .select("*, qr_codes!inner(id, name, user_id)")
+    .eq("qr_codes.user_id", userId)
     .order("created_at", { ascending: false });
-  return (data ?? []).map((row) => ({ ...row, qr_name: qrNameMap[row.qr_id as string] ?? "—" }));
+  return (data ?? []).map((row) => {
+    const qrInfo = row.qr_codes as { id: string; name: string; user_id: string } | null;
+    const { qr_codes: _omit, ...rest } = row;
+    return { ...rest, qr_name: qrInfo?.name ?? "—" };
+  });
+}
+export async function adminGetQRCountsByUser(userIds: string[]): Promise<Record<string, number>> {
+  if (userIds.length === 0) return {};
+  const { data } = await supabase.from("qr_codes").select("user_id").in("user_id", userIds);
+  const counts: Record<string, number> = {};
+  userIds.forEach((id) => { counts[id] = 0; });
+  (data ?? []).forEach((row) => {
+    const uid = row.user_id as string;
+    if (uid) counts[uid] = (counts[uid] ?? 0) + 1;
+  });
+  return counts;
 }
 
 /* ═══════════════════════════════════════════════════

@@ -8,7 +8,7 @@ import {
 import {
   adminGetAllUsers, adminBlockUser, adminUnblockUser, adminDeleteUser,
   adminGetUserQRCodes, adminUpdateUserProfile, adminGetAllContactRequestsForUser,
-  adminDisableQRCode, adminDeleteQRCode,
+  adminGetQRCountsByUser, adminDisableQRCode, adminDeleteQRCode,
 } from "@/services/adminService";
 
 /* ─────────────────────────────────────────────────
@@ -65,15 +65,9 @@ function getTypeEmoji(type: string) {
 function getIntentLabel(intent: string | null) {
   if (!intent) return "Unknown";
   const map: Record<string, string> = {
-    emergency: "Emergency",
-    lights_on: "Lights are on",
-    keys_inside: "Keys locked inside",
-    blocking: "Blocking the way",
-    accident: "Accident / Needs help",
-    lost_pet: "Lost pet",
-    lost_child: "Lost child",
-    medical: "Medical emergency",
-    others: "Other / Custom",
+    emergency: "Emergency", lights_on: "Lights are on", keys_inside: "Keys locked inside",
+    blocking: "Blocking the way", accident: "Accident / Needs help", lost_pet: "Lost pet",
+    lost_child: "Lost child", medical: "Medical emergency", others: "Other / Custom",
     contact: "Contact request",
   };
   return map[intent] ?? intent.replace(/_/g, " ");
@@ -102,9 +96,6 @@ function Badge({ label, color }: { label: string; color: string }) {
   return <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full capitalize ${color}`}>{label}</span>;
 }
 
-/* ─────────────────────────────────────────────────
-   COPY BUTTON
-   ───────────────────────────────────────────────── */
 function CopyBtn({ text, className = "" }: { text: string; className?: string }) {
   const [copied, setCopied] = useState(false);
   const handle = () => {
@@ -130,29 +121,44 @@ function ProfileTab({ user, onRefresh }: { user: UserRow; onRefresh: () => void 
     mobile: user.mobile ?? "",
     age_group: user.age_group ?? "",
     gender: user.gender ?? "",
+    status: user.status ?? "active",
   });
   const [expandAddresses, setExpandAddresses] = useState(false);
 
-  const field = (key: keyof typeof form, label: string, type: "text" | "select" = "text", opts?: string[]) => (
+  const textField = (key: keyof typeof form, label: string, prefix?: string) => (
     <div key={key}>
       <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">{label}</label>
-      {editing && type === "text" ? (
-        <input
-          value={form[key]}
-          onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
-          className="w-full mt-1 px-3 py-2 rounded-xl border border-slate-200 text-sm focus:border-primary outline-none transition-colors"
-        />
-      ) : editing && type === "select" ? (
+      {editing ? (
+        <div className="flex items-center mt-1">
+          {prefix && <span className="text-sm text-slate-500 mr-1 font-semibold">{prefix}</span>}
+          <input
+            value={form[key]}
+            onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
+            className="flex-1 px-3 py-2 rounded-xl border border-slate-200 text-sm focus:border-primary outline-none transition-colors"
+          />
+        </div>
+      ) : (
+        <p className="mt-0.5 text-sm font-semibold text-slate-800">
+          {prefix && form[key] ? `${prefix}${form[key]}` : form[key] || "—"}
+        </p>
+      )}
+    </div>
+  );
+
+  const selectField = (key: keyof typeof form, label: string, opts: string[]) => (
+    <div key={key}>
+      <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">{label}</label>
+      {editing ? (
         <select
           value={form[key]}
           onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
           className="w-full mt-1 px-3 py-2 rounded-xl border border-slate-200 text-sm focus:border-primary outline-none transition-colors bg-white"
         >
           <option value="">— Select —</option>
-          {opts?.map((o) => <option key={o} value={o}>{o}</option>)}
+          {opts.map((o) => <option key={o} value={o}>{o}</option>)}
         </select>
       ) : (
-        <p className="mt-0.5 text-sm font-semibold text-slate-800">{form[key] || "—"}</p>
+        <p className="mt-0.5 text-sm font-semibold text-slate-800 capitalize">{form[key] || "—"}</p>
       )}
     </div>
   );
@@ -166,6 +172,7 @@ function ProfileTab({ user, onRefresh }: { user: UserRow; onRefresh: () => void 
       mobile: form.mobile || null,
       age_group: form.age_group || null,
       gender: form.gender || null,
+      status: form.status || "active",
     });
     setSaving(false);
     if (error) {
@@ -183,7 +190,7 @@ function ProfileTab({ user, onRefresh }: { user: UserRow; onRefresh: () => void 
 
   return (
     <div className="p-5 space-y-5">
-      {/* Basic Info */}
+      {/* Personal Information */}
       <div className="bg-slate-50 rounded-2xl p-4">
         <div className="flex items-center justify-between mb-4">
           <h4 className="text-sm font-bold text-slate-700">Personal Information</h4>
@@ -196,17 +203,12 @@ function ProfileTab({ user, onRefresh }: { user: UserRow; onRefresh: () => void 
           </button>
         </div>
         <div className="grid grid-cols-2 gap-4">
-          {field("first_name", "First Name")}
-          {field("last_name", "Last Name")}
-          {field("mobile", "Mobile")}
-          {field("age_group", "Age Group", "select", ["18-25", "26-35", "36-45", "46-55", "56-65", "65+"])}
-          {field("gender", "Gender", "select", ["Male", "Female", "Other", "Prefer not to say"])}
-          <div>
-            <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">Status</label>
-            <p className={`mt-0.5 text-sm font-bold capitalize ${user.status === "blocked" ? "text-red-600" : "text-green-600"}`}>
-              {user.status || "active"}
-            </p>
-          </div>
+          {textField("first_name", "First Name")}
+          {textField("last_name", "Last Name")}
+          {textField("mobile", "Mobile", "+91 ")}
+          {selectField("age_group", "Age Group", ["18-25", "26-35", "36-45", "46-55", "56-65", "65+"])}
+          {selectField("gender", "Gender", ["Male", "Female", "Other", "Prefer not to say"])}
+          {selectField("status", "Status", ["active", "blocked"])}
         </div>
         {editing && (
           <div className="mt-4 flex items-center gap-3">
@@ -225,7 +227,7 @@ function ProfileTab({ user, onRefresh }: { user: UserRow; onRefresh: () => void 
         )}
       </div>
 
-      {/* Account Info */}
+      {/* Account Information */}
       <div className="bg-slate-50 rounded-2xl p-4">
         <h4 className="text-sm font-bold text-slate-700 mb-4">Account Information</h4>
         <div className="space-y-3">
@@ -239,20 +241,20 @@ function ProfileTab({ user, onRefresh }: { user: UserRow; onRefresh: () => void 
           <div className="flex items-center justify-between">
             <div>
               <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">SGY ID</label>
-              <p className="mt-0.5 text-sm font-bold text-primary font-mono">{user.sgy_id || "—"}</p>
+              <p className="mt-0.5 text-sm font-black text-primary font-mono tracking-wide">{user.sgy_id || "—"}</p>
             </div>
             {user.sgy_id && <CopyBtn text={user.sgy_id} />}
           </div>
           <div className="flex items-center justify-between">
-            <div>
+            <div className="flex-1 min-w-0 mr-2">
               <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">User ID</label>
-              <p className="mt-0.5 text-xs font-mono text-slate-500">{user.id}</p>
+              <p className="mt-0.5 text-[11px] font-mono text-slate-500 truncate">{user.id}</p>
             </div>
             <CopyBtn text={user.id} />
           </div>
           <div>
             <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">Joined</label>
-            <p className="mt-0.5 text-sm font-semibold text-slate-800 flex items-center gap-1">
+            <p className="mt-0.5 text-sm font-semibold text-slate-800 flex items-center gap-1.5">
               <Calendar className="w-3.5 h-3.5 text-slate-400" />
               {user.created_at ? new Date(user.created_at).toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" }) : "—"}
             </p>
@@ -263,10 +265,7 @@ function ProfileTab({ user, onRefresh }: { user: UserRow; onRefresh: () => void 
       {/* Addresses */}
       {addresses.length > 0 && (
         <div className="bg-slate-50 rounded-2xl p-4">
-          <button
-            onClick={() => setExpandAddresses((e) => !e)}
-            className="flex items-center justify-between w-full"
-          >
+          <button onClick={() => setExpandAddresses((e) => !e)} className="flex items-center justify-between w-full">
             <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2">
               <Home className="w-4 h-4 text-slate-400" /> Addresses ({addresses.length})
             </h4>
@@ -321,32 +320,24 @@ function ProfileTab({ user, onRefresh }: { user: UserRow; onRefresh: () => void 
 /* ─────────────────────────────────────────────────
    QR CARD (expandable with activity timeline)
    ───────────────────────────────────────────────── */
-function QRCard({
-  qr, contacts, onDisable, onDelete,
-}: {
-  qr: QRRow;
-  contacts: ContactRow[];
-  onDisable: (id: string) => void;
-  onDelete: (id: string) => void;
+function QRCard({ qr, contacts, onDisable, onDelete }: {
+  qr: QRRow; contacts: ContactRow[];
+  onDisable: (id: string) => void; onDelete: (id: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const scanCount = qr.scan_count ?? qr.scans ?? 0;
 
   return (
     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-      {/* Header row */}
       <button onClick={() => setExpanded((e) => !e)} className="w-full text-left px-4 py-3 hover:bg-slate-50 transition-colors">
         <div className="flex items-start gap-3">
           <span className="text-2xl mt-0.5 leading-none">{getTypeEmoji(qr.type)}</span>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <p className="text-sm font-bold text-slate-800 truncate">{qr.name || "Unnamed QR"}</p>
-              <Badge
-                label={qr.status}
-                color={qr.status === "active" ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500"}
-              />
+              <Badge label={qr.status} color={qr.status === "active" ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500"} />
             </div>
-            <div className="flex items-center gap-3 mt-1 flex-wrap">
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
               <span className="text-[11px] text-slate-400 capitalize">{qr.type}</span>
               {qr.display_code && <span className="text-[11px] text-slate-400 font-mono">{qr.display_code}</span>}
               <span className="text-[11px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded-full">
@@ -356,29 +347,23 @@ function QRCard({
                 {contacts.length} contact{contacts.length !== 1 ? "s" : ""}
               </span>
             </div>
-            {qr.created_at && (
-              <p className="text-[10px] text-slate-400 mt-0.5">Created {formatRelativeTime(qr.created_at)}</p>
-            )}
+            {qr.created_at && <p className="text-[10px] text-slate-400 mt-0.5">Created {formatRelativeTime(qr.created_at)}</p>}
           </div>
-          <div className="flex items-center gap-1 ml-2 shrink-0">
-            {expanded ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
-          </div>
+          <div className="shrink-0">{expanded ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}</div>
         </div>
       </button>
 
-      {/* Expanded body */}
       {expanded && (
         <div className="border-t border-slate-100">
-          {/* Activity timeline */}
           <div className="px-4 py-3">
             <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Contact Activity</p>
             {contacts.length === 0 ? (
               <p className="text-xs text-slate-400 italic">No contact activity yet</p>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {contacts.map((c, i) => (
                   <div key={c.id ?? i} className="relative pl-4 border-l-2 border-slate-100">
-                    <div className="flex items-start gap-2 mb-1 flex-wrap">
+                    <div className="flex items-start gap-2 mb-1.5 flex-wrap">
                       <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${getIntentColor(c.intent)}`}>
                         {getIntentLabel(c.intent)}
                       </span>
@@ -391,46 +376,37 @@ function QRCard({
                         <p className="text-xs text-slate-600 italic">"{c.message}"</p>
                       </div>
                     )}
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
                       {c.requester_phone && (
                         <span className="flex items-center gap-1 text-slate-600">
-                          <Phone className="w-3 h-3 text-slate-400" /> {c.requester_phone}
+                          <Phone className="w-3 h-3 text-slate-400 shrink-0" /> {c.requester_phone}
                         </span>
                       )}
                       {c.ip_address && (
                         <span className="flex items-center gap-1 text-slate-500 font-mono">
-                          <Globe className="w-3 h-3 text-slate-400" /> {c.ip_address}
+                          <Globe className="w-3 h-3 text-slate-400 shrink-0" /> {c.ip_address}
                         </span>
                       )}
                       {c.location && (
                         <span className="flex items-center gap-1 text-slate-600 col-span-2">
-                          <MapPin className="w-3 h-3 text-slate-400" /> {c.location}
+                          <MapPin className="w-3 h-3 text-slate-400 shrink-0" /> <span className="font-semibold">{c.location}</span>
                         </span>
                       )}
                     </div>
-                    <p className="text-[10px] text-slate-400 mt-1" title={c.created_at}>
-                      {formatRelativeTime(c.created_at)}
-                      {c.created_at && <span className="ml-1 hidden sm:inline">· {new Date(c.created_at).toLocaleString("en-IN")}</span>}
-                    </p>
+                    <p className="text-[10px] text-slate-400 mt-1" title={c.created_at}>{formatRelativeTime(c.created_at)}</p>
                   </div>
                 ))}
               </div>
             )}
           </div>
-
-          {/* QR action buttons */}
           <div className="px-4 pb-3 flex items-center gap-2 border-t border-slate-50 pt-3">
-            <button
-              onClick={() => onDisable(qr.id)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-amber-200 text-amber-700 hover:bg-amber-50 text-xs font-semibold transition-colors"
-            >
-              <ShieldOff className="w-3.5 h-3.5" /> {qr.status === "active" ? "Disable QR" : "Enable QR"}
+            <button onClick={() => onDisable(qr.id)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-amber-200 text-amber-700 hover:bg-amber-50 text-xs font-semibold transition-colors">
+              <ShieldOff className="w-3.5 h-3.5" /> {qr.status === "active" ? "Disable" : "Enable"}
             </button>
-            <button
-              onClick={() => onDelete(qr.id)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 text-xs font-semibold transition-colors"
-            >
-              <Trash2 className="w-3.5 h-3.5" /> Delete QR
+            <button onClick={() => onDelete(qr.id)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 text-xs font-semibold transition-colors">
+              <Trash2 className="w-3.5 h-3.5" /> Delete
             </button>
           </div>
         </div>
@@ -442,8 +418,8 @@ function QRCard({
 /* ─────────────────────────────────────────────────
    QR CODES TAB
    ───────────────────────────────────────────────── */
-function QRCodesTab({ user, qrs, contacts, onRefreshQrs }: {
-  user: UserRow; qrs: QRRow[]; contacts: ContactRow[]; onRefreshQrs: () => void;
+function QRCodesTab({ qrs, contacts, onRefreshQrs }: {
+  qrs: QRRow[]; contacts: ContactRow[]; onRefreshQrs: () => void;
 }) {
   const totalScans = qrs.reduce((sum, q) => sum + (q.scan_count ?? q.scans ?? 0), 0);
   const contactsByQr: Record<string, ContactRow[]> = {};
@@ -452,19 +428,14 @@ function QRCodesTab({ user, qrs, contacts, onRefreshQrs }: {
     contactsByQr[c.qr_id].push(c);
   });
 
-  const handleDisable = async (qrId: string) => {
-    await adminDisableQRCode(qrId);
-    onRefreshQrs();
-  };
+  const handleDisable = async (qrId: string) => { await adminDisableQRCode(qrId); onRefreshQrs(); };
   const handleDelete = async (qrId: string) => {
     if (!confirm("Delete this QR code? This cannot be undone.")) return;
-    await adminDeleteQRCode(qrId);
-    onRefreshQrs();
+    await adminDeleteQRCode(qrId); onRefreshQrs();
   };
 
   return (
     <div className="p-5 space-y-4">
-      {/* Summary stats */}
       <div className="grid grid-cols-3 gap-3">
         {[
           { label: "QR Codes", value: qrs.length, icon: QrCode, color: "text-indigo-600 bg-indigo-50" },
@@ -480,8 +451,6 @@ function QRCodesTab({ user, qrs, contacts, onRefreshQrs }: {
           </div>
         ))}
       </div>
-
-      {/* QR Cards */}
       {qrs.length === 0 ? (
         <div className="text-center py-10">
           <QrCode className="w-10 h-10 text-slate-200 mx-auto mb-3" />
@@ -490,13 +459,8 @@ function QRCodesTab({ user, qrs, contacts, onRefreshQrs }: {
       ) : (
         <div className="space-y-3">
           {qrs.map((qr) => (
-            <QRCard
-              key={qr.id}
-              qr={qr}
-              contacts={contactsByQr[qr.id] ?? []}
-              onDisable={handleDisable}
-              onDelete={handleDelete}
-            />
+            <QRCard key={qr.id} qr={qr} contacts={contactsByQr[qr.id] ?? []}
+              onDisable={handleDisable} onDelete={handleDelete} />
           ))}
         </div>
       )}
@@ -533,26 +497,21 @@ function ActivityTab({ contacts }: { contacts: ContactRow[] }) {
 
   return (
     <div className="p-5 space-y-4">
-      {/* Filter chips */}
       <div className="flex items-center gap-2 flex-wrap">
         <Filter className="w-4 h-4 text-slate-400 shrink-0" />
-        {filters.map(({ key, label }) => (
-          <button
-            key={key}
-            onClick={() => { setFilter(key); setPage(1); }}
-            className={`text-xs font-semibold px-3 py-1.5 rounded-xl transition-colors ${filter === key ? "bg-primary text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
-          >
-            {label}
-            {key !== "all" && (
-              <span className="ml-1.5 opacity-70">
-                ({contacts.filter((c) => key === "emergency" ? c.intent === "emergency" : c.status === key).length})
-              </span>
-            )}
-          </button>
-        ))}
+        {filters.map(({ key, label }) => {
+          const count = key === "all" ? contacts.length
+            : key === "emergency" ? contacts.filter((c) => c.intent === "emergency").length
+            : contacts.filter((c) => c.status === key).length;
+          return (
+            <button key={key} onClick={() => { setFilter(key); setPage(1); }}
+              className={`text-xs font-semibold px-3 py-1.5 rounded-xl transition-colors ${filter === key ? "bg-primary text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>
+              {label} <span className="opacity-70">({count})</span>
+            </button>
+          );
+        })}
       </div>
 
-      {/* Timeline */}
       {pageData.length === 0 ? (
         <div className="text-center py-10">
           <MessageSquare className="w-10 h-10 text-slate-200 mx-auto mb-3" />
@@ -577,18 +536,15 @@ function ActivityTab({ contacts }: { contacts: ContactRow[] }) {
                   {c.status}
                 </span>
               </div>
-
               {c.message && (
                 <div className="bg-slate-50 rounded-xl px-3 py-2 mb-3 border-l-2 border-primary/30">
                   <p className="text-xs text-slate-600 italic">"{c.message}"</p>
                 </div>
               )}
-
               <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[11px]">
                 {c.requester_phone && (
                   <span className="flex items-center gap-1.5 text-slate-600">
-                    <Phone className="w-3 h-3 text-slate-400 shrink-0" />
-                    <span className="font-semibold">{c.requester_phone}</span>
+                    <Phone className="w-3 h-3 text-slate-400 shrink-0" /> <span className="font-semibold">{c.requester_phone}</span>
                   </span>
                 )}
                 {c.ip_address && (
@@ -598,15 +554,11 @@ function ActivityTab({ contacts }: { contacts: ContactRow[] }) {
                 )}
                 {c.location && (
                   <span className="flex items-center gap-1.5 text-slate-600 col-span-2">
-                    <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
-                    <span className="font-semibold">{c.location}</span>
+                    <MapPin className="w-3 h-3 text-slate-400 shrink-0" /> <span className="font-semibold">{c.location}</span>
                   </span>
                 )}
               </div>
-              <p className="text-[10px] text-slate-400 mt-2" title={c.created_at}>
-                {formatRelativeTime(c.created_at)}
-                {c.created_at && <span className="ml-2 hidden sm:inline text-slate-300">· {new Date(c.created_at).toLocaleString("en-IN")}</span>}
-              </p>
+              <p className="text-[10px] text-slate-400 mt-2" title={c.created_at}>{formatRelativeTime(c.created_at)}</p>
             </div>
           ))}
         </div>
@@ -614,17 +566,13 @@ function ActivityTab({ contacts }: { contacts: ContactRow[] }) {
 
       {pages > 1 && (
         <div className="flex items-center justify-between pt-2">
-          <button
-            onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}
-            className="flex items-center gap-1 px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-600 disabled:opacity-40 hover:bg-slate-50 transition-colors"
-          >
+          <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}
+            className="flex items-center gap-1 px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-600 disabled:opacity-40 hover:bg-slate-50 transition-colors">
             <ChevronLeft className="w-3.5 h-3.5" /> Prev
           </button>
           <span className="text-xs text-slate-500">Page {page} of {pages}</span>
-          <button
-            onClick={() => setPage((p) => Math.min(pages, p + 1))} disabled={page === pages}
-            className="flex items-center gap-1 px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-600 disabled:opacity-40 hover:bg-slate-50 transition-colors"
-          >
+          <button onClick={() => setPage((p) => Math.min(pages, p + 1))} disabled={page === pages}
+            className="flex items-center gap-1 px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-600 disabled:opacity-40 hover:bg-slate-50 transition-colors">
             Next <ChevronRight className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -634,7 +582,7 @@ function ActivityTab({ contacts }: { contacts: ContactRow[] }) {
 }
 
 /* ─────────────────────────────────────────────────
-   USER DETAIL MODAL — full-page overlay
+   USER DETAIL MODAL — true full-page overlay
    ───────────────────────────────────────────────── */
 type TabKey = "profile" | "qrcodes" | "activity";
 
@@ -694,82 +642,58 @@ function UserDetailModal({ user, onRefresh, onClose }: {
   ];
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-stretch justify-end" onClick={onClose}>
-      <div
-        className="w-full max-w-2xl bg-white h-full flex flex-col shadow-2xl overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* ─── Header ─────────────────────────────────── */}
-        <div className="bg-gradient-to-r from-primary/5 to-violet-50 border-b border-slate-100 px-5 py-4">
+    /* True full-screen overlay — covers the entire viewport */
+    <div className="fixed inset-0 z-50 bg-white flex flex-col">
+      {/* ─── Header ─────────────────────────────────────────── */}
+      <div className="bg-gradient-to-r from-primary/5 to-violet-50 border-b border-slate-100 px-5 py-4 shrink-0">
+        <div className="max-w-4xl mx-auto">
           <div className="flex items-start gap-4">
-            {/* Avatar */}
             <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-violet-600 flex items-center justify-center shrink-0">
               <span className="text-white font-black text-lg">{avatarLetters}</span>
             </div>
-
-            {/* User info */}
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <h2 className="text-base font-black text-slate-900">{fullName}</h2>
-                <Badge
-                  label={user.status || "active"}
-                  color={isBlocked ? "bg-red-100 text-red-600" : "bg-green-100 text-green-700"}
-                />
+                <Badge label={user.status || "active"} color={isBlocked ? "bg-red-100 text-red-600" : "bg-green-100 text-green-700"} />
               </div>
               <p className="text-xs text-slate-500 mt-0.5">{user.email || "No email"}</p>
               {user.sgy_id && (
                 <div className="flex items-center gap-1.5 mt-1.5">
-                  <span className="text-xs font-bold text-primary bg-primary/10 border border-primary/20 rounded-lg px-2 py-0.5 font-mono">{user.sgy_id}</span>
+                  <span className="text-xs font-black text-primary bg-primary/10 border border-primary/20 rounded-lg px-2 py-0.5 font-mono tracking-wide">{user.sgy_id}</span>
                   <CopyBtn text={user.sgy_id} />
                 </div>
               )}
             </div>
-
-            {/* Actions */}
-            <div className="flex items-center gap-2 shrink-0">
-              <button onClick={onClose} className="p-2 rounded-xl hover:bg-slate-100 transition-colors">
-                <X className="w-4 h-4 text-slate-500" />
-              </button>
-            </div>
+            <button onClick={onClose} className="p-2 rounded-xl hover:bg-slate-100 transition-colors shrink-0">
+              <X className="w-5 h-5 text-slate-500" />
+            </button>
           </div>
-
-          {/* Action buttons row */}
           <div className="flex items-center gap-2 mt-3">
             {isBlocked ? (
-              <button
-                onClick={handleUnblock}
-                disabled={actionLoading}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border-2 border-green-200 text-green-700 hover:bg-green-50 text-xs font-semibold transition-colors disabled:opacity-50"
-              >
+              <button onClick={handleUnblock} disabled={actionLoading}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border-2 border-green-200 text-green-700 hover:bg-green-50 text-xs font-semibold transition-colors disabled:opacity-50">
                 <ShieldCheck className="w-3.5 h-3.5" /> Unblock User
               </button>
             ) : (
-              <button
-                onClick={handleBlock}
-                disabled={actionLoading}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border-2 border-amber-200 text-amber-700 hover:bg-amber-50 text-xs font-semibold transition-colors disabled:opacity-50"
-              >
+              <button onClick={handleBlock} disabled={actionLoading}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border-2 border-amber-200 text-amber-700 hover:bg-amber-50 text-xs font-semibold transition-colors disabled:opacity-50">
                 <ShieldOff className="w-3.5 h-3.5" /> Block User
               </button>
             )}
-            <button
-              onClick={handleDelete}
-              disabled={actionLoading}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-500 text-white hover:bg-red-600 text-xs font-semibold transition-colors disabled:opacity-50"
-            >
-              <Trash2 className="w-3.5 h-3.5" /> Delete
+            <button onClick={handleDelete} disabled={actionLoading}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-500 text-white hover:bg-red-600 text-xs font-semibold transition-colors disabled:opacity-50">
+              <Trash2 className="w-3.5 h-3.5" /> Delete User
             </button>
           </div>
         </div>
+      </div>
 
-        {/* ─── Tabs ────────────────────────────────────── */}
-        <div className="flex border-b border-slate-100 bg-white">
+      {/* ─── Tabs ────────────────────────────────────────────── */}
+      <div className="flex border-b border-slate-100 bg-white shrink-0">
+        <div className="max-w-4xl mx-auto w-full flex">
           {tabs.map(({ key, label, icon, badge }) => (
-            <button
-              key={key}
-              onClick={() => setTab(key)}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-semibold transition-colors relative ${tab === key ? "text-primary border-b-2 border-primary -mb-px" : "text-slate-500 hover:text-slate-700"}`}
-            >
+            <button key={key} onClick={() => setTab(key)}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-semibold transition-colors relative ${tab === key ? "text-primary border-b-2 border-primary -mb-px" : "text-slate-500 hover:text-slate-700"}`}>
               {icon} {label}
               {badge !== undefined && badge > 0 && (
                 <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full ${tab === key ? "bg-primary text-white" : "bg-slate-100 text-slate-600"}`}>
@@ -779,24 +703,20 @@ function UserDetailModal({ user, onRefresh, onClose }: {
             </button>
           ))}
         </div>
+      </div>
 
-        {/* ─── Tab Content ─────────────────────────────── */}
-        <div className="flex-1 overflow-y-auto">
+      {/* ─── Content ─────────────────────────────────────────── */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-4xl mx-auto">
           {loadingData ? (
-            <div className="flex items-center justify-center py-16">
-              <RefreshCw className="w-6 h-6 text-primary animate-spin" />
+            <div className="flex items-center justify-center py-20 gap-2 text-slate-400">
+              <RefreshCw className="w-5 h-5 animate-spin text-primary" />
+              <span className="text-sm">Loading user data…</span>
             </div>
           ) : (
             <>
               {tab === "profile" && <ProfileTab user={user} onRefresh={onRefresh} />}
-              {tab === "qrcodes" && (
-                <QRCodesTab
-                  user={user}
-                  qrs={qrs}
-                  contacts={contacts}
-                  onRefreshQrs={loadUserData}
-                />
-              )}
+              {tab === "qrcodes" && <QRCodesTab qrs={qrs} contacts={contacts} onRefreshQrs={loadUserData} />}
               {tab === "activity" && <ActivityTab contacts={contacts} />}
             </>
           )}
@@ -812,17 +732,23 @@ function UserDetailModal({ user, onRefresh, onClose }: {
 export function UsersScreen() {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [filtered, setFiltered] = useState<UserRow[]>([]);
+  const [qrCounts, setQrCounts] = useState<Record<string, number>>({});
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<UserRow | null>(null);
 
-  const reload = useCallback(() => {
+  const reload = useCallback(async () => {
     setLoading(true);
-    adminGetAllUsers()
-      .then((u) => { setUsers(u as UserRow[]); })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    try {
+      const u = (await adminGetAllUsers()) as UserRow[];
+      setUsers(u);
+      if (u.length > 0) {
+        const counts = await adminGetQRCountsByUser(u.map((x) => x.id));
+        setQrCounts(counts);
+      }
+    } catch { /* noop */ }
+    setLoading(false);
   }, []);
 
   useEffect(() => { reload(); }, [reload]);
@@ -867,6 +793,7 @@ export function UsersScreen() {
                   <th className="px-4 py-3 text-left hidden sm:table-cell">SGY ID</th>
                   <th className="px-4 py-3 text-left hidden md:table-cell">Email</th>
                   <th className="px-4 py-3 text-left hidden lg:table-cell">Mobile</th>
+                  <th className="px-4 py-3 text-center hidden xl:table-cell">QR Codes</th>
                   <th className="px-4 py-3 text-left hidden xl:table-cell">Joined</th>
                   <th className="px-4 py-3 text-left">Status</th>
                 </tr>
@@ -874,17 +801,13 @@ export function UsersScreen() {
               <tbody className="divide-y divide-slate-50">
                 {pageData.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-4 py-10 text-center text-slate-400">
+                    <td colSpan={7} className="px-4 py-10 text-center text-slate-400">
                       <User className="w-8 h-8 text-slate-200 mx-auto mb-2" />
                       No users found
                     </td>
                   </tr>
                 ) : pageData.map((u) => (
-                  <tr
-                    key={u.id}
-                    onClick={() => setSelected(u)}
-                    className="hover:bg-slate-50 cursor-pointer transition-colors group"
-                  >
+                  <tr key={u.id} onClick={() => setSelected(u)} className="hover:bg-slate-50 cursor-pointer transition-colors group">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-primary/70 to-violet-500/70 flex items-center justify-center shrink-0">
@@ -902,14 +825,20 @@ export function UsersScreen() {
                     </td>
                     <td className="px-4 py-3 text-slate-500 hidden md:table-cell">{u.email || "—"}</td>
                     <td className="px-4 py-3 text-slate-500 hidden lg:table-cell">{u.mobile || "—"}</td>
+                    <td className="px-4 py-3 text-center hidden xl:table-cell">
+                      {qrCounts[u.id] !== undefined ? (
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${qrCounts[u.id] > 0 ? "bg-indigo-50 text-indigo-600" : "bg-slate-100 text-slate-400"}`}>
+                          {qrCounts[u.id]}
+                        </span>
+                      ) : (
+                        <span className="text-slate-300 text-xs">—</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-slate-400 hidden xl:table-cell text-xs">
                       {u.created_at ? new Date(u.created_at).toLocaleDateString("en-IN") : "—"}
                     </td>
                     <td className="px-4 py-3">
-                      <Badge
-                        label={u.status || "active"}
-                        color={u.status === "blocked" ? "bg-red-100 text-red-600" : "bg-green-100 text-green-700"}
-                      />
+                      <Badge label={u.status || "active"} color={u.status === "blocked" ? "bg-red-100 text-red-600" : "bg-green-100 text-green-700"} />
                     </td>
                   </tr>
                 ))}
@@ -920,17 +849,13 @@ export function UsersScreen() {
 
         {pages > 1 && (
           <div className="flex items-center justify-between">
-            <button
-              onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}
-              className="flex items-center gap-1 px-3 py-2 rounded-xl border border-slate-200 text-sm text-slate-600 disabled:opacity-40 hover:bg-slate-50 transition-colors"
-            >
+            <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}
+              className="flex items-center gap-1 px-3 py-2 rounded-xl border border-slate-200 text-sm text-slate-600 disabled:opacity-40 hover:bg-slate-50 transition-colors">
               <ChevronLeft className="w-4 h-4" /> Prev
             </button>
             <span className="text-sm text-slate-500">Page {page} of {pages}</span>
-            <button
-              onClick={() => setPage((p) => Math.min(pages, p + 1))} disabled={page === pages}
-              className="flex items-center gap-1 px-3 py-2 rounded-xl border border-slate-200 text-sm text-slate-600 disabled:opacity-40 hover:bg-slate-50 transition-colors"
-            >
+            <button onClick={() => setPage((p) => Math.min(pages, p + 1))} disabled={page === pages}
+              className="flex items-center gap-1 px-3 py-2 rounded-xl border border-slate-200 text-sm text-slate-600 disabled:opacity-40 hover:bg-slate-50 transition-colors">
               Next <ChevronRight className="w-4 h-4" />
             </button>
           </div>
@@ -938,11 +863,7 @@ export function UsersScreen() {
       </div>
 
       {selected && (
-        <UserDetailModal
-          user={selected}
-          onRefresh={reload}
-          onClose={() => setSelected(null)}
-        />
+        <UserDetailModal user={selected} onRefresh={reload} onClose={() => setSelected(null)} />
       )}
     </>
   );
