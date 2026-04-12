@@ -62,34 +62,35 @@ export function HomeScreen() {
   const [activity, setActivity] = useState<ActivityRow[]>([]);
   const [activityLoading, setActivityLoading] = useState(true);
 
-  const realQrIds = profiles
-    .map((p) => p.id)
-    .filter((id) => id && !id.startsWith("mock-"));
-
   const loadActivity = useCallback(async () => {
+    if (!user?.id) { setActivityLoading(false); return; }
     setActivityLoading(true);
     try {
       const rows: ActivityRow[] = [];
 
-      if (realQrIds.length > 0) {
+      const { data: qrData } = await supabase
+        .from("qr_codes")
+        .select("id, name")
+        .eq("user_id", user.id);
+
+      const userQrIds = (qrData ?? []).map((q) => q.id as string);
+      const qrNameMap = Object.fromEntries((qrData ?? []).map((q) => [q.id as string, q.name as string]));
+
+      if (userQrIds.length > 0) {
         const [scansRes, contactsRes] = await Promise.all([
           supabase
             .from("qr_scans")
-            .select("id, qr_id, created_at, device, city, country")
-            .in("qr_id", realQrIds)
+            .select("id, qr_id, created_at, city, country")
+            .in("qr_id", userQrIds)
             .order("created_at", { ascending: false })
             .limit(5),
           supabase
             .from("contact_requests")
             .select("id, qr_id, intent, created_at")
-            .in("qr_id", realQrIds)
+            .in("qr_id", userQrIds)
             .order("created_at", { ascending: false })
             .limit(5),
         ]);
-
-        const qrNameMap = Object.fromEntries(
-          profiles.filter((p) => !p.id.startsWith("mock-")).map((p) => [p.id, p.name])
-        );
 
         (scansRes.data ?? []).forEach((row) => {
           const qrName = qrNameMap[row.qr_id as string] || "your QR";
@@ -128,7 +129,7 @@ export function HomeScreen() {
     } finally {
       setActivityLoading(false);
     }
-  }, [realQrIds.join(","), profiles.length]);
+  }, [user?.id]);
 
   useEffect(() => { loadActivity(); }, [loadActivity]);
 
