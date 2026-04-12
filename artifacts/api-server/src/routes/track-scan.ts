@@ -90,7 +90,9 @@ router.post("/track-scan", async (req: Request, res: Response) => {
     encrypted_ip = null;
   }
 
-  const geo = await getGeoData(ip);
+  const [geo] = await Promise.all([
+    getGeoData(ip),
+  ]);
 
   const row = {
     qr_id,
