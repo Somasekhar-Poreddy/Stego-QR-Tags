@@ -144,12 +144,19 @@ router.put("/track-scan/:id/intent", async (req: Request, res: Response) => {
   }
 
   const { id } = req.params;
-  const { intent } = req.body as { intent?: string };
+  const { intent, is_request_made } = req.body as {
+    intent?: string | null;
+    is_request_made?: boolean;
+  };
 
   if (!id) {
     res.status(400).json({ error: "Scan ID is required" });
     return;
   }
+
+  const updates: Record<string, unknown> = {};
+  if (intent !== undefined) updates.intent = intent ?? null;
+  updates.is_request_made = is_request_made === true;
 
   try {
     const dbRes = await fetch(
@@ -157,7 +164,7 @@ router.put("/track-scan/:id/intent", async (req: Request, res: Response) => {
       {
         method: "PATCH",
         headers: makeHeaders(serviceKey),
-        body: JSON.stringify({ intent: intent ?? null, is_request_made: true }),
+        body: JSON.stringify(updates),
       },
     );
 
