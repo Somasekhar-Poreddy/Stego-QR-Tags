@@ -134,6 +134,85 @@ export async function adminGetLastSeenByUsers(userIds: string[]): Promise<Record
 }
 
 /* ═══════════════════════════════════════════════════
+   QR SCANS (admin view)
+   ═══════════════════════════════════════════════════ */
+export interface QRScan {
+  id: string;
+  qr_id: string;
+  user_id: string | null;
+  masked_ip: string | null;
+  hashed_ip: string | null;
+  encrypted_ip: string | null;
+  city: string | null;
+  state: string | null;
+  country: string | null;
+  pincode: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  timezone: string | null;
+  device: string | null;
+  browser: string | null;
+  os: string | null;
+  referrer: string | null;
+  session_id: string | null;
+  intent: string | null;
+  is_request_made: boolean;
+  created_at: string;
+}
+
+export async function adminGetQRScans(qrId: string, limit = 30): Promise<QRScan[]> {
+  const { data } = await supabase
+    .from("qr_scans")
+    .select("*")
+    .eq("qr_id", qrId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  return (data ?? []) as QRScan[];
+}
+
+export async function adminGetScansByQRIds(qrIds: string[], limit = 50): Promise<QRScan[]> {
+  if (qrIds.length === 0) return [];
+  const { data } = await supabase
+    .from("qr_scans")
+    .select("*")
+    .in("qr_id", qrIds)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  return (data ?? []) as QRScan[];
+}
+
+export async function adminGetScanCountByQRIds(qrIds: string[]): Promise<number> {
+  if (qrIds.length === 0) return 0;
+  const { count } = await supabase
+    .from("qr_scans")
+    .select("id", { count: "exact", head: true })
+    .in("qr_id", qrIds);
+  return count ?? 0;
+}
+
+export async function adminDecryptIP(
+  encryptedIp: string,
+  qrId?: string,
+  scanId?: string,
+): Promise<{ ip: string } | { error: string }> {
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token;
+  const res = await fetch("/api/admin/decrypt-ip", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ encrypted_ip: encryptedIp, qr_id: qrId, scan_id: scanId }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({})) as { error?: string };
+    return { error: body.error ?? `Failed (${res.status})` };
+  }
+  return res.json() as Promise<{ ip: string }>;
+}
+
+/* ═══════════════════════════════════════════════════
    QR CODES (admin view)
    ═══════════════════════════════════════════════════ */
 export async function adminGetAllQRCodes() {
