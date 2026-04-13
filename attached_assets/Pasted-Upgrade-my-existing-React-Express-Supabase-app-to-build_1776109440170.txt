@@ -1,0 +1,267 @@
+Upgrade my existing React + Express + Supabase app to build a complete ecommerce system for Stegofy QR products.
+
+IMPORTANT:
+- Keep UI modern, mobile-first, clean, premium
+- Do NOT break existing features
+- Everything must be dynamic from backend (admin panel)
+
+-----------------------------------
+SECTION 1: DATABASE DESIGN (SUPABASE)
+-----------------------------------
+
+Create tables:
+
+1. products
+
+- id (uuid)
+- name
+- slug
+- description (rich text)
+- category (vehicle, pet, medical, etc.)
+- images (array)
+- price
+- discount_price
+- rating
+- review_count
+- badges (array: best_seller, popular, new)
+- features (array)
+- specifications (JSON)
+- stock_quantity
+- is_active
+- created_at
+
+-----------------------------------
+
+2. product_variants
+
+- id
+- product_id
+- variant_name (Car, Bike, Pet, etc.)
+- price
+- stock
+
+-----------------------------------
+
+3. cart_items
+
+- id
+- user_id
+- product_id
+- variant_id
+- quantity
+
+-----------------------------------
+
+4. orders
+
+- id
+- user_id
+- total_price
+- payment_type (COD / online)
+- order_status
+- shipping_details (JSON)
+- created_at
+
+-----------------------------------
+
+5. order_items
+
+- id
+- order_id
+- product_id
+- variant_id
+- quantity
+- price
+
+-----------------------------------
+
+6. reviews
+
+- id
+- product_id
+- user_id
+- rating
+- comment
+- created_at
+
+-----------------------------------
+
+SECTION 2: ADMIN PANEL (SUPER ADMIN)
+-----------------------------------
+
+Add "Products Management"
+
+Features:
+
+- Create Product
+- Upload multiple images (slider)
+- Add price + discount
+- Add badges (Best Seller / New / Popular)
+- Add features (bullet points)
+- Add specifications
+- Add variants
+- Add ratings + review count manually
+- Toggle active/inactive
+
+-----------------------------------
+
+Add "Orders Management"
+
+- View all orders
+- Filter by status
+- Update status:
+  placed → confirmed → packed → shipped → delivered
+- View user details
+- View shipping address
+
+-----------------------------------
+
+Add "User Orders Tab"
+
+- Under each user:
+  show order history
+
+-----------------------------------
+
+SECTION 3: USER SHOP UI (FRONTEND)
+-----------------------------------
+
+Create Shop Page:
+
+- Category tabs (All, Pets, Vehicles, Medical, Kids)
+- Product grid cards
+
+Each card shows:
+
+- Image
+- Badge (top-left)
+- Product name
+- Rating ⭐
+- Price + strike price
+- Quick Add (+ / - button)
+
+-----------------------------------
+
+Sticky Cart Bar:
+
+- Show:
+  "X items in cart"
+  total price
+- Button: Checkout
+
+-----------------------------------
+
+SECTION 4: PRODUCT DETAIL PAGE
+-----------------------------------
+
+When user clicks product:
+
+Show:
+
+1. Image slider
+2. Name + rating
+3. Price + discount
+4. Variant selector
+5. Features section (icons grid)
+6. Specifications
+7. Reviews list
+8. CTA buttons:
+
+- Add to Cart
+- Buy Now (COD)
+
+-----------------------------------
+
+SECTION 5: CART SYSTEM
+-----------------------------------
+
+- Add / remove quantity
+- Persist cart (DB + local storage)
+- Sync cart if user logs in
+
+-----------------------------------
+
+SECTION 6: CHECKOUT FLOW
+-----------------------------------
+
+If user LOGGED IN:
+
+→ Direct checkout
+
+If NOT logged in:
+
+→ Show:
+
+- Login
+- Signup (OTP or email)
+
+-----------------------------------
+
+Checkout form:
+
+- Name
+- Phone
+- Alternate phone
+- Email
+- Address
+- Landmark
+- Pincode
+- City
+- State
+
+-----------------------------------
+
+SECTION 7: ORDER CREATION
+-----------------------------------
+
+On checkout:
+
+- Create order
+- Save items
+- Save address
+- Default payment = COD
+
+-----------------------------------
+
+SECTION 8: ORDER TRACKING (USER)
+-----------------------------------
+
+User can see:
+
+- My Orders
+- Status
+- Order details
+
+-----------------------------------
+
+SECTION 9: UX IMPROVEMENTS (IMPORTANT)
+-----------------------------------
+
+- Smooth animations
+- Skeleton loaders
+- Fast loading images
+- Mobile-first UI
+- Premium color gradients
+
+-----------------------------------
+
+SECTION 10: PERFORMANCE
+-----------------------------------
+
+- Lazy load images
+- Cache product data
+- Optimize API calls
+
+-----------------------------------
+
+FINAL GOAL:
+-----------------------------------
+
+Build a complete ecommerce experience:
+
+- Dynamic product system
+- Smooth shopping experience
+- Admin-controlled backend
+- Scalable order system
+
+WITHOUT breaking existing QR system.

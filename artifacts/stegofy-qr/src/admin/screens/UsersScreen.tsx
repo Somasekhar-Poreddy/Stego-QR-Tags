@@ -5,8 +5,13 @@ import {
   Phone, MapPin, Globe, Calendar, Instagram, Twitter, Facebook,
   Save, Edit3, RefreshCw, Filter, Home, Activity, Plus, Key, Link2,
   ExternalLink, Download, Clock, LogIn, LogOut, Smartphone, Monitor,
-  BarChart2, Eye, EyeOff,
+  BarChart2, Eye, EyeOff, ShoppingBag,
 } from "lucide-react";
+import {
+  getUserOrders, getUserOrderWithItems,
+  ORDER_STATUS_LABELS,
+  type Order, type OrderWithItems, type OrderStatus,
+} from "@/services/orderService";
 import QRCodeLib from "qrcode";
 import {
   adminGetAllUsers, adminBlockUser, adminUnblockUser, adminDeleteUser,
@@ -1508,9 +1513,143 @@ function ScansTab({
 }
 
 /* ─────────────────────────────────────────────────
+   ORDERS TAB
+   ───────────────────────────────────────────────── */
+const STATUS_COLORS: Record<string, string> = {
+  placed:    "bg-amber-100 text-amber-700 border-amber-200",
+  confirmed: "bg-cyan-100 text-cyan-700 border-cyan-200",
+  packed:    "bg-violet-100 text-violet-700 border-violet-200",
+  shipped:   "bg-blue-100 text-blue-700 border-blue-200",
+  delivered: "bg-green-100 text-green-700 border-green-200",
+  cancelled: "bg-red-100 text-red-500 border-red-200",
+};
+
+function OrdersTab({ userId }: { userId: string }) {
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [detail, setDetail] = useState<Record<string, OrderWithItems>>({});
+
+  useEffect(() => {
+    getUserOrders(userId)
+      .then(setOrders)
+      .catch(() => setOrders([]))
+      .finally(() => setLoading(false));
+  }, [userId]);
+
+  const toggleOrder = async (orderId: string) => {
+    if (expanded === orderId) { setExpanded(null); return; }
+    setExpanded(orderId);
+    if (!detail[orderId]) {
+      const d = await getUserOrderWithItems(orderId);
+      if (d) setDetail((prev) => ({ ...prev, [orderId]: d }));
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12 gap-2 text-slate-400">
+        <RefreshCw className="w-4 h-4 animate-spin" />
+        <span className="text-sm">Loading orders…</span>
+      </div>
+    );
+  }
+
+  if (orders.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 gap-3">
+        <ShoppingBag className="w-12 h-12 text-slate-200" />
+        <p className="text-sm font-semibold text-slate-500">No orders yet</p>
+        <p className="text-xs text-slate-400">This user hasn't placed any orders</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {orders.map((order) => {
+        const isOpen = expanded === order.id;
+        const d = detail[order.id];
+        const sd = order.shipping_details;
+        const date = new Date(order.created_at).toLocaleDateString("en-IN", {
+          day: "2-digit", month: "short", year: "numeric",
+        });
+        return (
+          <div key={order.id} className="bg-white rounded-xl border border-slate-100 overflow-hidden">
+            <button
+              onClick={() => toggleOrder(order.id)}
+              className="w-full flex items-center gap-3 p-4 text-left hover:bg-slate-50 transition-colors"
+            >
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-bold font-mono text-slate-800">
+                    #{order.id.slice(0, 8).toUpperCase()}
+                  </span>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border ${STATUS_COLORS[order.order_status] ?? "bg-slate-100 text-slate-600"}`}>
+                    {ORDER_STATUS_LABELS[order.order_status as OrderStatus] ?? order.order_status}
+                  </span>
+                  <span className="text-[10px] text-slate-400">{date}</span>
+                </div>
+                {sd && (
+                  <p className="text-[10px] text-slate-400 mt-0.5 truncate">
+                    {sd.name} · {sd.phone} · {sd.city}
+                  </p>
+                )}
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <span className="text-sm font-bold text-primary">₹{order.total_price.toLocaleString()}</span>
+                {isOpen ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+              </div>
+            </button>
+            {isOpen && (
+              <div className="border-t border-slate-50 px-4 pb-4">
+                {!d ? (
+                  <div className="py-4 flex justify-center">
+                    <RefreshCw className="w-4 h-4 animate-spin text-primary" />
+                  </div>
+                ) : (
+                  <>
+                    <div className="mt-3 space-y-2">
+                      {d.items.map((item) => (
+                        <div key={item.id} className="flex items-center gap-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold text-slate-700 truncate">{item.product_name}</p>
+                            {item.variant_name && <p className="text-[10px] text-slate-400">{item.variant_name}</p>}
+                            <p className="text-[10px] text-slate-400">Qty: {item.quantity} × ₹{item.price.toLocaleString()}</p>
+                          </div>
+                          <p className="text-xs font-bold text-slate-700 flex-shrink-0">
+                            ₹{(item.price * item.quantity).toLocaleString()}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-3 bg-slate-50 rounded-xl p-3">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Shipping To</p>
+                      <p className="text-xs font-semibold text-slate-700">{sd.name}</p>
+                      <p className="text-[10px] text-slate-500 leading-relaxed">
+                        {sd.address}{sd.landmark ? `, ${sd.landmark}` : ""}, {sd.city}, {sd.state} — {sd.pincode}
+                      </p>
+                      <p className="text-[10px] text-slate-500">{sd.phone}{sd.alternate_phone ? ` / ${sd.alternate_phone}` : ""}</p>
+                    </div>
+                    <div className="mt-2 flex items-center justify-between">
+                      <span className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">Payment</span>
+                      <span className="text-[10px] font-bold text-slate-600 capitalize">{order.payment_type === "cod" ? "Cash on Delivery" : "Online"}</span>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────
    USER DETAIL MODAL — true full-page overlay
    ───────────────────────────────────────────────── */
-type TabKey = "profile" | "qrcodes" | "activity" | "sessions" | "scans";
+type TabKey = "profile" | "qrcodes" | "activity" | "sessions" | "scans" | "orders";
 
 function UserDetailModal({ user, onRefresh, onClose }: {
   user: UserRow; onRefresh: () => void; onClose: () => void;
@@ -1520,6 +1659,7 @@ function UserDetailModal({ user, onRefresh, onClose }: {
   const [contacts, setContacts] = useState<ContactRow[]>([]);
   const [sessionCount, setSessionCount] = useState(0);
   const [scanCount, setScanCount] = useState(0);
+  const [orderCount, setOrderCount] = useState(0);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [loadingData, setLoadingData] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
@@ -1532,14 +1672,16 @@ function UserDetailModal({ user, onRefresh, onClose }: {
   const loadUserData = useCallback(async () => {
     setLoadingData(true);
     try {
-      const [userQrs, allContacts, count] = await Promise.all([
+      const [userQrs, allContacts, count, userOrders] = await Promise.all([
         adminGetUserQRCodes(user.id) as Promise<QRRow[]>,
         adminGetAllContactRequestsForUser(user.id) as Promise<ContactRow[]>,
         adminGetUserActivityLogCount(user.id),
+        getUserOrders(user.id).catch(() => [] as Order[]),
       ]);
       setQrs(userQrs);
       setContacts(allContacts);
       setSessionCount(count);
+      setOrderCount(userOrders.length);
       const qrIds = userQrs.map((q) => q.id);
       if (qrIds.length > 0) {
         try {
@@ -1609,6 +1751,7 @@ function UserDetailModal({ user, onRefresh, onClose }: {
     { key: "activity", label: "Activity", icon: <Activity className="w-4 h-4" />, badge: contacts.length },
     { key: "sessions", label: "Sessions", icon: <Clock className="w-4 h-4" />, badge: sessionCount },
     { key: "scans", label: "Scans", icon: <BarChart2 className="w-4 h-4" />, badge: scanCount },
+    { key: "orders", label: "Orders", icon: <ShoppingBag className="w-4 h-4" />, badge: orderCount },
   ];
 
   return (
@@ -1690,6 +1833,7 @@ function UserDetailModal({ user, onRefresh, onClose }: {
               {tab === "activity" && <ActivityTab contacts={contacts} />}
               {tab === "sessions" && <SessionsTab userId={user.id} totalCount={sessionCount} />}
               {tab === "scans" && <ScansTab qrs={qrs} totalCount={scanCount} isSuperAdmin={isSuperAdmin} />}
+              {tab === "orders" && <OrdersTab userId={user.id} />}
             </>
           )}
         </div>

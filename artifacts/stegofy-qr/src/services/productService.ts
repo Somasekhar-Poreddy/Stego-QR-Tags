@@ -43,9 +43,24 @@ export interface Review {
   created_at: string;
 }
 
+/* ─── Simple in-memory cache (5-minute TTL) ─── */
+
+const _productListCache = new Map<string, { data: Product[]; ts: number }>();
+const _productDetailCache = new Map<string, { data: ProductWithVariants; ts: number }>();
+const CACHE_TTL = 5 * 60 * 1000;
+
+export function invalidateProductCache(): void {
+  _productListCache.clear();
+  _productDetailCache.clear();
+}
+
 /* ─── Public read functions ─── */
 
 export async function getActiveProducts(category?: string): Promise<Product[]> {
+  const key = category && category !== "all" ? category : "all";
+  const cached = _productListCache.get(key);
+  if (cached && Date.now() - cached.ts < CACHE_TTL) return cached.data;
+
   let q = supabase
     .from("products")
     .select("*")
@@ -58,7 +73,9 @@ export async function getActiveProducts(category?: string): Promise<Product[]> {
 
   const { data, error } = await q;
   if (error) throw new Error(error.message);
-  return ((data ?? []) as unknown[]).map(normalizeProduct);
+  const result = ((data ?? []) as unknown[]).map(normalizeProduct);
+  _productListCache.set(key, { data: result, ts: Date.now() });
+  return result;
 }
 
 export async function getProductBySlug(slug: string): Promise<ProductWithVariants | null> {
@@ -76,6 +93,9 @@ export async function getProductBySlug(slug: string): Promise<ProductWithVariant
 }
 
 export async function getProductById(id: string): Promise<ProductWithVariants | null> {
+  const cached = _productDetailCache.get(id);
+  if (cached && Date.now() - cached.ts < CACHE_TTL) return cached.data;
+
   const { data, error } = await supabase
     .from("products")
     .select("*")
@@ -85,7 +105,9 @@ export async function getProductById(id: string): Promise<ProductWithVariants | 
   if (error || !data) return null;
 
   const variants = await getProductVariants(id);
-  return { ...normalizeProduct(data), variants };
+  const result = { ...normalizeProduct(data), variants };
+  _productDetailCache.set(id, { data: result, ts: Date.now() });
+  return result;
 }
 
 export async function getProductVariants(productId: string): Promise<ProductVariant[]> {
@@ -132,6 +154,7 @@ export async function adminCreateProduct(
     .select("id")
     .single();
   if (error) return { error: error.message };
+  invalidateProductCache();
   return { id: (data as { id: string }).id };
 }
 
@@ -143,11 +166,13 @@ export async function adminUpdateProduct(
     .from("products")
     .update(serializeProduct(input as ProductInput))
     .eq("id", id);
+  if (!error) invalidateProductCache();
   return { error: error?.message };
 }
 
 export async function adminDeleteProduct(id: string): Promise<{ error?: string }> {
   const { error } = await supabase.from("products").delete().eq("id", id);
+  if (!error) invalidateProductCache();
   return { error: error?.message };
 }
 

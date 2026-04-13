@@ -104,6 +104,7 @@ function ProductCard({ product }: { product: Product }) {
           <img
             src={img}
             alt={product.name}
+            loading="lazy"
             className="w-full h-full object-cover"
             onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
           />

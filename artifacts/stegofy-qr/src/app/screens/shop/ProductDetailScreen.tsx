@@ -59,6 +59,7 @@ function ImageSlider({ images, name, category }: { images: string[]; name: strin
       <img
         src={images[active]}
         alt={`${name} – image ${active + 1}`}
+        loading="lazy"
         className="w-full h-full object-cover"
         onError={(e) => {
           const el = e.currentTarget as HTMLImageElement;
