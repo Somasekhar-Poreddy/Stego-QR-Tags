@@ -2,8 +2,9 @@ import { useState, useEffect } from "react";
 import {
   User, Phone, Mail, Shield, Bell, Lock, HelpCircle, LogOut,
   ChevronRight, ChevronDown, Pencil, Trash2, Plus, X, Check,
-  MapPin, Instagram, Twitter, Facebook, Save, Copy,
+  MapPin, Instagram, Twitter, Facebook, Save, Copy, Package,
 } from "lucide-react";
+import { useLocation } from "wouter";
 import { useAuth } from "@/app/context/AuthContext";
 import { AppHeader } from "@/app/components/AppHeader";
 import { cn } from "@/lib/utils";
@@ -175,6 +176,7 @@ function AddressModal({
 
 export function ProfileScreen() {
   const { user, logout } = useAuth();
+  const [, navigate] = useLocation();
 
   /* personal info state */
   const [sgyId,      setSgyId]      = useState<string | null>(null);
@@ -275,10 +277,11 @@ export function ProfileScreen() {
   };
 
   const MENU_ITEMS = [
-    { icon: Bell, label: "Notifications", toggle: true,  value: notifications, onToggle: () => setNotifications(!notifications) },
-    { icon: Lock,         label: "Privacy & Security", toggle: false },
-    { icon: HelpCircle,   label: "Help & Support",     toggle: false },
-    { icon: Shield,       label: "Terms & Privacy",    toggle: false },
+    { icon: Package,      label: "My Orders",           toggle: false, onClick: () => navigate("/app/orders") },
+    { icon: Bell,         label: "Notifications",       toggle: true,  value: notifications, onToggle: () => setNotifications(!notifications) },
+    { icon: Lock,         label: "Privacy & Security",  toggle: false, onClick: undefined },
+    { icon: HelpCircle,   label: "Help & Support",      toggle: false, onClick: undefined },
+    { icon: Shield,       label: "Terms & Privacy",     toggle: false, onClick: undefined },
   ];
 
   return (
@@ -509,14 +512,18 @@ export function ProfileScreen() {
         {/* ── Settings menu ── */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 divide-y divide-slate-50">
           {MENU_ITEMS.map((item) => (
-            <div key={item.label} className="flex items-center gap-3 px-4 py-3.5">
+            <div
+              key={item.label}
+              onClick={item.onClick}
+              className={cn("flex items-center gap-3 px-4 py-3.5", item.onClick && "cursor-pointer active:bg-slate-50 transition-colors")}
+            >
               <div className="w-8 h-8 bg-slate-100 rounded-xl flex items-center justify-center">
                 <item.icon className="w-4 h-4 text-slate-600" />
               </div>
               <p className="flex-1 text-sm font-semibold text-slate-700">{item.label}</p>
               {item.toggle ? (
                 <button
-                  onClick={item.onToggle}
+                  onClick={(e) => { e.stopPropagation(); item.onToggle?.(); }}
                   className={cn("w-10 h-5 rounded-full relative transition-colors", item.value ? "bg-primary" : "bg-slate-200")}
                 >
                   <div className={cn("w-4 h-4 bg-white rounded-full absolute top-0.5 transition-all shadow", item.value ? "right-0.5" : "left-0.5")} />

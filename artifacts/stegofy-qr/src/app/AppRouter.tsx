@@ -18,6 +18,10 @@ import { ManageQRScreen } from "@/app/screens/qr/ManageQRScreen";
 import { ScanScreen } from "@/app/screens/scan/ScanScreen";
 import { ScanProfileScreen } from "@/app/screens/scan/ScanProfileScreen";
 import { ShopScreen } from "@/app/screens/shop/ShopScreen";
+import { ProductDetailScreen } from "@/app/screens/shop/ProductDetailScreen";
+import { CheckoutScreen } from "@/app/screens/checkout/CheckoutScreen";
+import { OrderConfirmationScreen } from "@/app/screens/checkout/OrderConfirmationScreen";
+import { OrdersScreen } from "@/app/screens/orders/OrdersScreen";
 import { ProfileScreen } from "@/app/screens/profile/ProfileScreen";
 
 // Simple container for screens that don't need bottom nav (e.g. unauthenticated Create QR)
@@ -114,7 +118,15 @@ export function AppRouter() {
         <Route path="/app/qr" component={MyQRScreen} />
         <Route path="/app/scan/profile" component={ScanProfileScreen} />
         <Route path="/app/scan" component={ScanScreen} />
+        <Route path="/app/shop/:id">
+          {(params) => params ? <ProductDetailScreen productId={params.id} /> : null}
+        </Route>
         <Route path="/app/shop" component={ShopScreen} />
+        <Route path="/app/checkout" component={CheckoutScreen} />
+        <Route path="/app/order/confirm/:id">
+          {(params) => params ? <OrderConfirmationScreen orderId={params.id} /> : null}
+        </Route>
+        <Route path="/app/orders" component={OrdersScreen} />
         <Route path="/app/profile" component={ProfileScreen} />
         <Route component={HomeScreen} />
       </Switch>

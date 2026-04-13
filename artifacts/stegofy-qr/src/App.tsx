@@ -6,6 +6,7 @@ import NotFound from "@/pages/not-found";
 import LandingPage from "@/pages/LandingPage";
 import { AuthProvider } from "@/app/context/AuthContext";
 import { QRProvider } from "@/app/context/QRContext";
+import { CartProvider } from "@/app/context/CartContext";
 import { AppRouter } from "@/app/AppRouter";
 import { AdminRouter } from "@/admin/AdminRouter";
 import { AdminLogin } from "@/admin/AdminLogin";
@@ -86,10 +87,12 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AuthProvider>
-          <QRProvider>
-            <Router />
-            <Toaster />
-          </QRProvider>
+          <CartProvider>
+            <QRProvider>
+              <Router />
+              <Toaster />
+            </QRProvider>
+          </CartProvider>
         </AuthProvider>
       </TooltipProvider>
     </QueryClientProvider>

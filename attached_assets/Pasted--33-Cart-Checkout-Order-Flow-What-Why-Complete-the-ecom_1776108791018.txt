@@ -1,0 +1,35 @@
+
+#33 - Cart, Checkout & Order Flow
+What & Why
+Complete the ecommerce loop: persist the cart to Supabase for logged-in users (local storage for guests), handle checkout with address collection, create orders in the database, and let users track their orders. This is the final piece that makes the shop fully functional.
+
+Done looks like
+Cart persists to cart_items in Supabase when user is logged in; falls back to localStorage for guests; syncs on login
+Checkout screen (/app/checkout): if not logged in → shows auth gate (login/signup); if logged in → shows form (name, phone, alternate phone, email, address, landmark, pincode, city, state)
+On form submit: creates a row in orders + rows in order_items, clears the cart, and redirects to an order confirmation screen
+Default payment type = COD (Cash on Delivery)
+My Orders screen (/app/orders): shows logged-in user's order history with status badges and expandable order details (items, shipping address, timeline)
+"My Orders" link appears in the user profile or app nav
+New wouter routes added in AppRouter for /app/checkout and /app/orders
+Cart context/hook available app-wide so any screen can add/remove items
+Out of scope
+Online payment gateway (COD only)
+Order cancellation by user (admin-controlled status only)
+Push/email notifications
+Tasks
+Cart context and persistence — Create a CartContext that holds cart items in state, syncs to localStorage for guests, and reads/writes cart_items in Supabase when the user is authenticated. Expose addItem, removeItem, updateQty, clearCart, and computed itemCount / total.
+
+Checkout screen with auth gate — Build /app/checkout: redirect unauthenticated users to login, then show the shipping address form. On submit, validate and call the order creation service.
+
+Order creation service — In orderService.ts, add createOrder(userId, cartItems, shippingDetails) which inserts into orders and order_items in a single transaction-style batch and returns the new order ID.
+
+Order confirmation screen — After successful checkout, show a success screen with the order ID, summary of items, and a "Track My Orders" button.
+
+My Orders screen — Build /app/orders: fetch the user's orders joined with order_items and product names. Display each order as a card with status badge, date, total, and a collapsible item list.
+
+Relevant files
+artifacts/stegofy-qr/src/app/AppRouter.tsx
+artifacts/stegofy-qr/src/app/context/AuthContext.tsx
+artifacts/stegofy-qr/src/app/layout/AppLayout.tsx
+artifacts/stegofy-qr/src/services/productService.ts
+artifacts/stegofy-qr/src/services/orderService.ts

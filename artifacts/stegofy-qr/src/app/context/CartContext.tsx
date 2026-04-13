@@ -1,4 +1,9 @@
-import { createContext, useContext, useState, useCallback } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, useRef } from "react";
+import { supabase } from "@/lib/supabase";
+import {
+  setLocalCart, clearLocalCart,
+  mergeLocalCartToDB, clearDBCart,
+} from "@/services/cartService";
 
 /* ─── Types ─── */
 
@@ -25,12 +30,62 @@ interface CartContextValue {
 
 const CartContext = createContext<CartContextValue | null>(null);
 
+const FULL_CART_KEY = "stegofy_cart_full";
+
+function loadFromStorage(): CartLineItem[] {
+  try {
+    const raw = localStorage.getItem(FULL_CART_KEY);
+    return raw ? (JSON.parse(raw) as CartLineItem[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveToStorage(items: CartLineItem[]): void {
+  try {
+    localStorage.setItem(FULL_CART_KEY, JSON.stringify(items));
+    setLocalCart(
+      items.map((i) => ({
+        product_id: i.productId,
+        variant_id: i.variantId,
+        quantity: i.quantity,
+      })),
+    );
+  } catch { /* ignore */ }
+}
+
 function sameItem(a: CartLineItem, productId: string, variantId: string | null) {
   return a.productId === productId && a.variantId === variantId;
 }
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
-  const [items, setItems] = useState<CartLineItem[]>([]);
+  const [items, setItems] = useState<CartLineItem[]>(() => loadFromStorage());
+  const userIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    saveToStorage(items);
+  }, [items]);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session?.user?.id) {
+        userIdRef.current = data.session.user.id;
+      }
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      const uid = session?.user?.id ?? null;
+      if (event === "SIGNED_IN" && uid && userIdRef.current !== uid) {
+        userIdRef.current = uid;
+        try { await mergeLocalCartToDB(uid); } catch { /* fail silently */ }
+      }
+      if (event === "SIGNED_OUT") {
+        userIdRef.current = null;
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   const addItem = useCallback((item: Omit<CartLineItem, "quantity">, qty = 1) => {
     setItems((prev) => {
@@ -69,7 +124,14 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     return items.find((i) => sameItem(i, productId, variantId))?.quantity ?? 0;
   }, [items]);
 
-  const clearCart = useCallback(() => setItems([]), []);
+  const clearCart = useCallback(() => {
+    setItems([]);
+    clearLocalCart();
+    try { localStorage.removeItem(FULL_CART_KEY); } catch { /* ignore */ }
+    if (userIdRef.current) {
+      clearDBCart(userIdRef.current).catch(() => { /* fail silently */ });
+    }
+  }, []);
 
   const totalItems = items.reduce((s, i) => s + i.quantity, 0);
   const totalPrice = items.reduce((s, i) => s + i.price * i.quantity, 0);

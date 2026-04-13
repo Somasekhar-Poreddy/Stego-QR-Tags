@@ -1,0 +1,29 @@
+#32 - Shop UI + Product Detail Pages
+What & Why
+Build the consumer-facing shop experience at /app/shop. Users can browse products by category, view product detail pages, and see a sticky cart summary bar. This replaces the current empty Shop screen.
+
+Done looks like
+Shop page (/app/shop): category tabs (All, Pets, Vehicles, Medical, Kids), product grid cards each showing image, badge (top-left), name, star rating, price + strikethrough discount price, and a +/- quick-add button
+Product detail page (/app/shop/:id): image slider, name + rating, price + discount, variant selector (if variants exist), features grid with icons, specifications table, reviews list, "Add to Cart" and "Buy Now (COD)" CTA buttons
+Sticky cart bar at the bottom: shows "X items · ₹total" and a Checkout button — visible whenever the cart has items
+Skeleton loaders while products are fetching
+Mobile-first, premium look consistent with the existing app design
+New wouter route added in AppRouter for /app/shop/:id
+Out of scope
+Actual cart persistence (handled in the next task)
+Checkout flow (handled in the next task)
+User reviews submission (read-only for now)
+Tasks
+Shop page with category tabs and product grid — Fetch active products from productService, render category filter tabs, and display product cards. The +/- quick-add button updates a local cart state (passed via context or lifted state).
+
+Product detail page — Create a new screen at /app/shop/:id that loads a single product with its variants and reviews. Include image slider, variant selector, features, specs, and reviews list.
+
+Sticky cart bar — Render a fixed bottom bar that shows item count and total price. Connect it to the same cart state used by the shop cards. The Checkout button navigates to /app/checkout (screen built in next task).
+
+Product service read functions — Add getActiveProducts(category?), getProductById(id), getProductReviews(productId) to productService.ts.
+
+Relevant files
+artifacts/stegofy-qr/src/app/AppRouter.tsx
+artifacts/stegofy-qr/src/app/layout/AppLayout.tsx
+artifacts/stegofy-qr/src/services/productService.ts
+artifacts/stegofy-qr/src/app/screens/HomeScreen.tsx
