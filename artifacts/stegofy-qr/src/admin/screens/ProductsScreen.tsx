@@ -565,7 +565,7 @@ function ProductForm({
     if (!form.slug.trim()) { setError("Slug is required."); return; }
     setSaving(true); setError(null);
 
-    const timeout = (ms: number) =>
+    const makeTimeout = (ms: number) =>
       new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error("Request timed out. Please try again.")), ms)
       );
@@ -576,6 +576,7 @@ function ProductForm({
 
       const input = formToInput(form);
       let productId = form.id;
+      let cancelled = false;
 
       await Promise.race([
         (async () => {
@@ -599,9 +600,9 @@ function ProductForm({
           const varResult = await adminUpsertVariants(productId!, variantRows);
           if (varResult.error) throw new Error(`Variants: ${varResult.error}`);
 
-          onSaved();
+          if (!cancelled) onSaved();
         })(),
-        timeout(15000),
+        makeTimeout(15000).catch((e) => { cancelled = true; throw e; }),
       ]);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Save failed");
