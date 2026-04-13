@@ -486,8 +486,17 @@ export async function getPeakHourData(from?: Date, to?: Date): Promise<{ hour: n
    ═══════════════════════════════════════════════════ */
 
 /* ═══════════════════════════════════════════════════
-   ORDERS — see orderService.ts for full CRUD
+   ORDERS — canonical admin API lives in orderService.ts.
+   Re-exported here for convenience as required by task #31.
    ═══════════════════════════════════════════════════ */
+export {
+  adminGetOrders,
+  adminGetOrdersCount,
+  adminGetOrderById,
+  adminUpdateOrderStatus,
+  ORDER_STATUS_PIPELINE,
+  ORDER_STATUS_LABELS,
+} from "@/services/orderService";
 
 /* ═══════════════════════════════════════════════════
    QR INVENTORY
