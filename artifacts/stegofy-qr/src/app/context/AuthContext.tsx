@@ -281,24 +281,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Visibility recovery: browsers throttle JS timers in background tabs
     // (~1 min), which can let the Supabase token expire mid-session.
-    // When the user returns to the tab, force an immediate session check
-    // so the token is refreshed before any user action fires.
+    // When the user returns to the tab, force an immediate network refresh
+    // so the JWT is renewed before any user action fires.
+    // NOTE: refreshSession() (not getSession()) is used here deliberately —
+    // getSession() reads from localStorage and may return a stale/expired JWT
+    // without making a network call. refreshSession() always hits the network.
     const handleVisibilityChange = async () => {
       if (document.visibilityState !== "visible") return;
       if (!mounted) return;
+      if (passwordRecoveryInProgress.current || otpSignupInProgress.current) return;
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session }, error } = await supabase.auth.refreshSession();
         if (!mounted) return;
-        if (session?.user && !passwordRecoveryInProgress.current && !otpSignupInProgress.current) {
-          const built = await fetchAndBuildUser(session.user);
-          if (mounted) setUser(built);
-        } else if (!session && !passwordRecoveryInProgress.current) {
-          // Session is truly gone — redirect to login
+        if (error || !session) {
+          // Refresh failed — session is truly gone
           setUser(null);
           setStep("login");
+          return;
+        }
+        if (session.user) {
+          const built = await fetchAndBuildUser(session.user);
+          if (mounted) setUser(built);
         }
       } catch {
-        // non-fatal — user stays in current state
+        // non-fatal — user stays in current state; auth events will handle expiry
       }
     };
     document.addEventListener("visibilitychange", handleVisibilityChange);

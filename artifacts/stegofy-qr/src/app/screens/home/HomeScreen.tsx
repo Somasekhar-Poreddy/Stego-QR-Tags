@@ -124,8 +124,11 @@ export function HomeScreen() {
       }
 
       setActivity(rows.slice(0, 5));
-    } catch {
-      setActivity([]);
+    } catch (err) {
+      // Do NOT clear the activity feed on error — preserve the last known good state
+      // so the screen never flashes blank. The AuthContext SIGNED_OUT handler will
+      // redirect to login if the session is truly gone.
+      console.error("[HomeScreen] Activity load failed:", err);
     } finally {
       setActivityLoading(false);
     }
