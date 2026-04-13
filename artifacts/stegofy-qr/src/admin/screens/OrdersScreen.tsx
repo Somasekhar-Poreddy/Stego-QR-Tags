@@ -11,10 +11,8 @@ import {
   adminUpdateOrderStatus,
   ORDER_STATUS_PIPELINE,
   ORDER_STATUS_LABELS,
-  type Order,
-  type OrderStatus,
-  type OrderWithItems,
-} from "@/services/orderService";
+} from "@/services/adminService";
+import type { Order, OrderStatus, OrderWithItems } from "@/services/orderService";
 
 /* ─── Constants ─── */
 
