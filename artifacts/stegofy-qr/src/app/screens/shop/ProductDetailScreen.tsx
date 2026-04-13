@@ -282,7 +282,14 @@ export function ProductDetailScreen({ productId }: { productId: string }) {
 
         {/* Description */}
         {product.description && (
-          <p className="text-sm text-slate-600 leading-relaxed mb-3">{product.description}</p>
+          product.description.startsWith("<") ? (
+            <div
+              className="text-sm text-slate-600 leading-relaxed mb-3 prose prose-sm max-w-none prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-h2:text-base prose-h2:font-bold prose-h2:text-slate-800 prose-h2:mb-1"
+              dangerouslySetInnerHTML={{ __html: product.description }}
+            />
+          ) : (
+            <p className="text-sm text-slate-600 leading-relaxed mb-3">{product.description}</p>
+          )
         )}
 
         {/* Variant selector */}

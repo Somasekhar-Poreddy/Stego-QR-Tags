@@ -78,6 +78,10 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.100.1",
+    "@tiptap/extension-placeholder": "^3.22.3",
+    "@tiptap/extension-underline": "^3.22.3",
+    "@tiptap/react": "^3.22.3",
+    "@tiptap/starter-kit": "^3.22.3",
     "html-to-image": "^1.11.13",
     "jspdf": "^4.2.1",
     "qrcode": "^1.5.4",

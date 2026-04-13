@@ -1,9 +1,14 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import {
   Plus, Pencil, Trash2, X, Package, Search,
   ToggleLeft, ToggleRight, Star, Tag, Image,
   List, Table2, ChevronDown, ChevronUp, AlertCircle,
+  Upload, Link as LinkIcon, Bold, Italic, Underline as UnderlineIcon,
+  ListOrdered, Heading2,
 } from "lucide-react";
+import { useEditor, EditorContent } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
+import UnderlineExt from "@tiptap/extension-underline";
 import {
   adminGetAllProducts,
   adminCreateProduct,
@@ -15,6 +20,7 @@ import {
   type ProductInput,
   type ProductVariant,
 } from "@/services/productService";
+import { supabase } from "@/lib/supabase";
 
 /* ─── constants ─── */
 
@@ -101,6 +107,10 @@ function productToForm(p: Product, variants: ProductVariant[]): FormData {
   };
 }
 
+function isEmptyHtml(html: string): boolean {
+  return !html.trim() || html.replace(/<[^>]*>/g, "").trim() === "";
+}
+
 function formToInput(f: FormData): ProductInput {
   const specs: Record<string, string> = {};
   f.specifications.forEach(({ key, value }) => {
@@ -109,7 +119,7 @@ function formToInput(f: FormData): ProductInput {
   return {
     name: f.name.trim(),
     slug: f.slug.trim(),
-    description: f.description.trim() || null,
+    description: isEmptyHtml(f.description) ? null : f.description.trim(),
     category: (f.category as Category) || null,
     images: f.images.filter((u) => u.trim()),
     price: Number(f.price) || 0,
@@ -147,47 +157,211 @@ function Input({
   );
 }
 
-/* Image URLs section */
+/*
+  REQUIRES: A public Supabase Storage bucket named "product-images".
+  Create it in: Supabase Dashboard → Storage → New bucket → name: product-images → toggle Public ON.
+*/
+
+/* Image upload + URL section */
 function ImagesSection({ images, onChange }: { images: string[]; onChange: (imgs: string[]) => void }) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [urlInput, setUrlInput] = useState("");
+  const [dragging, setDragging] = useState(false);
+
+  const uploadFiles = async (files: FileList | File[]) => {
+    setUploading(true);
+    setUploadError(null);
+    const newUrls: string[] = [];
+    for (const file of Array.from(files)) {
+      if (!file.type.startsWith("image/")) continue;
+      const ext = file.name.split(".").pop() ?? "jpg";
+      const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const { error } = await supabase.storage.from("product-images").upload(path, file, { upsert: true });
+      if (error) { setUploadError(error.message); continue; }
+      const { data } = supabase.storage.from("product-images").getPublicUrl(path);
+      if (data?.publicUrl) newUrls.push(data.publicUrl);
+    }
+    if (newUrls.length) onChange([...images.filter((u) => u.trim()), ...newUrls]);
+    setUploading(false);
+  };
+
+  const addUrl = () => {
+    const trimmed = urlInput.trim();
+    if (!trimmed) return;
+    onChange([...images.filter((u) => u.trim()), trimmed]);
+    setUrlInput("");
+  };
+
+  const removeImage = (i: number) => onChange(images.filter((_, j) => j !== i));
+
+  const validImages = images.filter((u) => u.trim());
+
   return (
-    <div>
-      <FieldLabel>Image URLs</FieldLabel>
-      <div className="space-y-2">
-        {images.map((url, i) => (
-          <div key={i} className="flex gap-2 items-center">
-            <Input
-              value={url}
-              onChange={(v) => { const a = [...images]; a[i] = v; onChange(a); }}
-              placeholder={`Image URL ${i + 1}`}
-            />
-            {images.length > 1 && (
-              <button
-                type="button"
-                onClick={() => onChange(images.filter((_, j) => j !== i))}
-                className="text-red-400 hover:text-red-600 flex-shrink-0"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
-          </div>
-        ))}
-        <button
-          type="button"
-          onClick={() => onChange([...images, ""])}
-          className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-primary/80 transition-colors"
-        >
-          <Plus className="w-3.5 h-3.5" /> Add image URL
-        </button>
-      </div>
-      {/* preview first image */}
-      {images[0]?.trim() && (
-        <img
-          src={images[0]}
-          alt="Preview"
-          className="mt-3 h-28 w-28 object-cover rounded-xl border border-slate-200"
-          onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+    <div className="space-y-4">
+      <FieldLabel>Product Images</FieldLabel>
+
+      {/* Upload zone */}
+      <div
+        onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(e) => { e.preventDefault(); setDragging(false); if (e.dataTransfer.files.length) uploadFiles(e.dataTransfer.files); }}
+        onClick={() => fileRef.current?.click()}
+        className={`relative flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed py-6 cursor-pointer transition-colors ${
+          dragging ? "border-primary bg-primary/5" : "border-slate-200 hover:border-primary/50 hover:bg-slate-50"
+        }`}
+      >
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={(e) => { if (e.target.files?.length) uploadFiles(e.target.files); e.target.value = ""; }}
         />
+        {uploading ? (
+          <>
+            <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            <p className="text-xs text-slate-500 font-semibold">Uploading…</p>
+          </>
+        ) : (
+          <>
+            <Upload className="w-6 h-6 text-primary/60" />
+            <p className="text-xs font-semibold text-slate-600">Click or drag images here to upload</p>
+            <p className="text-[10px] text-slate-400">PNG, JPG, WebP supported</p>
+          </>
+        )}
+      </div>
+
+      {uploadError && (
+        <p className="text-xs text-red-500 flex items-center gap-1.5">
+          <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+          {uploadError}
+          {uploadError.includes("bucket") || uploadError.includes("not found") ? (
+            <span className="font-semibold"> — Create a public bucket named &quot;product-images&quot; in Supabase Storage.</span>
+          ) : null}
+        </p>
       )}
+
+      {/* URL input */}
+      <div>
+        <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1.5">Or add by URL</p>
+        <div className="flex gap-2">
+          <div className="flex-1 flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 bg-white">
+            <LinkIcon className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+            <input
+              value={urlInput}
+              onChange={(e) => setUrlInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addUrl(); } }}
+              placeholder="https://example.com/image.jpg"
+              className="flex-1 text-sm text-slate-800 outline-none placeholder:text-slate-400 bg-transparent"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={addUrl}
+            disabled={!urlInput.trim()}
+            className="px-3 py-2 rounded-xl bg-primary/10 text-primary text-xs font-bold hover:bg-primary/20 transition-colors disabled:opacity-40"
+          >
+            Add
+          </button>
+        </div>
+      </div>
+
+      {/* Thumbnail grid */}
+      {validImages.length > 0 && (
+        <div>
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">
+            Images ({validImages.length})
+          </p>
+          <div className="grid grid-cols-3 gap-2">
+            {validImages.map((url, i) => (
+              <div key={i} className="relative group rounded-xl overflow-hidden border border-slate-200 bg-slate-50 aspect-square">
+                <img
+                  src={url}
+                  alt={`Product image ${i + 1}`}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    const el = e.currentTarget;
+                    el.style.display = "none";
+                    const parent = el.parentElement;
+                    if (parent) parent.classList.add("flex", "items-center", "justify-center");
+                  }}
+                />
+                {i === 0 && (
+                  <span className="absolute top-1 left-1 text-[9px] font-bold bg-primary text-white px-1.5 py-0.5 rounded-md">
+                    Cover
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => removeImage(i)}
+                  className="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* Rich text editor */
+function RichTextEditor({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const editor = useEditor({
+    extensions: [StarterKit, UnderlineExt],
+    content: value,
+    onUpdate: ({ editor }) => onChange(editor.getHTML()),
+    editorProps: {
+      attributes: {
+        class: "min-h-[120px] px-3 py-2.5 text-sm text-slate-800 outline-none leading-relaxed prose prose-sm max-w-none",
+      },
+    },
+  });
+
+  if (!editor) return null;
+
+  const ToolBtn = ({
+    active, onClick, children,
+  }: { active?: boolean; onClick: () => void; children: React.ReactNode }) => (
+    <button
+      type="button"
+      onMouseDown={(e) => { e.preventDefault(); onClick(); }}
+      className={`p-1.5 rounded-lg transition-colors ${active ? "bg-primary text-white" : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"}`}
+    >
+      {children}
+    </button>
+  );
+
+  return (
+    <div className="rounded-xl border border-slate-200 overflow-hidden focus-within:border-primary focus-within:ring-1 focus-within:ring-primary/20 transition-colors">
+      {/* Toolbar */}
+      <div className="flex items-center gap-0.5 px-2 py-1.5 border-b border-slate-100 bg-slate-50 flex-wrap">
+        <ToolBtn active={editor.isActive("bold")} onClick={() => editor.chain().focus().toggleBold().run()}>
+          <Bold className="w-3.5 h-3.5" />
+        </ToolBtn>
+        <ToolBtn active={editor.isActive("italic")} onClick={() => editor.chain().focus().toggleItalic().run()}>
+          <Italic className="w-3.5 h-3.5" />
+        </ToolBtn>
+        <ToolBtn active={editor.isActive("underline")} onClick={() => editor.chain().focus().toggleUnderline().run()}>
+          <UnderlineIcon className="w-3.5 h-3.5" />
+        </ToolBtn>
+        <div className="w-px h-4 bg-slate-200 mx-1" />
+        <ToolBtn active={editor.isActive("heading", { level: 2 })} onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}>
+          <Heading2 className="w-3.5 h-3.5" />
+        </ToolBtn>
+        <ToolBtn active={editor.isActive("bulletList")} onClick={() => editor.chain().focus().toggleBulletList().run()}>
+          <List className="w-3.5 h-3.5" />
+        </ToolBtn>
+        <ToolBtn active={editor.isActive("orderedList")} onClick={() => editor.chain().focus().toggleOrderedList().run()}>
+          <ListOrdered className="w-3.5 h-3.5" />
+        </ToolBtn>
+      </div>
+      <EditorContent editor={editor} />
     </div>
   );
 }
@@ -391,31 +565,44 @@ function ProductForm({
     if (!form.slug.trim()) { setError("Slug is required."); return; }
     setSaving(true); setError(null);
 
+    const timeout = (ms: number) =>
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Request timed out. Please try again.")), ms)
+      );
+
     try {
+      // Refresh auth session so the token doesn't expire mid-save
+      await supabase.auth.refreshSession().catch(() => {});
+
       const input = formToInput(form);
       let productId = form.id;
 
-      if (productId) {
-        const { error: e } = await adminUpdateProduct(productId, input);
-        if (e) throw new Error(e);
-      } else {
-        const result = await adminCreateProduct(input);
-        if ("error" in result) throw new Error(result.error);
-        productId = result.id;
-      }
+      await Promise.race([
+        (async () => {
+          if (productId) {
+            const { error: e } = await adminUpdateProduct(productId, input);
+            if (e) throw new Error(e);
+          } else {
+            const result = await adminCreateProduct(input);
+            if ("error" in result) throw new Error(result.error);
+            productId = result.id;
+          }
 
-      // Save variants
-      const variantRows = form.variants
-        .filter((v) => v.variant_name.trim())
-        .map((v) => ({
-          variant_name: v.variant_name.trim(),
-          price: Number(v.price) || 0,
-          stock: Number(v.stock) || 0,
-        }));
-      const varResult = await adminUpsertVariants(productId!, variantRows);
-      if (varResult.error) throw new Error(`Variants: ${varResult.error}`);
+          // Save variants
+          const variantRows = form.variants
+            .filter((v) => v.variant_name.trim())
+            .map((v) => ({
+              variant_name: v.variant_name.trim(),
+              price: Number(v.price) || 0,
+              stock: Number(v.stock) || 0,
+            }));
+          const varResult = await adminUpsertVariants(productId!, variantRows);
+          if (varResult.error) throw new Error(`Variants: ${varResult.error}`);
 
-      onSaved();
+          onSaved();
+        })(),
+        timeout(15000),
+      ]);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Save failed");
     } finally {
@@ -483,13 +670,7 @@ function ProductForm({
                 </div>
                 <div>
                   <FieldLabel>Description</FieldLabel>
-                  <textarea
-                    value={form.description}
-                    onChange={(e) => set("description", e.target.value)}
-                    rows={3}
-                    placeholder="Short product description..."
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm text-slate-800 outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-colors resize-none"
-                  />
+                  <RichTextEditor value={form.description} onChange={(v) => set("description", v)} />
                 </div>
                 <div>
                   <FieldLabel>Category</FieldLabel>
