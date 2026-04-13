@@ -203,20 +203,29 @@ export function ProfileScreen() {
   const [strictMode,    setStrictMode]    = useState(true);
   const [notifications, setNotifications] = useState(true);
 
-  /* load profile */
+  /* load profile — safeFetch-style: preserve previous state on error / empty */
   useEffect(() => {
     if (!user?.id) return;
-    getUserProfile(user.id).then((p) => {
-      if (!p) return;
-      setSgyId(    p.sgy_id      ?? null);
-      setFirstName(p.first_name  ?? "");
-      setLastName( p.last_name   ?? "");
-      setMobile(   p.mobile      ?? "");
-      setAgeGroup( p.age_group   ?? "");
-      setGender(   p.gender      ?? "");
-      setAddresses((p.addresses  as Address[]) ?? []);
-      setSocial(   (p.social_links as SocialLinks) ?? {});
-    });
+    getUserProfile(user.id)
+      .then((p) => {
+        if (!p) return;
+        setSgyId(    p.sgy_id      ?? null);
+        setFirstName(p.first_name  ?? "");
+        setLastName( p.last_name   ?? "");
+        setMobile(   p.mobile      ?? "");
+        setAgeGroup( p.age_group   ?? "");
+        setGender(   p.gender      ?? "");
+        // Functional update: preserve existing address list if the server returns
+        // an empty array (e.g., on a transient auth hiccup), matching safeFetch semantics.
+        const freshAddresses = (p.addresses as Address[]) ?? [];
+        setAddresses((prev) => freshAddresses.length > 0 ? freshAddresses : prev);
+        setSocial(   (p.social_links as SocialLinks) ?? {});
+      })
+      .catch((err) => {
+        // Log the failure but do NOT clear any state — keep previously loaded
+        // profile data visible rather than flashing blank on a fetch error.
+        console.error("[ProfileScreen] Failed to load profile:", err);
+      });
   }, [user?.id]);
 
   const copySgyId = () => {

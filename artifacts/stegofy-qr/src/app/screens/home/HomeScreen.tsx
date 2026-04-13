@@ -7,6 +7,7 @@ import { SmartBanner, type ActivityItem } from "@/app/components/SmartBanner";
 import { useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
+import { safeFetch } from "@/lib/safeFetch";
 
 const TYPE_COLORS: Record<string, string> = {
   pet: "bg-rose-100 text-rose-600",
@@ -68,10 +69,20 @@ export function HomeScreen() {
     try {
       const rows: ActivityRow[] = [];
 
-      const { data: qrData } = await supabase
-        .from("qr_codes")
-        .select("id, name")
-        .eq("user_id", user.id);
+      // safeFetch guards the session, prevents replacing existing data with an
+      // empty result on transient auth failures, and logs errors to the console.
+      const qrData = await safeFetch<{ id: string; name: string }>(
+        async () => {
+          const { data, error } = await supabase
+            .from("qr_codes")
+            .select("id, name")
+            .eq("user_id", user.id);
+          if (error) throw new Error(error.message);
+          return (data ?? []) as { id: string; name: string }[];
+        },
+        [],
+        "HomeScreen:qrCodes",
+      );
 
       const userQrIds = (qrData ?? []).map((q) => q.id as string);
       const qrNameMap = Object.fromEntries((qrData ?? []).map((q) => [q.id as string, q.name as string]));
@@ -123,7 +134,10 @@ export function HomeScreen() {
         rows.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
       }
 
-      setActivity(rows.slice(0, 5));
+      // Functional update: only replace the activity state if we fetched
+      // at least one row — never overwrite existing data with an empty result.
+      const fresh = rows.slice(0, 5);
+      setActivity((prev) => fresh.length > 0 ? fresh : prev);
     } catch (err) {
       // Do NOT clear the activity feed on error — preserve the last known good state
       // so the screen never flashes blank. The AuthContext SIGNED_OUT handler will
