@@ -5,24 +5,13 @@ import { v4 as uuidv4 } from "uuid";
 export type { UserProfile } from "@/services/userService";
 export type { QRCodeRow } from "@/services/qrService";
 export type { ContactRequest } from "@/services/contactRequestService";
+export type { Product } from "@/services/productService";
+export type { Order, OrderStatus, OrderWithItems } from "@/services/orderService";
 
 /* ─── Admin-specific types ─── */
 export interface AdminUser {
   id: string; user_id: string | null; email: string; name: string | null;
   role: string; permissions: Record<string, boolean>; created_at: string;
-}
-export interface Product {
-  id: string; name: string; description: string | null; price: number | null;
-  discount_price: number | null; image_url: string | null; category: string | null;
-  rating: number; review_count: number; created_at: string;
-}
-export interface Order {
-  id: string; customer_name: string | null; phone: string | null;
-  alternate_phone: string | null; email: string | null;
-  address_line_1: string | null; address_line_2: string | null;
-  landmark: string | null; pincode: string | null; city: string | null;
-  state: string | null; product_id: string | null; order_status: string;
-  created_at: string;
 }
 export interface QRInventoryItem {
   id: string; qr_code: string; type: string | null; category: string | null;
@@ -490,32 +479,12 @@ export async function getPeakHourData(from?: Date, to?: Date): Promise<{ hour: n
 }
 
 /* ═══════════════════════════════════════════════════
-   PRODUCTS
+   PRODUCTS — see productService.ts for full CRUD
    ═══════════════════════════════════════════════════ */
-export async function getProducts(): Promise<Product[]> {
-  const { data } = await supabase.from("products").select("*").order("created_at", { ascending: false });
-  return (data ?? []) as Product[];
-}
-export async function createProduct(p: Partial<Product>) {
-  return supabase.from("products").insert(p);
-}
-export async function updateProduct(id: string, p: Partial<Product>) {
-  return supabase.from("products").update(p).eq("id", id);
-}
-export async function deleteProduct(id: string) {
-  return supabase.from("products").delete().eq("id", id);
-}
 
 /* ═══════════════════════════════════════════════════
-   ORDERS
+   ORDERS — see orderService.ts for full CRUD
    ═══════════════════════════════════════════════════ */
-export async function getOrders(): Promise<Order[]> {
-  const { data } = await supabase.from("orders").select("*").order("created_at", { ascending: false });
-  return (data ?? []) as Order[];
-}
-export async function updateOrderStatus(id: string, status: string) {
-  return supabase.from("orders").update({ order_status: status }).eq("id", id);
-}
 
 /* ═══════════════════════════════════════════════════
    QR INVENTORY
