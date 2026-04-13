@@ -125,9 +125,10 @@ CREATE TABLE orders (
   id               UUID        DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id          UUID        REFERENCES auth.users(id) ON DELETE SET NULL,
   total_price      NUMERIC(10,2) NOT NULL DEFAULT 0,
-  payment_type     TEXT        NOT NULL DEFAULT 'cod',   -- cod | online
-  order_status     TEXT        NOT NULL DEFAULT 'placed',
-    -- placed | confirmed | packed | shipped | delivered | cancelled
+  payment_type     TEXT        NOT NULL DEFAULT 'cod'
+                    CHECK (payment_type IN ('cod', 'online')),
+  order_status     TEXT        NOT NULL DEFAULT 'placed'
+                    CHECK (order_status IN ('placed', 'confirmed', 'packed', 'shipped', 'delivered', 'cancelled')),
   shipping_details JSONB       DEFAULT '{}',
     -- { name, phone, alternate_phone, email, address, landmark, pincode, city, state }
   created_at       TIMESTAMPTZ DEFAULT now()
@@ -139,7 +140,9 @@ CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at DESC);
 
 ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
 
--- Users can read and insert their own orders
+-- Users can read and insert their own orders.
+-- UPDATE/DELETE for users is intentionally excluded: order_status changes
+-- are admin-controlled (pipeline: placed→confirmed→packed→shipped→delivered).
 CREATE POLICY "Users read own orders"
   ON orders FOR SELECT
   USING (auth.uid() = user_id);
@@ -148,7 +151,7 @@ CREATE POLICY "Users insert own orders"
   ON orders FOR INSERT
   WITH CHECK (auth.uid() = user_id);
 
--- Admin can fully manage all orders
+-- Admin can fully manage all orders (status updates, deletions, etc.)
 CREATE POLICY "Admin manage all orders"
   ON orders FOR ALL
   USING (auth.uid() IN (SELECT user_id FROM admin_users))
