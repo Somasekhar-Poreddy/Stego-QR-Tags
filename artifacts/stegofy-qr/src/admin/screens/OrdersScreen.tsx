@@ -71,8 +71,13 @@ const STEP_ICONS: Record<OrderStatus, React.ElementType> = {
 /* ─── Pipeline stepper ─── */
 
 function PipelineStepper({
-  current, orderId, onUpdate,
-}: { current: OrderStatus; orderId: string; onUpdate: () => void }) {
+  current, orderId, onUpdate, onStatusChanged,
+}: {
+  current: OrderStatus;
+  orderId: string;
+  onUpdate: () => void;
+  onStatusChanged?: (s: OrderStatus) => void;
+}) {
   const [saving, setSaving] = useState<OrderStatus | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
@@ -89,6 +94,7 @@ function PipelineStepper({
     const result = await adminUpdateOrderStatus(orderId, nextStatus);
     setSaving(null);
     if (result.error) { setErr(result.error); return; }
+    onStatusChanged?.(nextStatus);
     onUpdate();
   };
 
@@ -97,6 +103,7 @@ function PipelineStepper({
     const result = await adminUpdateOrderStatus(orderId, "cancelled");
     setSaving(null);
     if (result.error) { setErr(result.error); return; }
+    onStatusChanged?.("cancelled");
     onUpdate();
   };
 
@@ -171,12 +178,18 @@ function OrderDetail({ order, onUpdate }: { order: Order; onUpdate: () => void }
   const [detail, setDetail] = useState<OrderWithItems | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  // Track status locally so stepper updates immediately without collapsing the row
+  const [localStatus, setLocalStatus] = useState<OrderStatus>(order.order_status);
 
   useEffect(() => {
     setLoading(true);
     setErr(null);
     adminGetOrderById(order.id)
-      .then((d) => { setDetail(d); setLoading(false); })
+      .then((d) => {
+        setDetail(d);
+        if (d) setLocalStatus(d.order_status);
+        setLoading(false);
+      })
       .catch((e) => { setErr(e instanceof Error ? e.message : "Failed to load"); setLoading(false); });
   }, [order.id]);
 
@@ -229,8 +242,8 @@ function OrderDetail({ order, onUpdate }: { order: Order; onUpdate: () => void }
           <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border capitalize ${paymentBadge(detail.payment_type)}`}>
             {detail.payment_type === "cod" ? "Cash on Delivery" : "Online Payment"}
           </span>
-          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border ${statusBadge(detail.order_status)}`}>
-            {ORDER_STATUS_LABELS[detail.order_status] ?? detail.order_status}
+          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border ${statusBadge(localStatus)}`}>
+            {ORDER_STATUS_LABELS[localStatus] ?? localStatus}
           </span>
         </div>
       </div>
@@ -269,9 +282,10 @@ function OrderDetail({ order, onUpdate }: { order: Order; onUpdate: () => void }
           <Truck className="w-3.5 h-3.5 text-primary" /> Update Status
         </p>
         <PipelineStepper
-          current={detail.order_status}
+          current={localStatus}
           orderId={detail.id}
           onUpdate={onUpdate}
+          onStatusChanged={(s) => setLocalStatus(s)}
         />
       </div>
     </div>
@@ -399,9 +413,21 @@ export function OrdersScreen() {
     load(activeTab, page);
   }, [load, activeTab, page]);
 
+  const refreshTabCounts = useCallback(() => {
+    Promise.all(
+      STATUS_TABS.map(async (t) => {
+        const cnt = await adminGetOrdersCount(t).catch(() => 0);
+        return [t, cnt] as [typeof t, number];
+      })
+    ).then((entries) => {
+      setTabCounts(Object.fromEntries(entries));
+    });
+  }, []);
+
   const reload = useCallback(() => {
     load(activeTab, page);
-  }, [load, activeTab, page]);
+    refreshTabCounts();
+  }, [load, activeTab, page, refreshTabCounts]);
 
   const handleTabChange = (tab: OrderStatus | "all") => {
     setActiveTab(tab);
