@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase";
-import { ensureFreshSession } from "@/lib/adminAuth";
+import { ensureFreshSession, throwAsAuthError } from "@/lib/adminAuth";
 import { v4 as uuidv4 } from "uuid";
 
 /* ─── Re-exported types shared with other modules ─── */
@@ -33,7 +33,7 @@ export interface Setting { key: string; value: string | null; updated_at: string
 export async function adminGetAllUsers() {
   await ensureFreshSession();
   const { data, error } = await supabase.from("user_profiles").select("*").order("created_at", { ascending: false });
-  if (error) throw new Error(error.message);
+  if (error) throwAsAuthError(error);
   return data ?? [];
 }
 export async function adminBlockUser(id: string) {
@@ -170,7 +170,7 @@ export async function adminGetScansByQRIds(qrIds: string[], limit = 50): Promise
     .in("qr_id", qrIds)
     .order("created_at", { ascending: false })
     .limit(limit);
-  if (error) throw new Error(error.message);
+  if (error) throwAsAuthError(error);
   return (data ?? []) as QRScan[];
 }
 
@@ -180,7 +180,7 @@ export async function adminGetScanCountByQRIds(qrIds: string[]): Promise<number>
     .from("qr_scans")
     .select("id", { count: "exact", head: true })
     .in("qr_id", qrIds);
-  if (error) throw new Error(error.message);
+  if (error) throwAsAuthError(error);
   return count ?? 0;
 }
 
@@ -208,7 +208,7 @@ export async function adminGetAllScans(
   if (filter === "strangers") q = q.is("user_id", null);
 
   const { data, error } = await q;
-  if (error) throw new Error(error.message);
+  if (error) throwAsAuthError(error);
 
   return ((data ?? []) as unknown as (QRScan & { qr_codes: { name: string | null; display_code: string | null; type: string | null } | null })[]).map(
     (row) => ({
@@ -227,7 +227,7 @@ export async function adminGetAllScansCount(filter: ScanFilter = "all"): Promise
   if (filter === "strangers") q = q.is("user_id", null);
 
   const { count, error } = await q;
-  if (error) throw new Error(error.message);
+  if (error) throwAsAuthError(error);
   return count ?? 0;
 }
 
@@ -247,7 +247,7 @@ export async function adminGetGeoBreakdown(
   if (to) q = q.lte("created_at", to.toISOString());
 
   const { data, error } = await q;
-  if (error) throw new Error(error.message);
+  if (error) throwAsAuthError(error);
 
   const counts: Record<string, number> = {};
   (data ?? []).forEach((row) => {
@@ -272,7 +272,7 @@ export async function adminGetDeviceBreakdown(
   if (to) q = q.lte("created_at", to.toISOString());
 
   const { data, error } = await q;
-  if (error) throw new Error(error.message);
+  if (error) throwAsAuthError(error);
 
   const counts: Record<string, number> = {};
   (data ?? []).forEach((row) => {
@@ -363,7 +363,7 @@ export async function adminDecryptIP(
 export async function adminGetAllQRCodes() {
   await ensureFreshSession();
   const { data, error } = await supabase.from("qr_codes").select("*").order("created_at", { ascending: false });
-  if (error) throw new Error(error.message);
+  if (error) throwAsAuthError(error);
   return data ?? [];
 }
 export async function adminDisableQRCode(id: string) {
@@ -385,7 +385,7 @@ export async function adminUpdateQRCode(id: string, updates: Record<string, unkn
 export async function adminGetAllContactRequests() {
   await ensureFreshSession();
   const { data, error } = await supabase.from("contact_requests").select("*").order("created_at", { ascending: false });
-  if (error) throw new Error(error.message);
+  if (error) throwAsAuthError(error);
   return data ?? [];
 }
 export async function adminResolveContactRequest(id: string) {
@@ -412,7 +412,7 @@ export async function getDashboardStats() {
   ]);
 
   const firstError = users.error ?? qrs.error ?? todayReqs.error ?? emergencyReqs.error ?? orders.error;
-  if (firstError) throw new Error(firstError.message);
+  if (firstError) throwAsAuthError(firstError);
 
   return {
     totalUsers: users.count ?? 0,
@@ -550,7 +550,7 @@ export async function getPermissionDefinitions(): Promise<PermissionDefinition[]
 export async function getAdminUsers(): Promise<AdminUser[]> {
   await ensureFreshSession();
   const { data, error } = await supabase.from("admin_users").select("*").order("created_at", { ascending: false });
-  if (error) throw new Error(error.message);
+  if (error) throwAsAuthError(error);
   return (data ?? []) as AdminUser[];
 }
 export async function addAdminUser(data: Partial<AdminUser> & { password?: string; confirmPassword?: string }): Promise<{ error?: string }> {
@@ -602,7 +602,7 @@ export async function removeAdminUser(id: string): Promise<{ error?: string }> {
 export async function getNotifications(): Promise<Notification[]> {
   await ensureFreshSession();
   const { data, error } = await supabase.from("notifications").select("*").order("created_at", { ascending: false });
-  if (error) throw new Error(error.message);
+  if (error) throwAsAuthError(error);
   return (data ?? []) as Notification[];
 }
 export async function sendNotification(n: { title: string; message: string; target: string }) {
@@ -615,7 +615,7 @@ export async function sendNotification(n: { title: string; message: string; targ
 export async function getSupportTickets(): Promise<SupportTicket[]> {
   await ensureFreshSession();
   const { data, error } = await supabase.from("support_tickets").select("*").order("created_at", { ascending: false });
-  if (error) throw new Error(error.message);
+  if (error) throwAsAuthError(error);
   return (data ?? []) as SupportTicket[];
 }
 export async function respondToTicket(id: string, response: string) {
@@ -631,7 +631,7 @@ export async function resolveTicket(id: string) {
 export async function getSettings(): Promise<Setting[]> {
   await ensureFreshSession();
   const { data, error } = await supabase.from("settings").select("*").order("key");
-  if (error) throw new Error(error.message);
+  if (error) throwAsAuthError(error);
   return (data ?? []) as Setting[];
 }
 export async function upsertSetting(key: string, value: string) {

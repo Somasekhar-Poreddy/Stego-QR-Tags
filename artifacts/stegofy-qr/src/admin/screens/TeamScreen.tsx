@@ -285,11 +285,15 @@ export function TeamScreen() {
     Promise.all([
       getAdminUsers(),
       getPermissionDefinitions(),
-    ]).then(([members, perms]) => {
-      setMembers(members);
-      setPermissions(perms.length > 0 ? perms : FALLBACK_PERMISSIONS);
-      setLoading(false);
-    });
+    ])
+      .then(([members, perms]) => {
+        setMembers(members);
+        setPermissions(perms.length > 0 ? perms : FALLBACK_PERMISSIONS);
+      })
+      .catch(() => {
+        // Auth errors auto-redirect via the global AUTH_EXPIRED_EVENT.
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   const reload = () => getAdminUsers().then((d) => setMembers(d));

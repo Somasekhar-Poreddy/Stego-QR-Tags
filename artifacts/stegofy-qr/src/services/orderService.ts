@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase";
-import { ensureFreshSession } from "@/lib/adminAuth";
+import { ensureFreshSession, throwAsAuthError } from "@/lib/adminAuth";
 
 /* ─── Types ─── */
 
@@ -111,7 +111,7 @@ export async function getUserOrders(userId: string): Promise<Order[]> {
     .eq("user_id", userId)
     .order("created_at", { ascending: false });
 
-  if (error) throw new Error(error.message);
+  if (error) throwAsAuthError(error);
   return ((data ?? []) as unknown[]).map(normalizeOrder);
 }
 
@@ -155,7 +155,7 @@ export async function adminGetOrders(
   }
 
   const { data, error } = await q;
-  if (error) throw new Error(error.message);
+  if (error) throwAsAuthError(error);
   return ((data ?? []) as unknown[]).map(normalizeOrder);
 }
 
@@ -163,7 +163,7 @@ export async function adminGetOrdersCount(status?: OrderStatus | "all"): Promise
   let q = supabase.from("orders").select("id", { count: "exact", head: true });
   if (status && status !== "all") q = q.eq("order_status", status);
   const { count, error } = await q;
-  if (error) throw new Error(error.message);
+  if (error) throwAsAuthError(error);
   return count ?? 0;
 }
 

@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase";
-import { ensureFreshSession } from "@/lib/adminAuth";
+import { ensureFreshSession, throwAsAuthError } from "@/lib/adminAuth";
 
 /* ─── Types ─── */
 
@@ -73,7 +73,7 @@ export async function getActiveProducts(category?: string): Promise<Product[]> {
   }
 
   const { data, error } = await q;
-  if (error) throw new Error(error.message);
+  if (error) throwAsAuthError(error);
   const result = ((data ?? []) as unknown[]).map(normalizeProduct);
   _productListCache.set(key, { data: result, ts: Date.now() });
   return result;
@@ -143,7 +143,7 @@ export async function adminGetAllProducts(): Promise<Product[]> {
     .from("products")
     .select("*")
     .order("created_at", { ascending: false });
-  if (error) throw new Error(error.message);
+  if (error) throwAsAuthError(error);
   return ((data ?? []) as unknown[]).map(normalizeProduct);
 }
 

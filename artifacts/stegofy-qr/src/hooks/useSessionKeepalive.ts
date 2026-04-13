@@ -1,25 +1,29 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { supabase } from "@/lib/supabase";
+import { AUTH_EXPIRED_EVENT } from "@/lib/adminAuth";
 
 const KEEPALIVE_INTERVAL_MS = 10 * 60 * 1000;
 
 /**
  * Keeps the Supabase admin session alive across three failure vectors:
  *
- * 1. `onAuthStateChange` subscription — detects SIGNED_OUT events emitted
- *    by Supabase and immediately redirects to the login page with
- *    `?reason=expired` so the user sees an explanation.
- *    On TOKEN_REFRESHED, increments `refreshKey` so AdminRouter can signal
- *    screens to reload data after a successful session restore.
+ * 1. `onAuthStateChange` subscription — handles these events:
+ *    - SIGNED_OUT: fires when either the user signs out manually OR when the
+ *      refresh token itself is expired (Supabase's equivalent of TOKEN_EXPIRED
+ *      in other auth systems). Redirects to /admin/login?reason=expired.
+ *    - TOKEN_REFRESHED: fires after a successful proactive refresh; increments
+ *      `refreshKey` so the route tree remounts and screens re-fetch data.
+ *    - SIGNED_IN: same as TOKEN_REFRESHED for session restoration purposes.
  *
  * 2. `visibilitychange` listener — when the user returns to the browser tab
  *    after being away, browsers may have throttled the autoRefreshToken
- *    interval and the JWT may already be expired. This listener proactively
- *    refreshes the session the moment the tab becomes visible again.
+ *    setInterval and the JWT may already be expired. This listener proactively
+ *    calls refreshSession() the moment the tab becomes visible again.
  *
- * 3. Periodic keepalive — every 10 minutes while the admin panel is open,
- *    checks if the token expires within the next 2 minutes and refreshes it.
+ * 3. Periodic keepalive — every 10 minutes, checks if the token expires within
+ *    the next 2 minutes and refreshes it proactively. Acts as a safety net for
+ *    very long sessions where the visibility-change handler wasn't triggered.
  *
  * Returns:
  *   sessionOk    — false while a refresh is in-flight or after failure
@@ -42,12 +46,17 @@ export function useSessionKeepalive(): {
 
   useEffect(() => {
     function goToLogin() {
+      // Dispatch global auth-expired event so any in-flight service calls
+      // know the session is gone, then navigate to the login page.
+      window.dispatchEvent(new CustomEvent(AUTH_EXPIRED_EVENT));
       navigateRef.current("/admin/login?reason=expired");
     }
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event) => {
+      // SIGNED_OUT covers both manual sign-out and refresh-token expiry
+      // (Supabase's equivalent of a TOKEN_EXPIRED event in other systems).
       if (event === "SIGNED_OUT") {
         setSessionOk(false);
         goToLogin();

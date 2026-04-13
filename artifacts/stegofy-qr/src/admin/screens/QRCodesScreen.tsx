@@ -692,13 +692,18 @@ export function QRCodesScreen() {
 
   const reload = () => {
     setLoading(true);
-    Promise.all([adminGetAllQRCodes(), adminGetAllUsers()]).then(([codes, users]) => {
-      setQrs(codes as QRRow[]);
-      const map: Record<string, OwnerRow> = {};
-      (users as OwnerRow[]).forEach((u) => { map[u.id] = u; });
-      setUserMap(map);
-      setLoading(false);
-    });
+    Promise.all([adminGetAllQRCodes(), adminGetAllUsers()])
+      .then(([codes, users]) => {
+        setQrs(codes as QRRow[]);
+        const map: Record<string, OwnerRow> = {};
+        (users as OwnerRow[]).forEach((u) => { map[u.id] = u; });
+        setUserMap(map);
+      })
+      .catch(() => {
+        // Auth errors auto-redirect via the global AUTH_EXPIRED_EVENT; other
+        // errors are silently swallowed here so the UI stays usable.
+      })
+      .finally(() => setLoading(false));
   };
   useEffect(() => { reload(); }, []);
 
