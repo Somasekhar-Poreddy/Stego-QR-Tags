@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { ensureFreshSession } from "@/lib/adminAuth";
 import { v4 as uuidv4 } from "uuid";
 
 /* ─── Re-exported types shared with other modules ─── */
@@ -30,7 +31,9 @@ export interface Setting { key: string; value: string | null; updated_at: string
    USERS (admin view)
    ═══════════════════════════════════════════════════ */
 export async function adminGetAllUsers() {
-  const { data } = await supabase.from("user_profiles").select("*").order("created_at", { ascending: false });
+  await ensureFreshSession();
+  const { data, error } = await supabase.from("user_profiles").select("*").order("created_at", { ascending: false });
+  if (error) throw new Error(error.message);
   return data ?? [];
 }
 export async function adminBlockUser(id: string) {
@@ -358,7 +361,9 @@ export async function adminDecryptIP(
    QR CODES (admin view)
    ═══════════════════════════════════════════════════ */
 export async function adminGetAllQRCodes() {
-  const { data } = await supabase.from("qr_codes").select("*").order("created_at", { ascending: false });
+  await ensureFreshSession();
+  const { data, error } = await supabase.from("qr_codes").select("*").order("created_at", { ascending: false });
+  if (error) throw new Error(error.message);
   return data ?? [];
 }
 export async function adminDisableQRCode(id: string) {
@@ -378,7 +383,9 @@ export async function adminUpdateQRCode(id: string, updates: Record<string, unkn
    CONTACT REQUESTS (admin view)
    ═══════════════════════════════════════════════════ */
 export async function adminGetAllContactRequests() {
-  const { data } = await supabase.from("contact_requests").select("*").order("created_at", { ascending: false });
+  await ensureFreshSession();
+  const { data, error } = await supabase.from("contact_requests").select("*").order("created_at", { ascending: false });
+  if (error) throw new Error(error.message);
   return data ?? [];
 }
 export async function adminResolveContactRequest(id: string) {
@@ -392,6 +399,7 @@ export async function adminRejectContactRequest(id: string) {
    DASHBOARD
    ═══════════════════════════════════════════════════ */
 export async function getDashboardStats() {
+  await ensureFreshSession();
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const todayISO = today.toISOString();
 
@@ -402,6 +410,8 @@ export async function getDashboardStats() {
     supabase.from("contact_requests").select("id", { count: "exact", head: true }).eq("intent", "emergency"),
     supabase.from("orders").select("id", { count: "exact", head: true }),
   ]);
+
+  if (users.error) throw new Error(users.error.message);
 
   return {
     totalUsers: users.count ?? 0,
@@ -537,7 +547,9 @@ export async function getPermissionDefinitions(): Promise<PermissionDefinition[]
    TEAM / ADMIN USERS
    ═══════════════════════════════════════════════════ */
 export async function getAdminUsers(): Promise<AdminUser[]> {
-  const { data } = await supabase.from("admin_users").select("*").order("created_at", { ascending: false });
+  await ensureFreshSession();
+  const { data, error } = await supabase.from("admin_users").select("*").order("created_at", { ascending: false });
+  if (error) throw new Error(error.message);
   return (data ?? []) as AdminUser[];
 }
 export async function addAdminUser(data: Partial<AdminUser> & { password?: string; confirmPassword?: string }): Promise<{ error?: string }> {
@@ -587,7 +599,9 @@ export async function removeAdminUser(id: string): Promise<{ error?: string }> {
    NOTIFICATIONS
    ═══════════════════════════════════════════════════ */
 export async function getNotifications(): Promise<Notification[]> {
-  const { data } = await supabase.from("notifications").select("*").order("created_at", { ascending: false });
+  await ensureFreshSession();
+  const { data, error } = await supabase.from("notifications").select("*").order("created_at", { ascending: false });
+  if (error) throw new Error(error.message);
   return (data ?? []) as Notification[];
 }
 export async function sendNotification(n: { title: string; message: string; target: string }) {
@@ -598,7 +612,9 @@ export async function sendNotification(n: { title: string; message: string; targ
    SUPPORT
    ═══════════════════════════════════════════════════ */
 export async function getSupportTickets(): Promise<SupportTicket[]> {
-  const { data } = await supabase.from("support_tickets").select("*").order("created_at", { ascending: false });
+  await ensureFreshSession();
+  const { data, error } = await supabase.from("support_tickets").select("*").order("created_at", { ascending: false });
+  if (error) throw new Error(error.message);
   return (data ?? []) as SupportTicket[];
 }
 export async function respondToTicket(id: string, response: string) {
@@ -612,7 +628,9 @@ export async function resolveTicket(id: string) {
    SETTINGS
    ═══════════════════════════════════════════════════ */
 export async function getSettings(): Promise<Setting[]> {
-  const { data } = await supabase.from("settings").select("*").order("key");
+  await ensureFreshSession();
+  const { data, error } = await supabase.from("settings").select("*").order("key");
+  if (error) throw new Error(error.message);
   return (data ?? []) as Setting[];
 }
 export async function upsertSetting(key: string, value: string) {

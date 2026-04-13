@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Switch, Route, useLocation } from "wouter";
 import { AdminLayout } from "@/admin/layout/AdminLayout";
 import { supabase } from "@/lib/supabase";
+import { useSessionKeepalive } from "@/hooks/useSessionKeepalive";
 
 import { DashboardScreen }       from "@/admin/screens/DashboardScreen";
 import { UsersScreen }           from "@/admin/screens/UsersScreen";
@@ -24,8 +25,6 @@ interface AdminInfo {
   permissions: Record<string, boolean>;
 }
 
-// Maps each route path to its required permission key.
-// Entries with no key (Dashboard) are always accessible.
 const ROUTE_PERMISSIONS: { path: string; permissionKey?: string }[] = [
   { path: "/admin/users",          permissionKey: "manage_users" },
   { path: "/admin/qr-codes",       permissionKey: "manage_qr_codes" },
@@ -48,7 +47,7 @@ function isPathAllowed(
 ): boolean {
   if (role === "super_admin") return true;
   const match = ROUTE_PERMISSIONS.find((r) => pathname.startsWith(r.path));
-  if (!match) return true; // Dashboard or unknown — always allow
+  if (!match) return true;
   if (!match.permissionKey) return true;
   return permissions[match.permissionKey] === true;
 }
@@ -60,10 +59,10 @@ export function AdminRouter() {
     name: "", email: "", role: "", permissions: {},
   });
 
-  // Bootstrap: verify session and load permissions once on mount.
+  const { reconnecting } = useSessionKeepalive();
+
   useEffect(() => {
     async function bootstrap() {
-      // getSession() reads from localStorage — instant, no network required.
       const { data: { session } } = await supabase.auth.getSession();
 
       if (!session) {
@@ -79,7 +78,6 @@ export function AdminRouter() {
         permissions: {},
       };
 
-      // Fetch name, role, email, permissions from admin_users for display + enforcement.
       try {
         const { data } = await supabase
           .from("admin_users")
@@ -102,7 +100,6 @@ export function AdminRouter() {
 
       setAdminInfo(info);
 
-      // Route guard: redirect to dashboard if current path is not permitted.
       if (!isPathAllowed(location, info.role, info.permissions)) {
         navigate("/admin");
       }
@@ -114,9 +111,8 @@ export function AdminRouter() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Continuous guard: re-check on every in-app location change after bootstrap.
   useEffect(() => {
-    if (checking) return; // skip until permissions are loaded
+    if (checking) return;
     if (!isPathAllowed(location, adminInfo.role, adminInfo.permissions)) {
       navigate("/admin");
     }
@@ -136,6 +132,31 @@ export function AdminRouter() {
       adminRole={adminInfo.role}
       permissions={adminInfo.permissions}
     >
+      {reconnecting && (
+        <div className="fixed top-0 left-0 right-0 z-50 flex items-center justify-center gap-2 bg-amber-500 px-4 py-2 text-sm font-medium text-white shadow">
+          <svg
+            className="h-4 w-4 animate-spin"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+          >
+            <circle
+              className="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              strokeWidth="4"
+            />
+            <path
+              className="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8v8H4z"
+            />
+          </svg>
+          Reconnecting session…
+        </div>
+      )}
       <Switch>
         <Route path="/admin/users"         component={UsersScreen} />
         <Route path="/admin/qr-codes"      component={QRCodesScreen} />

@@ -1,10 +1,13 @@
 import { useState } from "react";
-import { useLocation } from "wouter";
-import { Shield, Eye, EyeOff } from "lucide-react";
+import { useLocation, useSearch } from "wouter";
+import { Shield, Eye, EyeOff, AlertTriangle } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
 export function AdminLogin() {
   const [, navigate] = useLocation();
+  const search = useSearch();
+  const reason = new URLSearchParams(search).get("reason");
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
@@ -41,6 +44,13 @@ export function AdminLogin() {
             <p className="text-white/70 text-sm mt-1">Sign in to access the dashboard</p>
           </div>
         </div>
+
+        {reason === "expired" && (
+          <div className="mb-4 flex items-start gap-2.5 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
+            <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-500" />
+            <span>Your session expired. Please sign in again to continue.</span>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-2xl p-6 space-y-4">
           <div>
