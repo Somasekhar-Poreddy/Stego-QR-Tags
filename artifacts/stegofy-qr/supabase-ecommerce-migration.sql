@@ -8,12 +8,12 @@
 -- 0. Drop existing simple products / orders tables
 --    (they are being replaced with richer schemas)
 -- ─────────────────────────────────────────────────
-DROP TABLE IF EXISTS order_items  CASCADE;
-DROP TABLE IF EXISTS cart_items   CASCADE;
-DROP TABLE IF EXISTS reviews      CASCADE;
+DROP TABLE IF EXISTS order_items      CASCADE;
+DROP TABLE IF EXISTS cart_items       CASCADE;
+DROP TABLE IF EXISTS reviews          CASCADE;
 DROP TABLE IF EXISTS product_variants CASCADE;
-DROP TABLE IF EXISTS orders       CASCADE;
-DROP TABLE IF EXISTS products     CASCADE;
+DROP TABLE IF EXISTS orders           CASCADE;
+DROP TABLE IF EXISTS products         CASCADE;
 
 -- ─────────────────────────────────────────────────
 -- 1. products
@@ -37,8 +37,8 @@ CREATE TABLE products (
   created_at      TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_products_category  ON products(category);
-CREATE INDEX IF NOT EXISTS idx_products_is_active ON products(is_active);
+CREATE INDEX IF NOT EXISTS idx_products_category   ON products(category);
+CREATE INDEX IF NOT EXISTS idx_products_is_active  ON products(is_active);
 CREATE INDEX IF NOT EXISTS idx_products_created_at ON products(created_at DESC);
 
 ALTER TABLE products ENABLE ROW LEVEL SECURITY;
@@ -48,23 +48,11 @@ CREATE POLICY "Public read active products"
   ON products FOR SELECT
   USING (is_active = TRUE);
 
--- Admin can read ALL products (active + inactive)
-CREATE POLICY "Admin read all products"
-  ON products FOR SELECT
-  USING (auth.uid() IN (SELECT user_id FROM admin_users));
-
--- Admin can insert / update / delete products
-CREATE POLICY "Admin insert products"
-  ON products FOR INSERT
+-- Admin can manage ALL products (active + inactive)
+CREATE POLICY "Admin manage products"
+  ON products FOR ALL
+  USING (auth.uid() IN (SELECT user_id FROM admin_users))
   WITH CHECK (auth.uid() IN (SELECT user_id FROM admin_users));
-
-CREATE POLICY "Admin update products"
-  ON products FOR UPDATE
-  USING (auth.uid() IN (SELECT user_id FROM admin_users));
-
-CREATE POLICY "Admin delete products"
-  ON products FOR DELETE
-  USING (auth.uid() IN (SELECT user_id FROM admin_users));
 
 -- ─────────────────────────────────────────────────
 -- 2. product_variants
@@ -100,22 +88,35 @@ CREATE TABLE cart_items (
   product_id UUID        NOT NULL REFERENCES products(id) ON DELETE CASCADE,
   variant_id UUID        REFERENCES product_variants(id) ON DELETE SET NULL,
   quantity   INTEGER     NOT NULL DEFAULT 1 CHECK (quantity > 0),
-  created_at TIMESTAMPTZ DEFAULT now(),
-  UNIQUE (user_id, product_id, variant_id)
+  created_at TIMESTAMPTZ DEFAULT now()
 );
+
+-- Two partial unique indexes to correctly handle nullable variant_id.
+-- (A single UNIQUE constraint on (user_id, product_id, variant_id) would allow
+-- duplicate rows when variant_id IS NULL because NULLs are not equal in Postgres.)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_cart_unique_with_variant
+  ON cart_items (user_id, product_id, variant_id)
+  WHERE variant_id IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_cart_unique_no_variant
+  ON cart_items (user_id, product_id)
+  WHERE variant_id IS NULL;
 
 CREATE INDEX IF NOT EXISTS idx_cart_user_id ON cart_items(user_id);
 
 ALTER TABLE cart_items ENABLE ROW LEVEL SECURITY;
 
+-- Users can manage their own cart items
 CREATE POLICY "Users manage own cart"
   ON cart_items FOR ALL
   USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
 
-CREATE POLICY "Admin read all cart items"
-  ON cart_items FOR SELECT
-  USING (auth.uid() IN (SELECT user_id FROM admin_users));
+-- Admin can read/write all cart items
+CREATE POLICY "Admin manage all cart items"
+  ON cart_items FOR ALL
+  USING (auth.uid() IN (SELECT user_id FROM admin_users))
+  WITH CHECK (auth.uid() IN (SELECT user_id FROM admin_users));
 
 -- ─────────────────────────────────────────────────
 -- 4. orders
@@ -132,12 +133,13 @@ CREATE TABLE orders (
   created_at       TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_orders_user_id      ON orders(user_id);
-CREATE INDEX IF NOT EXISTS idx_orders_status       ON orders(order_status);
-CREATE INDEX IF NOT EXISTS idx_orders_created_at   ON orders(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_orders_user_id    ON orders(user_id);
+CREATE INDEX IF NOT EXISTS idx_orders_status     ON orders(order_status);
+CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at DESC);
 
 ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
 
+-- Users can read and insert their own orders
 CREATE POLICY "Users read own orders"
   ON orders FOR SELECT
   USING (auth.uid() = user_id);
@@ -146,13 +148,11 @@ CREATE POLICY "Users insert own orders"
   ON orders FOR INSERT
   WITH CHECK (auth.uid() = user_id);
 
-CREATE POLICY "Admin read all orders"
-  ON orders FOR SELECT
-  USING (auth.uid() IN (SELECT user_id FROM admin_users));
-
-CREATE POLICY "Admin update orders"
-  ON orders FOR UPDATE
-  USING (auth.uid() IN (SELECT user_id FROM admin_users));
+-- Admin can fully manage all orders
+CREATE POLICY "Admin manage all orders"
+  ON orders FOR ALL
+  USING (auth.uid() IN (SELECT user_id FROM admin_users))
+  WITH CHECK (auth.uid() IN (SELECT user_id FROM admin_users));
 
 -- ─────────────────────────────────────────────────
 -- 5. order_items
@@ -162,8 +162,8 @@ CREATE TABLE order_items (
   order_id     UUID        NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
   product_id   UUID        REFERENCES products(id) ON DELETE SET NULL,
   variant_id   UUID        REFERENCES product_variants(id) ON DELETE SET NULL,
-  product_name TEXT        NOT NULL,  -- snapshot at order time
-  variant_name TEXT,                  -- snapshot at order time
+  product_name TEXT        NOT NULL,   -- snapshot at order time
+  variant_name TEXT,                   -- snapshot at order time
   quantity     INTEGER     NOT NULL DEFAULT 1,
   price        NUMERIC(10,2) NOT NULL DEFAULT 0,  -- unit price at order time
   created_at   TIMESTAMPTZ DEFAULT now()
@@ -174,25 +174,24 @@ CREATE INDEX IF NOT EXISTS idx_oi_product_id ON order_items(product_id);
 
 ALTER TABLE order_items ENABLE ROW LEVEL SECURITY;
 
+-- Users can read and insert their own order items (via parent order ownership)
 CREATE POLICY "Users read own order items"
   ON order_items FOR SELECT
   USING (
-    auth.uid() IN (
-      SELECT user_id FROM orders WHERE id = order_items.order_id
-    )
+    auth.uid() IN (SELECT user_id FROM orders WHERE id = order_items.order_id)
   );
 
-CREATE POLICY "Users insert order items"
+CREATE POLICY "Users insert own order items"
   ON order_items FOR INSERT
   WITH CHECK (
-    auth.uid() IN (
-      SELECT user_id FROM orders WHERE id = order_items.order_id
-    )
+    auth.uid() IN (SELECT user_id FROM orders WHERE id = order_items.order_id)
   );
 
-CREATE POLICY "Admin read all order items"
-  ON order_items FOR SELECT
-  USING (auth.uid() IN (SELECT user_id FROM admin_users));
+-- Admin can fully manage all order items
+CREATE POLICY "Admin manage all order items"
+  ON order_items FOR ALL
+  USING (auth.uid() IN (SELECT user_id FROM admin_users))
+  WITH CHECK (auth.uid() IN (SELECT user_id FROM admin_users));
 
 -- ─────────────────────────────────────────────────
 -- 6. reviews

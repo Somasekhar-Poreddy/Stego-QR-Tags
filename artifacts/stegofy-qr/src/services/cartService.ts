@@ -99,13 +99,20 @@ export async function addToDBCart(
   variantId: string | null,
   qty = 1,
 ): Promise<{ error?: string }> {
-  const { data: existing } = await supabase
+  let lookupQ = supabase
     .from("cart_items")
     .select("id, quantity")
     .eq("user_id", userId)
-    .eq("product_id", productId)
-    .is(variantId ? "variant_id" : "variant_id", variantId)
-    .maybeSingle();
+    .eq("product_id", productId);
+
+  // Use .eq() for a real UUID, .is() only for the NULL case
+  if (variantId !== null) {
+    lookupQ = lookupQ.eq("variant_id", variantId);
+  } else {
+    lookupQ = lookupQ.is("variant_id", null);
+  }
+
+  const { data: existing } = await lookupQ.maybeSingle();
 
   if (existing) {
     const { error } = await supabase
