@@ -3,6 +3,7 @@ import { Switch, Route, useLocation } from "wouter";
 import { AdminLayout } from "@/admin/layout/AdminLayout";
 import { supabase } from "@/lib/supabase";
 import { useSessionKeepalive } from "@/hooks/useSessionKeepalive";
+import { SessionErrorBoundary } from "@/admin/SessionErrorBoundary";
 
 import { DashboardScreen }       from "@/admin/screens/DashboardScreen";
 import { UsersScreen }           from "@/admin/screens/UsersScreen";
@@ -59,7 +60,10 @@ export function AdminRouter() {
     name: "", email: "", role: "", permissions: {},
   });
 
-  const { reconnecting } = useSessionKeepalive();
+  // Session keepalive: refreshes on tab focus + auth events + periodic interval.
+  // `refreshKey` increments after each TOKEN_REFRESHED event — used as a `key`
+  // on the route tree so screens automatically remount and re-fetch data.
+  const { sessionOk, reconnecting, refreshKey } = useSessionKeepalive();
 
   useEffect(() => {
     async function bootstrap() {
@@ -132,7 +136,8 @@ export function AdminRouter() {
       adminRole={adminInfo.role}
       permissions={adminInfo.permissions}
     >
-      {reconnecting && (
+      {/* Amber banner shown while a visibility-triggered session refresh is in-flight */}
+      {(reconnecting || !sessionOk) && (
         <div className="fixed top-0 left-0 right-0 z-50 flex items-center justify-center gap-2 bg-amber-500 px-4 py-2 text-sm font-medium text-white shadow">
           <svg
             className="h-4 w-4 animate-spin"
@@ -157,21 +162,32 @@ export function AdminRouter() {
           Reconnecting session…
         </div>
       )}
-      <Switch>
-        <Route path="/admin/users"         component={UsersScreen} />
-        <Route path="/admin/qr-codes"      component={QRCodesScreen} />
-        <Route path="/admin/requests"      component={ContactRequestsScreen} />
-        <Route path="/admin/products"      component={ProductsScreen} />
-        <Route path="/admin/orders"        component={OrdersScreen} />
-        <Route path="/admin/inventory"     component={InventoryScreen} />
-        <Route path="/admin/analytics"     component={AnalyticsScreen} />
-        <Route path="/admin/team"          component={TeamScreen} />
-        <Route path="/admin/notifications" component={NotificationsScreen} />
-        <Route path="/admin/support"       component={SupportScreen} />
-        <Route path="/admin/settings"      component={SettingsScreen} />
-        <Route path="/admin/visitor-log"   component={VisitorLogScreen} />
-        <Route                             component={DashboardScreen} />
-      </Switch>
+
+      {/*
+        SessionErrorBoundary catches AuthExpiredError that bubbles up from
+        any screen's render path. On auth error: auto-retries refreshSession()
+        and remounts children on success; redirects to login on failure.
+        The `key={refreshKey}` on the Switch causes all screens to remount
+        (and re-fetch data) whenever the keepalive hook detects a successful
+        TOKEN_REFRESHED event after a period of inactivity.
+      */}
+      <SessionErrorBoundary onExpired={() => navigate("/admin/login?reason=expired")}>
+        <Switch key={refreshKey}>
+          <Route path="/admin/users"         component={UsersScreen} />
+          <Route path="/admin/qr-codes"      component={QRCodesScreen} />
+          <Route path="/admin/requests"      component={ContactRequestsScreen} />
+          <Route path="/admin/products"      component={ProductsScreen} />
+          <Route path="/admin/orders"        component={OrdersScreen} />
+          <Route path="/admin/inventory"     component={InventoryScreen} />
+          <Route path="/admin/analytics"     component={AnalyticsScreen} />
+          <Route path="/admin/team"          component={TeamScreen} />
+          <Route path="/admin/notifications" component={NotificationsScreen} />
+          <Route path="/admin/support"       component={SupportScreen} />
+          <Route path="/admin/settings"      component={SettingsScreen} />
+          <Route path="/admin/visitor-log"   component={VisitorLogScreen} />
+          <Route                             component={DashboardScreen} />
+        </Switch>
+      </SessionErrorBoundary>
     </AdminLayout>
   );
 }

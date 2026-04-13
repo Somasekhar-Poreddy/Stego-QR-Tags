@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { ensureFreshSession } from "@/lib/adminAuth";
 
 /* ─── Types ─── */
 
@@ -137,6 +138,7 @@ export async function getProductReviews(productId: string): Promise<Review[]> {
 export type ProductInput = Omit<Product, "id" | "created_at">;
 
 export async function adminGetAllProducts(): Promise<Product[]> {
+  await ensureFreshSession();
   const { data, error } = await supabase
     .from("products")
     .select("*")

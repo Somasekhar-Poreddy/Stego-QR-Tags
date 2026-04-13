@@ -411,7 +411,8 @@ export async function getDashboardStats() {
     supabase.from("orders").select("id", { count: "exact", head: true }),
   ]);
 
-  if (users.error) throw new Error(users.error.message);
+  const firstError = users.error ?? qrs.error ?? todayReqs.error ?? emergencyReqs.error ?? orders.error;
+  if (firstError) throw new Error(firstError.message);
 
   return {
     totalUsers: users.count ?? 0,

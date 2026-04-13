@@ -7,26 +7,35 @@ const KEEPALIVE_INTERVAL_MS = 10 * 60 * 1000;
 /**
  * Keeps the Supabase admin session alive across three failure vectors:
  *
- * 1. `onAuthStateChange` subscription — detects SIGNED_OUT / TOKEN_EXPIRED
- *    events emitted by Supabase and immediately redirects to the login page
- *    with a `?reason=expired` query param so the user sees an explanation.
+ * 1. `onAuthStateChange` subscription — detects SIGNED_OUT events emitted
+ *    by Supabase and immediately redirects to the login page with
+ *    `?reason=expired` so the user sees an explanation.
+ *    On TOKEN_REFRESHED, increments `refreshKey` so AdminRouter can signal
+ *    screens to reload data after a successful session restore.
  *
  * 2. `visibilitychange` listener — when the user returns to the browser tab
- *    after being away, browsers may have throttled the autoRefreshToken interval
- *    and the JWT may already be expired. This listener proactively refreshes
- *    the session the moment the tab becomes visible again.
+ *    after being away, browsers may have throttled the autoRefreshToken
+ *    interval and the JWT may already be expired. This listener proactively
+ *    refreshes the session the moment the tab becomes visible again.
  *
  * 3. Periodic keepalive — every 10 minutes while the admin panel is open,
  *    checks if the token expires within the next 2 minutes and refreshes it.
- *    Acts as a safety net for very long sessions.
  *
  * Returns:
- *   sessionOk      — false while a refresh is in-flight or after failure
- *   reconnecting   — true only while a visibility-change refresh is in-flight
+ *   sessionOk    — false while a refresh is in-flight or after failure
+ *   reconnecting — true only while a visibility-change refresh is in-flight
+ *   refreshKey   — counter that increments after each successful TOKEN_REFRESHED;
+ *                  AdminRouter keys the <Switch> on this so screens remount
+ *                  and re-fetch data automatically after reconnect
  */
-export function useSessionKeepalive(): { sessionOk: boolean; reconnecting: boolean } {
+export function useSessionKeepalive(): {
+  sessionOk: boolean;
+  reconnecting: boolean;
+  refreshKey: number;
+} {
   const [sessionOk, setSessionOk]       = useState(true);
   const [reconnecting, setReconnecting] = useState(false);
+  const [refreshKey, setRefreshKey]     = useState(0);
   const [, navigate]                   = useLocation();
   const navigateRef                     = useRef(navigate);
   navigateRef.current                   = navigate;
@@ -45,6 +54,7 @@ export function useSessionKeepalive(): { sessionOk: boolean; reconnecting: boole
       } else if (event === "TOKEN_REFRESHED" || event === "SIGNED_IN") {
         setSessionOk(true);
         setReconnecting(false);
+        setRefreshKey((k) => k + 1);
       }
     });
 
@@ -90,5 +100,5 @@ export function useSessionKeepalive(): { sessionOk: boolean; reconnecting: boole
     };
   }, []);
 
-  return { sessionOk, reconnecting };
+  return { sessionOk, reconnecting, refreshKey };
 }

@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { ensureFreshSession } from "@/lib/adminAuth";
 
 /* ─── Types ─── */
 
@@ -142,6 +143,7 @@ export async function adminGetOrders(
   limit = 30,
   offset = 0,
 ): Promise<Order[]> {
+  await ensureFreshSession();
   let q = supabase
     .from("orders")
     .select("*")
