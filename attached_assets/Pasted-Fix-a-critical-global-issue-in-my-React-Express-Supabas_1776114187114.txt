@@ -1,0 +1,171 @@
+Fix a critical global issue in my React + Express + Supabase app where data loads initially but becomes blank after a few seconds across ALL pages (Admin + User app).
+
+IMPORTANT:
+- DO NOT break existing features
+- Apply fixes globally across the app
+- Ensure stable data fetching, session handling, and UI state
+
+-----------------------------------
+STEP 1: FIX SUPABASE CLIENT (GLOBAL)
+-----------------------------------
+
+Update Supabase client configuration:
+
+- Enable persistent sessions
+- Enable auto token refresh
+
+Code:
+
+createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true
+  }
+});
+
+-----------------------------------
+STEP 2: CREATE GLOBAL AUTH PROVIDER
+-----------------------------------
+
+Create a global AuthContext:
+
+- Store session
+- Store user
+- Listen to auth changes
+
+Features:
+
+- On app load → restore session using supabase.auth.getSession()
+- Listen using supabase.auth.onAuthStateChange
+- If session expires → handle gracefully (do NOT crash UI)
+
+Wrap entire app with AuthProvider
+
+-----------------------------------
+STEP 3: CREATE GLOBAL DATA FETCH HELPER
+-----------------------------------
+
+Create a utility function:
+
+safeFetch(queryFunction)
+
+Behavior:
+
+- Check if session exists before query
+- Execute query
+- If error → log error, DO NOT overwrite state
+- If empty response → DO NOT replace existing data
+- Return previous data if new data is empty
+
+-----------------------------------
+STEP 4: FIX ALL DATA FETCHING
+-----------------------------------
+
+Update ALL pages (Dashboard, Users, QR Codes, Products, Orders):
+
+Rules:
+
+1. NEVER do:
+   setData(data || [])
+
+2. ALWAYS do:
+   if (data && data.length > 0) {
+     setData(data)
+   }
+
+OR:
+   setData(prev => (data && data.length ? data : prev))
+
+3. Add loading state:
+
+- loading = true before fetch
+- loading = false after fetch
+
+4. Add error handling:
+
+if (error) {
+  console.error(error)
+  return
+}
+
+-----------------------------------
+STEP 5: FIX useEffect ISSUES
+-----------------------------------
+
+Across entire app:
+
+- Remove wrong dependencies
+
+Replace:
+
+useEffect(() => {
+  fetchData()
+}, [user]) ❌
+
+With:
+
+useEffect(() => {
+  fetchData()
+}, []) ✅
+
+-----------------------------------
+STEP 6: ADD GLOBAL API ERROR HANDLER
+-----------------------------------
+
+Create a global error handler:
+
+- Catch 401 / session errors
+- Prevent UI from clearing data
+- Log all errors
+
+-----------------------------------
+STEP 7: ADD UI FALLBACK STATES
+-----------------------------------
+
+Across all pages:
+
+- Show skeleton loader while loading
+- Show "No data available" if empty
+- NEVER show blank screen
+
+-----------------------------------
+STEP 8: PREVENT STATE RESET
+-----------------------------------
+
+Ensure:
+
+- State is NOT overwritten by empty API response
+- Data persists even if API temporarily fails
+
+-----------------------------------
+STEP 9: DEBUG NETWORK FAILURES
+-----------------------------------
+
+Add logging:
+
+- Log API responses
+- Log session status
+
+-----------------------------------
+STEP 10: OPTIONAL (RECOMMENDED)
+-----------------------------------
+
+Integrate React Query (TanStack Query):
+
+- Cache API responses
+- Prevent flicker
+- Handle refetch automatically
+
+-----------------------------------
+FINAL GOAL
+-----------------------------------
+
+Ensure:
+
+- Data NEVER disappears after loading
+- Session remains stable
+- UI remains consistent
+- App behaves reliably in production
+
+This is a global stability fix across the entire system.
