@@ -412,7 +412,8 @@ function ProductForm({
           price: Number(v.price) || 0,
           stock: Number(v.stock) || 0,
         }));
-      await adminUpsertVariants(productId!, variantRows);
+      const varResult = await adminUpsertVariants(productId!, variantRows);
+      if (varResult.error) throw new Error(`Variants: ${varResult.error}`);
 
       onSaved();
     } catch (e) {
@@ -740,12 +741,14 @@ export function ProductsScreen() {
 
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this product? This cannot be undone.")) return;
-    await adminDeleteProduct(id);
+    const result = await adminDeleteProduct(id);
+    if (result.error) { setError(`Delete failed: ${result.error}`); return; }
     reload();
   };
 
   const handleToggle = async (p: Product) => {
-    await adminUpdateProduct(p.id, { is_active: !p.is_active });
+    const result = await adminUpdateProduct(p.id, { is_active: !p.is_active });
+    if (result.error) { setError(`Toggle failed: ${result.error}`); return; }
     reload();
   };
 
