@@ -290,8 +290,10 @@ export function TeamScreen() {
         setMembers(members);
         setPermissions(perms.length > 0 ? perms : FALLBACK_PERMISSIONS);
       })
-      .catch(() => {
+      .catch((err: unknown) => {
         // Auth errors auto-redirect via the global AUTH_EXPIRED_EVENT.
+        // Log non-auth failures so they're visible in the browser console.
+        console.error("[TeamScreen] Failed to load team data:", err);
       })
       .finally(() => setLoading(false));
   }, []);

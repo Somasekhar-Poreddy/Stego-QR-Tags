@@ -699,9 +699,10 @@ export function QRCodesScreen() {
         (users as OwnerRow[]).forEach((u) => { map[u.id] = u; });
         setUserMap(map);
       })
-      .catch(() => {
-        // Auth errors auto-redirect via the global AUTH_EXPIRED_EVENT; other
-        // errors are silently swallowed here so the UI stays usable.
+      .catch((err: unknown) => {
+        // Auth errors auto-redirect via the global AUTH_EXPIRED_EVENT.
+        // Log non-auth failures so they're visible in the browser console.
+        console.error("[QRCodesScreen] Failed to load QR codes:", err);
       })
       .finally(() => setLoading(false));
   };
