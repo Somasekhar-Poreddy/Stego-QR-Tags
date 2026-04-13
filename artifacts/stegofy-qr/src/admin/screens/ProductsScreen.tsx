@@ -735,8 +735,12 @@ export function ProductsScreen() {
   const openCreate = () => setFormData(emptyForm());
 
   const openEdit = async (p: Product) => {
-    const variants = await getProductVariants(p.id);
-    setFormData(productToForm(p, variants));
+    try {
+      const variants = await getProductVariants(p.id);
+      setFormData(productToForm(p, variants));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load product variants");
+    }
   };
 
   const handleDelete = async (id: string) => {

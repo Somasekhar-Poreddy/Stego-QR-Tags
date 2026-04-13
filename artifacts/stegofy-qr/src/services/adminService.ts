@@ -479,7 +479,10 @@ export async function getPeakHourData(from?: Date, to?: Date): Promise<{ hour: n
 }
 
 /* ═══════════════════════════════════════════════════
-   PRODUCTS — see productService.ts for full CRUD
+   PRODUCTS — canonical admin API lives in productService.ts
+   (adminGetAllProducts, adminCreateProduct, adminUpdateProduct,
+   adminDeleteProduct, adminUpsertVariants, getProductVariants)
+   Import directly from "@/services/productService" in product screens.
    ═══════════════════════════════════════════════════ */
 
 /* ═══════════════════════════════════════════════════
