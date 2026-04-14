@@ -29,17 +29,15 @@ export function useSessionKeepalive(): {
       }
     });
 
-    async function handleVisibilityChange() {
-      if (document.visibilityState !== "visible") return;
-
+    // Keep only periodic background refresh
+    const interval = setInterval(async () => {
       const { data: { session } } = await supabase.auth.getSession();
 
-      // IMPORTANT: do nothing if session is temporarily unavailable
       if (!session) return;
 
       const secsLeft = (session.expires_at ?? 0) - Math.floor(Date.now() / 1000);
 
-      if (secsLeft < 180) {
+      if (secsLeft < 120) {
         setReconnecting(true);
         const { error } = await supabase.auth.refreshSession();
         if (error) {
@@ -50,30 +48,10 @@ export function useSessionKeepalive(): {
           setReconnecting(false);
         }
       }
-    }
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    const interval = setInterval(async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-
-      // IMPORTANT: do nothing if session is temporarily unavailable
-      if (!session) return;
-
-      const secsLeft = (session.expires_at ?? 0) - Math.floor(Date.now() / 1000);
-
-      if (secsLeft < 120) {
-        const { error } = await supabase.auth.refreshSession();
-        if (error) {
-          setSessionOk(false);
-          goToLogin();
-        }
-      }
     }, KEEPALIVE_INTERVAL_MS);
 
     return () => {
       subscription.unsubscribe();
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
       clearInterval(interval);
     };
   }, []);
