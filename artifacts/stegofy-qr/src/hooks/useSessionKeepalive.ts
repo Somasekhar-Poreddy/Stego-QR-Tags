@@ -34,10 +34,8 @@ export function useSessionKeepalive(): {
 
       const { data: { session } } = await supabase.auth.getSession();
 
-      if (!session) {
-        goToLogin();
-        return;
-      }
+      // IMPORTANT: do nothing if session is temporarily unavailable
+      if (!session) return;
 
       const secsLeft = (session.expires_at ?? 0) - Math.floor(Date.now() / 1000);
 
@@ -59,10 +57,8 @@ export function useSessionKeepalive(): {
     const interval = setInterval(async () => {
       const { data: { session } } = await supabase.auth.getSession();
 
-      if (!session) {
-        goToLogin();
-        return;
-      }
+      // IMPORTANT: do nothing if session is temporarily unavailable
+      if (!session) return;
 
       const secsLeft = (session.expires_at ?? 0) - Math.floor(Date.now() / 1000);
 

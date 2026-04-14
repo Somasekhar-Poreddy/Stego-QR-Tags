@@ -213,18 +213,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           },
         });
       }
-
       if (event === "TOKEN_REFRESHED" && session?.user) {
         if (passwordRecoveryInProgress.current) return;
-        try {
-          const built = await fetchAndBuildUser(session.user);
-          if (mounted) setUser(built);
-        } catch {
-          // non-fatal
-        }
+        if (mounted) setLoading(false);
         return;
       }
-
       if (event === "SIGNED_OUT") {
         if (passwordRecoveryInProgress.current) return;
 
