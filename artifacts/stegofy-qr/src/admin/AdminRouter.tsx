@@ -59,13 +59,14 @@ function isPathAllowed(
 
 export function AdminRouter() {
   const [location, navigate] = useLocation();
-  const [checking, setChecking] = useState(_cachedAdminInfo === null);
+  const { user, loading: authLoading } = useAuth();
+  const { sessionOk, reconnecting } = useSessionKeepalive();
+
+  const cacheHit = _cachedAdminInfo !== null && _cachedUserId === (user?.id ?? null);
+  const [checking, setChecking] = useState(!cacheHit);
   const [adminInfo, setAdminInfo] = useState<AdminInfo>(
     _cachedAdminInfo ?? { name: "", email: "", role: "", permissions: {} },
   );
-
-  const { sessionOk, reconnecting } = useSessionKeepalive();
-  const { user, loading: authLoading } = useAuth();
 
   useEffect(() => {
     if (authLoading) return;
