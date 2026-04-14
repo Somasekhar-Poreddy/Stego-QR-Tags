@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Search, CheckCircle, XCircle } from "lucide-react";
 import { adminGetAllContactRequests, adminResolveContactRequest, adminRejectContactRequest } from "@/services/adminService";
+import { ensureFreshSession } from "@/lib/adminAuth";
 import { cn } from "@/lib/utils";
 
 type Filter = "all" | "emergency" | "pending" | "resolved";
@@ -29,8 +30,13 @@ export function ContactRequestsScreen() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
 
-  const reload = () => adminGetAllContactRequests().then((d) => { setAll(d as RequestRow[]); setLoading(false); });
-  useEffect(() => { reload(); }, []);
+  const reload = useCallback(() => {
+    ensureFreshSession()
+      .then(() => adminGetAllContactRequests())
+      .then((d) => { setAll(d as RequestRow[]); setLoading(false); })
+      .catch(() => { setLoading(false); });
+  }, []);
+  useEffect(() => { reload(); }, [reload]);
 
   const filtered = all.filter((r) => {
     if (filter === "emergency" && r.intent !== "emergency") return false;

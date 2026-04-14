@@ -12,6 +12,7 @@ import {
   ORDER_STATUS_PIPELINE,
   ORDER_STATUS_LABELS,
 } from "@/services/adminService";
+import { ensureFreshSession } from "@/lib/adminAuth";
 import type { Order, OrderStatus, OrderWithItems } from "@/services/orderService";
 
 /* ─── Constants ─── */
@@ -383,6 +384,7 @@ export function OrdersScreen() {
     setLoading(true);
     setError(null);
     try {
+      await ensureFreshSession();
       const [rows, cnt] = await Promise.all([
         adminGetOrders(tab, PAGE_SIZE, p * PAGE_SIZE),
         adminGetOrdersCount(tab),
@@ -412,14 +414,16 @@ export function OrdersScreen() {
   }, [load, activeTab, page]);
 
   const refreshTabCounts = useCallback(() => {
-    Promise.all(
-      STATUS_TABS.map(async (t) => {
-        const cnt = await adminGetOrdersCount(t).catch(() => 0);
-        return [t, cnt] as [typeof t, number];
-      })
-    ).then((entries) => {
-      setTabCounts(Object.fromEntries(entries));
-    });
+    ensureFreshSession()
+      .then(() => Promise.all(
+        STATUS_TABS.map(async (t) => {
+          const cnt = await adminGetOrdersCount(t).catch(() => 0);
+          return [t, cnt] as [typeof t, number];
+        })
+      ))
+      .then((entries) => {
+        setTabCounts(Object.fromEntries(entries));
+      });
   }, []);
 
   const reload = useCallback(() => {

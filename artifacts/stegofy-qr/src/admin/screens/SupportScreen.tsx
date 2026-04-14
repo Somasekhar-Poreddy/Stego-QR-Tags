@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { MessageSquare, X, CheckCircle, Send } from "lucide-react";
 import { getSupportTickets, respondToTicket, resolveTicket, type SupportTicket } from "@/services/adminService";
+import { ensureFreshSession } from "@/lib/adminAuth";
 import { cn } from "@/lib/utils";
 
 type Filter = "all" | "open" | "resolved";
@@ -48,8 +49,13 @@ export function SupportScreen() {
   const [loading, setLoading] = useState(true);
   const [responding, setResponding] = useState<SupportTicket | null>(null);
 
-  const reload = () => getSupportTickets().then((d) => { setTickets(d); setLoading(false); });
-  useEffect(() => { reload(); }, []);
+  const reload = useCallback(() => {
+    ensureFreshSession()
+      .then(() => getSupportTickets())
+      .then((d) => { setTickets(d); setLoading(false); })
+      .catch(() => { setLoading(false); });
+  }, []);
+  useEffect(() => { reload(); }, [reload]);
 
   const displayed = tickets.filter((t) => {
     if (filter === "open") return t.status !== "resolved" && t.status !== "closed";

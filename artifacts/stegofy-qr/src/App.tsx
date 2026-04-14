@@ -12,7 +12,15 @@ import { AdminRouter } from "@/admin/AdminRouter";
 import { AdminLogin } from "@/admin/AdminLogin";
 import { PublicProfileScreen } from "@/app/screens/scan/PublicProfileScreen";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 300000,
+      retry: 2,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 const LANDING_PATHS = ["/", "/products", "/about", "/pricing", "/faq"];
 

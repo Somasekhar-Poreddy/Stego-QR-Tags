@@ -11,6 +11,7 @@ import {
   type GeoBreakdownRow, type DeviceBreakdownRow, type ScanSummary, type ScanDaySplit,
 } from "@/services/adminService";
 import { DateRangeBar, useDateRange, RANGE_LABELS } from "@/admin/components/DateRangeBar";
+import { ensureFreshSession } from "@/lib/adminAuth";
 
 const PIE_COLORS = ["#7c3aed", "#6d28d9", "#5b21b6", "#4c1d95", "#2e1065", "#8b5cf6"];
 const DEVICE_COLORS: Record<string, string> = {
@@ -258,50 +259,52 @@ export function AnalyticsScreen() {
     setGeoSplitError(null);
     setDevSplitError(null);
 
-    Promise.all([
-      getScansPerDay(f, t),
-      getRequestsByType(f, t),
-      getTopQRCategories(f, t),
-      getPeakHourData(f, t),
-    ]).then(([s, r, c, h]) => {
-      setScans(s); setReqTypes(r); setQrCats(c); setPeakHours(h);
-    })
-    .catch(() => {})
-    .finally(() => setLoadingCore(false));
+    ensureFreshSession().then(() => {
+      Promise.all([
+        getScansPerDay(f, t),
+        getRequestsByType(f, t),
+        getTopQRCategories(f, t),
+        getPeakHourData(f, t),
+      ]).then(([s, r, c, h]) => {
+        setScans(s); setReqTypes(r); setQrCats(c); setPeakHours(h);
+      })
+      .catch(() => {})
+      .finally(() => setLoadingCore(false));
 
-    adminGetGeoBreakdown("all", f, t)
-      .then(setGeo)
-      .catch((e) => setGeoError(e instanceof Error ? e.message : "Failed to load geo data"))
-      .finally(() => setLoadingGeo(false));
+      adminGetGeoBreakdown("all", f, t)
+        .then(setGeo)
+        .catch((e) => setGeoError(e instanceof Error ? e.message : "Failed to load geo data"))
+        .finally(() => setLoadingGeo(false));
 
-    adminGetDeviceBreakdown("all", f, t)
-      .then(setDevices)
-      .catch((e) => setDeviceError(e instanceof Error ? e.message : "Failed to load device data"))
-      .finally(() => setLoadingDevices(false));
+      adminGetDeviceBreakdown("all", f, t)
+        .then(setDevices)
+        .catch((e) => setDeviceError(e instanceof Error ? e.message : "Failed to load device data"))
+        .finally(() => setLoadingDevices(false));
 
-    adminGetScanSummary(f, t)
-      .then(setSummary)
-      .catch((e) => setSummaryError(e instanceof Error ? e.message : "Failed to load scan summary"))
-      .finally(() => setLoadingSummary(false));
+      adminGetScanSummary(f, t)
+        .then(setSummary)
+        .catch((e) => setSummaryError(e instanceof Error ? e.message : "Failed to load scan summary"))
+        .finally(() => setLoadingSummary(false));
 
-    getScansPerDayWithSplit(f, t)
-      .then(setSplitScans)
-      .catch((e) => setSplitError(e instanceof Error ? e.message : "Failed to load scan trend"))
-      .finally(() => setLoadingSplit(false));
+      getScansPerDayWithSplit(f, t)
+        .then(setSplitScans)
+        .catch((e) => setSplitError(e instanceof Error ? e.message : "Failed to load scan trend"))
+        .finally(() => setLoadingSplit(false));
 
-    Promise.all([
-      adminGetGeoBreakdown("registered", f, t, 5),
-      adminGetGeoBreakdown("strangers", f, t, 5),
-    ]).then(([reg, str]) => { setGeoReg(reg); setGeoStr(str); })
-      .catch((e) => setGeoSplitError(e instanceof Error ? e.message : "Failed to load geo split"))
-      .finally(() => setLoadingGeoSplit(false));
+      Promise.all([
+        adminGetGeoBreakdown("registered", f, t, 5),
+        adminGetGeoBreakdown("strangers", f, t, 5),
+      ]).then(([reg, str]) => { setGeoReg(reg); setGeoStr(str); })
+        .catch((e) => setGeoSplitError(e instanceof Error ? e.message : "Failed to load geo split"))
+        .finally(() => setLoadingGeoSplit(false));
 
-    Promise.all([
-      adminGetDeviceBreakdown("registered", f, t),
-      adminGetDeviceBreakdown("strangers", f, t),
-    ]).then(([reg, str]) => { setDevReg(reg); setDevStr(str); })
-      .catch((e) => setDevSplitError(e instanceof Error ? e.message : "Failed to load device split"))
-      .finally(() => setLoadingDevSplit(false));
+      Promise.all([
+        adminGetDeviceBreakdown("registered", f, t),
+        adminGetDeviceBreakdown("strangers", f, t),
+      ]).then(([reg, str]) => { setDevReg(reg); setDevStr(str); })
+        .catch((e) => setDevSplitError(e instanceof Error ? e.message : "Failed to load device split"))
+        .finally(() => setLoadingDevSplit(false));
+    });
   }, []);
 
   useEffect(() => { loadAll(from, to); }, [loadAll, from, to]);

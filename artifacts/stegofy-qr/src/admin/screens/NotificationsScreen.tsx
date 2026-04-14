@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Send, Bell, ChevronDown, User } from "lucide-react";
 import { getNotifications, sendNotification, adminGetAllUsers, type Notification } from "@/services/adminService";
+import { ensureFreshSession } from "@/lib/adminAuth";
 import { cn } from "@/lib/utils";
 
 type TargetMode = "broadcast" | "user";
@@ -14,11 +15,19 @@ export function NotificationsScreen() {
   const [form, setForm] = useState({ title: "", message: "", target: "all", userId: "" });
   const [userSearch, setUserSearch] = useState("");
 
-  const reload = () => getNotifications().then((d) => { setNotifications(d); setLoading(false); });
+  const reload = useCallback(() => {
+    ensureFreshSession()
+      .then(() => getNotifications())
+      .then((d) => { setNotifications(d); setLoading(false); })
+      .catch(() => { setLoading(false); });
+  }, []);
   useEffect(() => {
     reload();
-    adminGetAllUsers().then((u) => setUsers(u as { id: string; first_name: string | null; last_name: string | null; email: string | null }[]));
-  }, []);
+    ensureFreshSession()
+      .then(() => adminGetAllUsers())
+      .then((u) => setUsers(u as { id: string; first_name: string | null; last_name: string | null; email: string | null }[]))
+      .catch(() => {});
+  }, [reload]);
 
   const BROADCAST_TARGETS = ["all", "admins", "premium", "free"];
 

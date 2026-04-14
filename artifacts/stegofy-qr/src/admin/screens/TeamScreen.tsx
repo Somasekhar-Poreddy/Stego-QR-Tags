@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Plus, Trash2, Pencil, X, Shield, AlertTriangle, Eye, EyeOff } from "lucide-react";
 import {
   getAdminUsers, addAdminUser, updateAdminUser, removeAdminUser,
   getPermissionDefinitions,
   type AdminUser, type PermissionDefinition,
 } from "@/services/adminService";
+import { ensureFreshSession } from "@/lib/adminAuth";
 
 const ROLES = [
   { key: "super_admin", label: "Super Admin" },
@@ -282,10 +283,11 @@ export function TeamScreen() {
   const [confirmDelete, setConfirmDelete] = useState<AdminUser | null>(null);
 
   useEffect(() => {
-    Promise.all([
-      getAdminUsers(),
-      getPermissionDefinitions(),
-    ])
+    ensureFreshSession()
+      .then(() => Promise.all([
+        getAdminUsers(),
+        getPermissionDefinitions(),
+      ]))
       .then(([members, perms]) => {
         setMembers(members);
         setPermissions(perms.length > 0 ? perms : FALLBACK_PERMISSIONS);
@@ -298,7 +300,12 @@ export function TeamScreen() {
       .finally(() => setLoading(false));
   }, []);
 
-  const reload = () => getAdminUsers().then((d) => setMembers(d));
+  const reload = useCallback(() => {
+    ensureFreshSession()
+      .then(() => getAdminUsers())
+      .then((d) => setMembers(d))
+      .catch(() => {});
+  }, []);
 
   const handleSave = async (form: MemberForm) => {
     if (form.id) {

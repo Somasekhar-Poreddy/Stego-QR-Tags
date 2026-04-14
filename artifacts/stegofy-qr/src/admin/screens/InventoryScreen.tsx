@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Plus, Search, Download } from "lucide-react";
 import { getInventory, bulkGenerateInventory, type QRInventoryItem } from "@/services/adminService";
+import { ensureFreshSession } from "@/lib/adminAuth";
 import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 20;
@@ -60,8 +61,13 @@ export function InventoryScreen() {
   const [showGenerate, setShowGenerate] = useState(false);
   const [page, setPage] = useState(1);
 
-  const reload = () => getInventory().then((d) => { setItems(d); setLoading(false); });
-  useEffect(() => { reload(); }, []);
+  const reload = useCallback(() => {
+    ensureFreshSession()
+      .then(() => getInventory())
+      .then((d) => { setItems(d); setLoading(false); })
+      .catch(() => { setLoading(false); });
+  }, []);
+  useEffect(() => { reload(); }, [reload]);
 
   const filtered = items.filter((i) => {
     if (statusFilter !== "all" && i.status !== statusFilter) return false;

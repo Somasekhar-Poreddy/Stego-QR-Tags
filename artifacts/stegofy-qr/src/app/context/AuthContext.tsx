@@ -153,7 +153,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Hard timeout: never stay stuck on loading more than 5 seconds
     const loadingTimeout = setTimeout(() => {
       if (mounted) setLoading(false);
-    }, 5000);
+    }, 10000);
 
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!mounted) return;

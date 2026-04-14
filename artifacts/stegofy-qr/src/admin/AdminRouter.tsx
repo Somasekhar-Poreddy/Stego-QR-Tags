@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { useSessionKeepalive } from "@/hooks/useSessionKeepalive";
 import { SessionErrorBoundary } from "@/admin/SessionErrorBoundary";
 import { AUTH_EXPIRED_EVENT } from "@/lib/adminAuth";
+import { useAuth } from "@/app/context/AuthContext";
 
 import { DashboardScreen }       from "@/admin/screens/DashboardScreen";
 import { UsersScreen }           from "@/admin/screens/UsersScreen";
@@ -76,19 +77,20 @@ export function AdminRouter() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const { user, loading: authLoading } = useAuth();
+
   useEffect(() => {
+    if (authLoading) return;
+
+    if (!user) {
+      navigate("/admin/login");
+      return;
+    }
+
     async function bootstrap() {
-      const { data: { session } } = await supabase.auth.getSession();
-
-      if (!session) {
-        navigate("/admin/login");
-        return;
-      }
-
-      const user = session.user;
       let info: AdminInfo = {
-        name:        user.email?.split("@")[0] || "Admin",
-        email:       user.email || "",
+        name:        user!.email?.split("@")[0] || "Admin",
+        email:       user!.email || "",
         role:        "",
         permissions: {},
       };
@@ -97,14 +99,14 @@ export function AdminRouter() {
         const { data } = await supabase
           .from("admin_users")
           .select("name, role, email, permissions")
-          .eq("user_id", user.id)
+          .eq("user_id", user!.id)
           .limit(1);
 
         const record = Array.isArray(data) && data.length > 0 ? data[0] : null;
         if (record) {
           info = {
-            name:        record.name  || user.email?.split("@")[0] || "Admin",
-            email:       record.email || user.email || "",
+            name:        record.name  || user!.email?.split("@")[0] || "Admin",
+            email:       record.email || user!.email || "",
             role:        record.role  || "",
             permissions: (record.permissions as Record<string, boolean>) || {},
           };
@@ -124,7 +126,7 @@ export function AdminRouter() {
 
     bootstrap();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [authLoading, user?.id]);
 
   useEffect(() => {
     if (checking) return;

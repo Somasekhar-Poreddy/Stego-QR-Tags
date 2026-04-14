@@ -7,6 +7,7 @@ import { Users, QrCode, MessageSquare, ShoppingCart, Zap, DollarSign, RefreshCw,
 import {
   getDashboardStats, getScansPerDay, getRequestsByType,
 } from "@/services/adminService";
+import { ensureFreshSession } from "@/lib/adminAuth";
 import { DateRangeBar, useDateRange, RANGE_LABELS } from "@/admin/components/DateRangeBar";
 
 interface Stats { totalUsers: number; activeQRCodes: number; todayRequests: number; emergencyRequests: number; totalOrders: number; }
@@ -75,7 +76,8 @@ export function DashboardScreen() {
   const loadStats = useCallback(() => {
     setStatsLoading(true);
     setStatsError(false);
-    getDashboardStats()
+    ensureFreshSession()
+      .then(() => getDashboardStats())
       .then((data) => { setStats(data); setStatsError(false); })
       .catch(() => { setStatsError(true); })
       .finally(() => setStatsLoading(false));
@@ -84,7 +86,8 @@ export function DashboardScreen() {
   const loadCharts = useCallback((f: Date, t: Date) => {
     setChartsLoading(true);
     setChartsError(false);
-    Promise.all([getScansPerDay(f, t), getRequestsByType(f, t)])
+    ensureFreshSession()
+      .then(() => Promise.all([getScansPerDay(f, t), getRequestsByType(f, t)]))
       .then(([scans, types]) => {
         setScansData(scans);
         setReqTypes(types);

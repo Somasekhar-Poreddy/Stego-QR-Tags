@@ -7,6 +7,7 @@ import {
   adminGetAllScans, adminGetAllScansCount, adminDecryptIP,
   type ScanFilter, type ScanWithQRName,
 } from "@/services/adminService";
+import { ensureFreshSession } from "@/lib/adminAuth";
 import { useAuth } from "@/app/context/AuthContext";
 import { cn } from "@/lib/utils";
 
@@ -110,6 +111,7 @@ export function VisitorLogScreen() {
     setLoading(true);
     setError(null);
     try {
+      await ensureFreshSession();
       const [rows, cnt] = await Promise.all([
         adminGetAllScans(f, PAGE_SIZE, p * PAGE_SIZE),
         adminGetAllScansCount(f),
