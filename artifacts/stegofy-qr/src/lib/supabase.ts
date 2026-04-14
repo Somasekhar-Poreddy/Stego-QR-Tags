@@ -19,5 +19,6 @@ export const supabase = createClient(
       autoRefreshToken: true,
       persistSession: true,
     },
+    global: { headers: { "x-app-name": "stegofy-qr" } },
   }
 );

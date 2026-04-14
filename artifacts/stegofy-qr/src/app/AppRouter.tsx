@@ -66,7 +66,7 @@ export function AppRouter() {
     if (location === "/app/signup" && (step === "login" || step === "otp")) {
       setStep("signup");
     }
-  }, [location]);
+  }, [location, step, setStep]);
 
   // Load QR profiles from Supabase once when user becomes authenticated.
   // Guard with loadedForRef so we only fire once per user session, not on every render.

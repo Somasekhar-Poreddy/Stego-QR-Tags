@@ -43,44 +43,6 @@ const QRContext = createContext<QRContextType | null>(null);
 
 const STORAGE_KEY = "stegofy_qr_profiles_v1";
 
-const MOCK_PROFILES: QRProfile[] = [
-  {
-    id: "mock-1",
-    name: "Bruno (Labrador)",
-    type: "pet",
-    status: "active",
-    primaryContact: "+91 98*** ***12",
-    privacyMode: "mask",
-    scans: 3,
-    createdAt: "2026-03-10",
-    qrUrl: `${window.location.origin}/qr/mock-1`,
-    qrId: "mock-1",
-  },
-  {
-    id: "mock-2",
-    name: "Honda City · MH01AB1234",
-    type: "vehicle",
-    status: "active",
-    primaryContact: "+91 98*** ***12",
-    privacyMode: "mask",
-    scans: 7,
-    createdAt: "2026-03-01",
-    qrUrl: `${window.location.origin}/qr/mock-2`,
-    qrId: "mock-2",
-  },
-];
-
-function loadProfiles(): QRProfile[] {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-    }
-  } catch {}
-  return MOCK_PROFILES;
-}
-
 function rowToProfile(row: Record<string, unknown>): QRProfile {
   return {
     id: row.id as string,
@@ -109,7 +71,7 @@ function rowToProfile(row: Record<string, unknown>): QRProfile {
 }
 
 export function QRProvider({ children }: { children: ReactNode }) {
-  const [profiles, setProfiles] = useState<QRProfile[]>(loadProfiles);
+  const [profiles, setProfiles] = useState<QRProfile[]>([]);
 
   useEffect(() => {
     try {
@@ -131,12 +93,8 @@ export function QRProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      // Query succeeded — but only replace local state when the server returned
-      // at least one row. An empty result on a transient auth gap (brief moment
-      // between token expiry and refresh) would otherwise wipe all QR codes from
-      // the UI. The functional update preserves the existing list in that case.
       const loaded = (data ?? []).map(rowToProfile);
-      setProfiles((prev) => (loaded.length > 0 ? loaded : prev));
+      setProfiles(loaded);
     } catch (err) {
       // Network unreachable — silently keep current localStorage state
       console.warn("QR profile load failed, using local data:", err);
