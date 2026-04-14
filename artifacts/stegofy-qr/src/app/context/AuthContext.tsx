@@ -52,46 +52,27 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-// ─── Module-level recovery flags ──────────────────────────────────────────────
-// These run the instant this module is imported — before React renders and before
-// Supabase's async initialize() can clear the URL hash or query string.
-//
-// TWO flows must be handled:
-//   • Implicit flow  → Supabase puts #type=recovery&access_token=...  in the hash
-//   • PKCE flow      → Supabase puts ?code=<one-time-code>  in the query string
-//                      (no "type=recovery" visible in the URL)
-//
-// For PKCE we cannot know it's a recovery from the URL alone. Instead we:
-//   1. Set _codeParamPending = true so getSession() doesn't auto-login
-//   2. Briefly defer the SIGNED_IN handler so PASSWORD_RECOVERY can arrive first
-
-let _recoveryPending = false;   // implicit flow: #type=recovery detected
-let _codeParamPending = false;  // PKCE flow:     ?code= detected (may be recovery)
-let _urlError: string | null = null; // e.g. otp_expired from a bad/stale reset link
+let _recoveryPending = false;
+let _codeParamPending = false;
+let _urlError: string | null = null;
 
 try {
   const _h = new URLSearchParams(window.location.hash.slice(1));
   const _q = new URLSearchParams(window.location.search);
 
-  // Implicit flow recovery (#type=recovery in hash)
   if (_h.get("type") === "recovery" || _q.get("type") === "recovery") {
     _recoveryPending = true;
   }
-  // Our own marker — added to redirectTo so it survives both PKCE and implicit redirects
   if (_q.has("stego_reset")) {
     _recoveryPending = true;
   }
-  // PKCE flow — ?code= present but no type marker yet; wait for auth events
   if (_q.has("code") && !_recoveryPending) {
     _codeParamPending = true;
   }
-  // Supabase error in hash (e.g. expired / already-used reset link)
   if (_h.get("error")) {
     const code = _h.get("error_code") || _h.get("error") || "unknown";
     const desc = _h.get("error_description")?.replace(/\+/g, " ") || "The link is invalid or has expired.";
-    _urlError = code === "otp_expired"
-      ? "expired"
-      : desc;
+    _urlError = code === "otp_expired" ? "expired" : desc;
   }
 } catch {}
 
@@ -122,7 +103,6 @@ async function fetchAndBuildUser(supabaseUser: any): Promise<User> {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  // _recoveryPending is the module-level flag set at import time — safe to use directly.
   const [step, _setStep] = useState<AuthStep>(_recoveryPending ? "reset-password" : "login");
   const [user, setUser] = useState<User | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
@@ -130,13 +110,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const otpSignupInProgress = useRef(false);
-  // Mirror the module-level flag into a ref so event handlers can read it synchronously.
-  // Initialized ONCE from _recoveryPending (not from URL detection which may be stale).
   const passwordRecoveryInProgress = useRef(_recoveryPending);
-  // Stores the user id before sign-out so the logout event can be logged
   const prevUserIdRef = useRef<string | null>(null);
 
-  // Wrap setStep so navigating back to login always clears all in-progress flags
   const setStep = (s: AuthStep) => {
     if (s === "login") {
       otpSignupInProgress.current = false;
@@ -150,7 +126,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
-    // Hard timeout: never stay stuck on loading more than 5 seconds
     const loadingTimeout = setTimeout(() => {
       if (mounted) setLoading(false);
     }, 10000);
@@ -158,25 +133,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!mounted) return;
       try {
-        // Implicit recovery (#type=recovery in hash) — show reset screen immediately.
         if (passwordRecoveryInProgress.current) {
           clearTimeout(loadingTimeout);
-          if (mounted) { _setStep("reset-password"); setLoading(false); }
+          if (mounted) {
+            _setStep("reset-password");
+            setLoading(false);
+          }
           return;
         }
-        // PKCE flow: a ?code= param is in the URL. Supabase is exchanging it for a session
-        // in the background. Do NOT auto-login yet — wait for auth events (SIGNED_IN /
-        // PASSWORD_RECOVERY) to tell us whether this is a recovery or a normal sign-in.
+
         if (_codeParamPending) {
           clearTimeout(loadingTimeout);
           if (mounted) setLoading(false);
           return;
         }
+
         if (session?.user && !otpSignupInProgress.current) {
           const built = await fetchAndBuildUser(session.user);
           if (mounted) {
             prevUserIdRef.current = session.user.id;
-            setUser(built); setStep("app");
+            setUser(built);
+            setStep("app");
           }
         }
       } catch (err) {
@@ -194,40 +171,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!mounted) return;
       if (otpSignupInProgress.current) return;
 
-      // PASSWORD_RECOVERY fires for BOTH implicit and PKCE flows.
-      // In PKCE, it arrives just after SIGNED_IN — this handler must win.
       if (event === "PASSWORD_RECOVERY") {
         _recoveryPending = true;
         _codeParamPending = false;
         passwordRecoveryInProgress.current = true;
-        if (mounted) { setLoading(false); _setStep("reset-password"); }
+        if (mounted) {
+          setLoading(false);
+          _setStep("reset-password");
+        }
         return;
       }
 
       if (event === "SIGNED_IN" && session?.user) {
-        // Always skip if we already know this is recovery (implicit flow).
         if (passwordRecoveryInProgress.current) return;
 
-        // PKCE flow: SIGNED_IN fires *before* PASSWORD_RECOVERY. Wait up to 400 ms
-        // so PASSWORD_RECOVERY has a chance to arrive and set the flag above.
-        // If it does, we bail out. If not (normal sign-in/email confirm), we navigate.
         if (_codeParamPending) {
           await new Promise<void>((r) => setTimeout(r, 400));
           _codeParamPending = false;
-          if (passwordRecoveryInProgress.current) return; // recovery won — stay on reset screen
+          if (passwordRecoveryInProgress.current) return;
         }
 
         try {
           const built = await fetchAndBuildUser(session.user);
           if (mounted) {
             prevUserIdRef.current = session.user.id;
-            setUser(built); setStep("app"); setLoading(false);
+            setUser(built);
+            setStep("app");
+            setLoading(false);
           }
         } catch {
           if (mounted) setLoading(false);
         }
 
-        // Fire-and-forget: log login event (never blocks auth flow)
         supabase.from("user_activity_logs").insert({
           user_id: session.user.id,
           event_type: "login",
@@ -239,24 +214,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
       }
 
-      // TOKEN_REFRESHED: Supabase silently renewed the access token.
-      // Re-build user state so React holds fresh data and downstream
-      // Supabase calls don't fail with stale tokens.
       if (event === "TOKEN_REFRESHED" && session?.user) {
         if (passwordRecoveryInProgress.current) return;
         try {
           const built = await fetchAndBuildUser(session.user);
           if (mounted) setUser(built);
         } catch {
-          // non-fatal — user stays logged in with existing state
+          // non-fatal
         }
         return;
       }
 
       if (event === "SIGNED_OUT") {
-        // Don't navigate to login if we are in the recovery flow
         if (passwordRecoveryInProgress.current) return;
-        // Fire-and-forget: log logout event using the stored ref id
+
         if (prevUserIdRef.current) {
           supabase.from("user_activity_logs").insert({
             user_id: prevUserIdRef.current,
@@ -269,52 +240,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           });
           prevUserIdRef.current = null;
         }
-        setUser(null); setStep("login"); setLoading(false);
+        setUser(null);
+        setStep("login");
+        setLoading(false);
       }
 
-      // USER_UPDATED fires during recovery session creation AND after password update.
-      // Do NOT clear passwordRecoveryInProgress here — only setStep("login") clears it.
       if (event === "USER_UPDATED") {
         if (mounted) setLoading(false);
       }
     });
 
-    // Visibility recovery: browsers throttle JS timers in background tabs
-    // (~1 min), which can let the Supabase token expire mid-session.
-    // When the user returns to the tab, force an immediate network refresh
-    // so the JWT is renewed before any user action fires.
-    // NOTE: refreshSession() (not getSession()) is used here deliberately —
-    // getSession() reads from localStorage and may return a stale/expired JWT
-    // without making a network call. refreshSession() always hits the network.
-    const handleVisibilityChange = async () => {
-      if (document.visibilityState !== "visible") return;
-      if (!mounted) return;
-      if (passwordRecoveryInProgress.current || otpSignupInProgress.current) return;
-
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!mounted) return;
-
-        if (!session) return;
-
-        const secsLeft = (session.expires_at ?? 0) - Math.floor(Date.now() / 1000);
-
-        // Only refresh if token is actually close to expiry
-        if (secsLeft > 240) return;
-
-        const { data: { session: refreshed }, error } = await supabase.auth.refreshSession();
-        if (!mounted) return;
-        if (error || !refreshed) return;
-
-        // Do NOT rebuild user here unless you absolutely must
-        // Let onAuthStateChange(TOKEN_REFRESHED) handle auth lifecycle
-      } catch {
-        // non-fatal
-      }
+    return () => {
+      mounted = false;
+      clearTimeout(loadingTimeout);
+      listener.subscription.unsubscribe();
     };
   }, []);
 
-  // ── Password login ────────────────────────────────────────────────────────
   const signInWithEmail = async (email: string, password: string) => {
     setAuthError(null);
     try {
@@ -328,7 +270,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // ── OTP login — Step 1: send code ────────────────────────────────────────
   const sendLoginOtp = async (email: string): Promise<string | null> => {
     const { error } = await supabase.auth.signInWithOtp({
       email,
@@ -337,7 +278,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return error ? (error.message || "Could not send OTP. Please try again.") : null;
   };
 
-  // ── OTP login — Step 2: verify code ─────────────────────────────────────
   const verifyLoginOtp = async (email: string, token: string) => {
     setAuthError(null);
     try {
@@ -357,10 +297,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // ── Forgot password: send reset email ────────────────────────────────────
   const sendPasswordReset = async (email: string): Promise<string | null> => {
-    // Check if the email is registered before asking Supabase to send a link.
-    // Supabase never reveals whether an address exists — we enforce it ourselves.
     const { data: profile } = await supabase
       .from("user_profiles")
       .select("id")
@@ -377,7 +314,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return error ? (error.message || "Could not send reset email. Try again.") : null;
   };
 
-  // ── Standard signup ───────────────────────────────────────────────────────
   const signUpWithEmail = async (data: SignUpData) => {
     setAuthError(null);
     try {
@@ -424,7 +360,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const beginOtpVerification = () => { otpSignupInProgress.current = true; };
+  const beginOtpVerification = () => {
+    otpSignupInProgress.current = true;
+  };
 
   const completeOtpSignup = async (data: SignUpData) => {
     setAuthError(null);
@@ -485,11 +423,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <AuthContext.Provider
       value={{
-        step, user, authError, urlError, loading,
-        setStep, setUser, setAuthError,
-        signInWithEmail, signUpWithEmail,
-        beginOtpVerification, completeOtpSignup,
-        sendLoginOtp, verifyLoginOtp,
+        step,
+        user,
+        authError,
+        urlError,
+        loading,
+        setStep,
+        setUser,
+        setAuthError,
+        signInWithEmail,
+        signUpWithEmail,
+        beginOtpVerification,
+        completeOtpSignup,
+        sendLoginOtp,
+        verifyLoginOtp,
         sendPasswordReset,
         logout,
       }}

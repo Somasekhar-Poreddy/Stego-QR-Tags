@@ -6,19 +6,19 @@ import { useSessionKeepalive } from "@/hooks/useSessionKeepalive";
 import { SessionErrorBoundary } from "@/admin/SessionErrorBoundary";
 import { useAuth } from "@/app/context/AuthContext";
 
-import { DashboardScreen }       from "@/admin/screens/DashboardScreen";
-import { UsersScreen }           from "@/admin/screens/UsersScreen";
-import { QRCodesScreen }         from "@/admin/screens/QRCodesScreen";
+import { DashboardScreen } from "@/admin/screens/DashboardScreen";
+import { UsersScreen } from "@/admin/screens/UsersScreen";
+import { QRCodesScreen } from "@/admin/screens/QRCodesScreen";
 import { ContactRequestsScreen } from "@/admin/screens/ContactRequestsScreen";
-import { ProductsScreen }        from "@/admin/screens/ProductsScreen";
-import { OrdersScreen }          from "@/admin/screens/OrdersScreen";
-import { InventoryScreen }       from "@/admin/screens/InventoryScreen";
-import { AnalyticsScreen }       from "@/admin/screens/AnalyticsScreen";
-import { TeamScreen }            from "@/admin/screens/TeamScreen";
-import { NotificationsScreen }   from "@/admin/screens/NotificationsScreen";
-import { SupportScreen }         from "@/admin/screens/SupportScreen";
-import { SettingsScreen }        from "@/admin/screens/SettingsScreen";
-import { VisitorLogScreen }     from "@/admin/screens/VisitorLogScreen";
+import { ProductsScreen } from "@/admin/screens/ProductsScreen";
+import { OrdersScreen } from "@/admin/screens/OrdersScreen";
+import { InventoryScreen } from "@/admin/screens/InventoryScreen";
+import { AnalyticsScreen } from "@/admin/screens/AnalyticsScreen";
+import { TeamScreen } from "@/admin/screens/TeamScreen";
+import { NotificationsScreen } from "@/admin/screens/NotificationsScreen";
+import { SupportScreen } from "@/admin/screens/SupportScreen";
+import { SettingsScreen } from "@/admin/screens/SettingsScreen";
+import { VisitorLogScreen } from "@/admin/screens/VisitorLogScreen";
 
 interface AdminInfo {
   name: string;
@@ -28,18 +28,18 @@ interface AdminInfo {
 }
 
 const ROUTE_PERMISSIONS: { path: string; permissionKey?: string }[] = [
-  { path: "/admin/users",          permissionKey: "manage_users" },
-  { path: "/admin/qr-codes",       permissionKey: "manage_qr_codes" },
-  { path: "/admin/requests",       permissionKey: "manage_support" },
-  { path: "/admin/products",       permissionKey: "manage_products" },
-  { path: "/admin/orders",         permissionKey: "manage_orders" },
-  { path: "/admin/inventory",      permissionKey: "manage_inventory" },
-  { path: "/admin/analytics",      permissionKey: "view_analytics" },
-  { path: "/admin/visitor-log",    permissionKey: "view_analytics" },
-  { path: "/admin/team",           permissionKey: "manage_team" },
-  { path: "/admin/notifications",  permissionKey: "send_notifications" },
-  { path: "/admin/support",        permissionKey: "manage_support" },
-  { path: "/admin/settings",       permissionKey: "manage_settings" },
+  { path: "/admin/users", permissionKey: "manage_users" },
+  { path: "/admin/qr-codes", permissionKey: "manage_qr_codes" },
+  { path: "/admin/requests", permissionKey: "manage_support" },
+  { path: "/admin/products", permissionKey: "manage_products" },
+  { path: "/admin/orders", permissionKey: "manage_orders" },
+  { path: "/admin/inventory", permissionKey: "manage_inventory" },
+  { path: "/admin/analytics", permissionKey: "view_analytics" },
+  { path: "/admin/visitor-log", permissionKey: "view_analytics" },
+  { path: "/admin/team", permissionKey: "manage_team" },
+  { path: "/admin/notifications", permissionKey: "send_notifications" },
+  { path: "/admin/support", permissionKey: "manage_support" },
+  { path: "/admin/settings", permissionKey: "manage_settings" },
 ];
 
 function isPathAllowed(
@@ -56,17 +56,15 @@ function isPathAllowed(
 
 export function AdminRouter() {
   const [location, navigate] = useLocation();
-  const [checking, setChecking]   = useState(true);
+  const [checking, setChecking] = useState(true);
   const [adminInfo, setAdminInfo] = useState<AdminInfo>({
-    name: "", email: "", role: "", permissions: {},
+    name: "",
+    email: "",
+    role: "",
+    permissions: {},
   });
 
-  // Session keepalive: refreshes on tab focus + auth events + periodic interval.
   const { sessionOk, reconnecting } = useSessionKeepalive();
-
-  // Global auth-expired event listener: any async loading path that throws
-  // AuthExpiredError dispatches AUTH_EXPIRED_EVENT on window. Centralising the
-  // redirect here means individual screens do not need to import AuthExpiredError.
   const { user, loading: authLoading } = useAuth();
 
   useEffect(() => {
@@ -79,9 +77,9 @@ export function AdminRouter() {
 
     async function bootstrap() {
       let info: AdminInfo = {
-        name:        user!.email?.split("@")[0] || "Admin",
-        email:       user!.email || "",
-        role:        "",
+        name: user.email?.split("@")[0] || "Admin",
+        email: user.email || "",
+        role: "",
         permissions: {},
       };
 
@@ -89,15 +87,15 @@ export function AdminRouter() {
         const { data } = await supabase
           .from("admin_users")
           .select("name, role, email, permissions")
-          .eq("user_id", user!.id)
+          .eq("user_id", user.id)
           .limit(1);
 
         const record = Array.isArray(data) && data.length > 0 ? data[0] : null;
         if (record) {
           info = {
-            name:        record.name  || user!.email?.split("@")[0] || "Admin",
-            email:       record.email || user!.email || "",
-            role:        record.role  || "",
+            name: record.name || user.email?.split("@")[0] || "Admin",
+            email: record.email || user.email || "",
+            role: record.role || "",
             permissions: (record.permissions as Record<string, boolean>) || {},
           };
         }
@@ -139,7 +137,6 @@ export function AdminRouter() {
       adminRole={adminInfo.role}
       permissions={adminInfo.permissions}
     >
-      {/* Amber banner shown while a visibility-triggered session refresh is in-flight */}
       {(reconnecting || !sessionOk) && (
         <div className="fixed top-0 left-0 right-0 z-50 flex items-center justify-center gap-2 bg-amber-500 px-4 py-2 text-sm font-medium text-white shadow">
           <svg
@@ -166,26 +163,21 @@ export function AdminRouter() {
         </div>
       )}
 
-      {/*
-        SessionErrorBoundary catches AuthExpiredError that bubbles up from
-        any screen's render path. On auth error: auto-retries refreshSession()
-        and remounts children on success; redirects to login on failure.
-      */}
       <SessionErrorBoundary onExpired={() => navigate("/admin/login?reason=expired")}>
         <Switch>
-          <Route path="/admin/users"         component={UsersScreen} />
-          <Route path="/admin/qr-codes"      component={QRCodesScreen} />
-          <Route path="/admin/requests"      component={ContactRequestsScreen} />
-          <Route path="/admin/products"      component={ProductsScreen} />
-          <Route path="/admin/orders"        component={OrdersScreen} />
-          <Route path="/admin/inventory"     component={InventoryScreen} />
-          <Route path="/admin/analytics"     component={AnalyticsScreen} />
-          <Route path="/admin/team"          component={TeamScreen} />
+          <Route path="/admin/users" component={UsersScreen} />
+          <Route path="/admin/qr-codes" component={QRCodesScreen} />
+          <Route path="/admin/requests" component={ContactRequestsScreen} />
+          <Route path="/admin/products" component={ProductsScreen} />
+          <Route path="/admin/orders" component={OrdersScreen} />
+          <Route path="/admin/inventory" component={InventoryScreen} />
+          <Route path="/admin/analytics" component={AnalyticsScreen} />
+          <Route path="/admin/team" component={TeamScreen} />
           <Route path="/admin/notifications" component={NotificationsScreen} />
-          <Route path="/admin/support"       component={SupportScreen} />
-          <Route path="/admin/settings"      component={SettingsScreen} />
-          <Route path="/admin/visitor-log"   component={VisitorLogScreen} />
-          <Route                             component={DashboardScreen} />
+          <Route path="/admin/support" component={SupportScreen} />
+          <Route path="/admin/settings" component={SettingsScreen} />
+          <Route path="/admin/visitor-log" component={VisitorLogScreen} />
+          <Route component={DashboardScreen} />
         </Switch>
       </SessionErrorBoundary>
     </AdminLayout>
