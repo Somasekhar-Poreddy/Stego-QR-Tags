@@ -7,7 +7,7 @@ import {
   ChevronLeft, ChevronRight, Menu, X, LogOut, Shield, Globe,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/app/context/AuthContext";
 
 interface NavItem {
   path: string;
@@ -70,9 +70,10 @@ function SidebarNav({
   onClose?: () => void;
 }) {
   const [location, navigate] = useLocation();
+  const { logout } = useAuth();
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    await logout();
     navigate("/admin/login");
   };
 
@@ -179,8 +180,10 @@ export function AdminLayout({ children, adminName, adminRole, permissions }: Adm
       : location.startsWith(item.path)
   )?.label ?? "Admin";
 
+  const { logout } = useAuth();
+
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    await logout();
     navigate("/admin/login");
   };
 

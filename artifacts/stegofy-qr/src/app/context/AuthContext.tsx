@@ -112,6 +112,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const otpSignupInProgress = useRef(false);
   const passwordRecoveryInProgress = useRef(_recoveryPending);
   const prevUserIdRef = useRef<string | null>(null);
+  const explicitLogoutRef = useRef(false);
 
   const setStep = (s: AuthStep) => {
     if (s === "login") {
@@ -220,6 +221,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       if (event === "SIGNED_OUT") {
         if (passwordRecoveryInProgress.current) return;
+
+        if (!explicitLogoutRef.current) {
+          const { error: refreshError } = await supabase.auth.refreshSession();
+          if (!mounted) return;
+          if (!refreshError) return;
+        }
+        explicitLogoutRef.current = false;
 
         if (prevUserIdRef.current) {
           supabase.from("user_activity_logs").insert({
@@ -404,6 +412,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     otpSignupInProgress.current = false;
     passwordRecoveryInProgress.current = false;
+    explicitLogoutRef.current = true;
     try {
       await supabase.auth.signOut();
     } catch (e) {

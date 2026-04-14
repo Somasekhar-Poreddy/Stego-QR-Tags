@@ -23,15 +23,6 @@ export function useSessionKeepalive(): {
       if (event === "SIGNED_OUT") {
         setSessionOk(false);
         setReconnecting(true);
-        supabase.auth.refreshSession().then(({ error }) => {
-          if (error) {
-            setReconnecting(false);
-            goToLogin();
-          } else {
-            setSessionOk(true);
-            setReconnecting(false);
-          }
-        });
       } else if (event === "TOKEN_REFRESHED" || event === "SIGNED_IN") {
         setSessionOk(true);
         setReconnecting(false);
