@@ -227,9 +227,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!explicitLogoutRef.current) {
           setRecovering(true);
           const { error: refreshError } = await supabase.auth.refreshSession();
-          if (!mounted) { setRecovering(false); return; }
-          if (!refreshError) { setRecovering(false); return; }
+          if (!mounted) return;
           setRecovering(false);
+          if (!refreshError) return;
         }
         explicitLogoutRef.current = false;
 
