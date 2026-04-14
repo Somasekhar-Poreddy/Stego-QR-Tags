@@ -186,7 +186,8 @@ export function ProductDetailScreen({ productId }: { productId: string }) {
     );
   }
 
-  if (error || !product) {
+  // No product at all (not found, or first-ever load failed with nothing cached)
+  if (!product) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col">
         <div className="bg-white border-b border-slate-100 px-4 py-3 flex items-center gap-3 sticky top-0 z-40">
@@ -236,6 +237,14 @@ export function ProductDetailScreen({ productId }: { productId: string }) {
           <ChevronLeft className="w-5 h-5 text-slate-600" />
         </button>
         <h1 className="text-base font-bold text-slate-900 truncate flex-1">{product.name}</h1>
+
+      {/* Non-blocking inline error banner — product data is still shown from cache */}
+      {error && (
+        <div className="flex items-center gap-1.5 bg-rose-50 border border-rose-100 rounded-lg px-2.5 py-1 shrink-0">
+          <AlertCircle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+          <p className="text-[10px] text-rose-600 leading-tight">Refresh failed</p>
+        </div>
+      )}
         {qty > 0 && (
           <div className="w-6 h-6 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center">
             {qty}

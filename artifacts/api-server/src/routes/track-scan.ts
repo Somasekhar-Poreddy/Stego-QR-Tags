@@ -2,6 +2,7 @@ import { Router, type Request, type Response } from "express";
 import { encryptIP, decryptIP } from "../utils/encryption.js";
 import { getMaskedIP, getHashedIP } from "../services/ipService.js";
 import { getGeoData } from "../services/geoService.js";
+import { supabaseAdmin } from "../lib/supabaseAdmin.js";
 
 const router = Router();
 
@@ -11,15 +12,6 @@ function getSupabaseUrl(): string {
 
 function getServiceRoleKey(): string {
   return process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
-}
-
-function makeHeaders(serviceKey: string): Record<string, string> {
-  return {
-    "Content-Type": "application/json",
-    "Authorization": `Bearer ${serviceKey}`,
-    "apikey": serviceKey,
-    "Prefer": "return=representation",
-  };
 }
 
 function parseUserAgent(ua: string): { device: string; browser: string; os: string } {
@@ -51,13 +43,6 @@ function parseUserAgent(ua: string): { device: string; browser: string; os: stri
 }
 
 router.post("/track-scan", async (req: Request, res: Response) => {
-  const supabaseUrl = getSupabaseUrl();
-  const serviceKey = getServiceRoleKey();
-  if (!supabaseUrl || !serviceKey) {
-    res.status(500).json({ error: "Server configuration missing" });
-    return;
-  }
-
   const { qr_id, session_id, referrer, user_id } = req.body as {
     qr_id?: string;
     session_id?: string;
@@ -117,20 +102,18 @@ router.post("/track-scan", async (req: Request, res: Response) => {
   };
 
   try {
-    const dbRes = await fetch(`${supabaseUrl}/rest/v1/qr_scans`, {
-      method: "POST",
-      headers: makeHeaders(serviceKey),
-      body: JSON.stringify(row),
-    });
+    const { data: saved, error: dbError } = await supabaseAdmin
+      .from("qr_scans")
+      .insert(row)
+      .select("id")
+      .single();
 
-    if (!dbRes.ok) {
-      const body = await dbRes.json().catch(() => ({})) as { message?: string };
-      res.status(500).json({ error: body.message ?? "Failed to save scan" });
+    if (dbError || !saved) {
+      res.status(500).json({ error: dbError?.message ?? "Failed to save scan" });
       return;
     }
 
-    const saved = await dbRes.json() as { id: string }[];
-    res.status(200).json({ id: Array.isArray(saved) ? saved[0]?.id : (saved as unknown as { id: string }).id });
+    res.status(200).json({ id: (saved as { id: string }).id });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unexpected error";
     res.status(500).json({ error: message });
@@ -138,13 +121,6 @@ router.post("/track-scan", async (req: Request, res: Response) => {
 });
 
 router.put("/track-scan/:id/intent", async (req: Request, res: Response) => {
-  const supabaseUrl = getSupabaseUrl();
-  const serviceKey = getServiceRoleKey();
-  if (!supabaseUrl || !serviceKey) {
-    res.status(500).json({ error: "Server configuration missing" });
-    return;
-  }
-
   const { id } = req.params;
   const { intent, is_request_made } = req.body as {
     intent?: string | null;
@@ -161,17 +137,13 @@ router.put("/track-scan/:id/intent", async (req: Request, res: Response) => {
   if (is_request_made === true) updates.is_request_made = true;
 
   try {
-    const dbRes = await fetch(
-      `${supabaseUrl}/rest/v1/qr_scans?id=eq.${id}`,
-      {
-        method: "PATCH",
-        headers: makeHeaders(serviceKey),
-        body: JSON.stringify(updates),
-      },
-    );
+    const { error: dbError } = await supabaseAdmin
+      .from("qr_scans")
+      .update(updates)
+      .eq("id", id);
 
-    if (!dbRes.ok) {
-      res.status(500).json({ error: "Failed to update scan" });
+    if (dbError) {
+      res.status(500).json({ error: dbError.message ?? "Failed to update scan" });
       return;
     }
     res.status(200).json({ success: true });
@@ -196,6 +168,8 @@ router.post("/admin/decrypt-ip", async (req: Request, res: Response) => {
     return;
   }
 
+  // Validate the caller's JWT via Auth REST — raw fetch is correct here since
+  // we're verifying an arbitrary user token, not using the service-role session.
   const userRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
     headers: { "Authorization": `Bearer ${token}`, "apikey": serviceKey },
   });
@@ -213,19 +187,17 @@ router.post("/admin/decrypt-ip", async (req: Request, res: Response) => {
   const allowedIds = (process.env.VITE_ADMIN_USER_IDS ?? "")
     .split(",").map((id) => id.trim()).filter(Boolean);
 
-  const adminRow = !allowedIds.includes(adminId)
-    ? await (async () => {
-        const r = await fetch(
-          `${supabaseUrl}/rest/v1/admin_users?user_id=eq.${adminId}&select=role&limit=1`,
-          { headers: { "Authorization": `Bearer ${serviceKey}`, "apikey": serviceKey } },
-        );
-        if (!r.ok) return null;
-        const d = await r.json() as { role: string }[];
-        return d[0] ?? null;
-      })()
-    : { role: "super_admin" };
+  let adminRole = allowedIds.includes(adminId) ? "super_admin" : null;
+  if (!adminRole) {
+    const { data: adminRow } = await supabaseAdmin
+      .from("admin_users")
+      .select("role")
+      .eq("user_id", adminId)
+      .maybeSingle();
+    adminRole = (adminRow as { role?: string } | null)?.role ?? null;
+  }
 
-  if (!adminRow || adminRow.role !== "super_admin") {
+  if (!adminRole || adminRole !== "super_admin") {
     res.status(403).json({ error: "Only super admins can view full IPs" });
     return;
   }
@@ -249,15 +221,16 @@ router.post("/admin/decrypt-ip", async (req: Request, res: Response) => {
     return;
   }
 
-  fetch(`${supabaseUrl}/rest/v1/admin_ip_access_logs`, {
-    method: "POST",
-    headers: makeHeaders(serviceKey),
-    body: JSON.stringify({
+  // Fire-and-forget audit log via supabaseAdmin SDK
+  supabaseAdmin
+    .from("admin_ip_access_logs")
+    .insert({
       admin_id: adminId,
       qr_id: qr_id ?? null,
       scan_id: scan_id ?? null,
-    }),
-  }).catch(() => {});
+    })
+    .then(() => {})
+    .catch(() => {});
 
   res.status(200).json({ ip: plain_ip });
 });

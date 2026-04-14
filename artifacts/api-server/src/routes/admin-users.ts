@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import type { Request, Response } from "express";
+import { supabaseAdmin } from "../lib/supabaseAdmin.js";
 
 const router: IRouter = Router();
 
@@ -16,23 +17,15 @@ interface AdminRecord {
   permissions: Record<string, boolean>;
 }
 
-async function getCallerAdminRecord(
-  userId: string,
-  supabaseUrl: string,
-  serviceRoleKey: string,
-): Promise<AdminRecord | null> {
-  const res = await fetch(
-    `${supabaseUrl}/rest/v1/admin_users?user_id=eq.${userId}&select=id,user_id,role,permissions&limit=1`,
-    {
-      headers: {
-        "Authorization": `Bearer ${serviceRoleKey}`,
-        "apikey": serviceRoleKey,
-      },
-    },
-  );
-  if (!res.ok) return null;
-  const data = await res.json() as AdminRecord[];
-  return Array.isArray(data) && data.length > 0 ? data[0] : null;
+async function getCallerAdminRecord(userId: string): Promise<AdminRecord | null> {
+  const { data, error } = await supabaseAdmin
+    .from("admin_users")
+    .select("id, user_id, role, permissions")
+    .eq("user_id", userId)
+    .limit(1)
+    .maybeSingle();
+  if (error || !data) return null;
+  return data as AdminRecord;
 }
 
 async function requireManageTeam(req: Request, res: Response): Promise<{ userId: string; record: AdminRecord | null } | null> {
@@ -50,6 +43,8 @@ async function requireManageTeam(req: Request, res: Response): Promise<{ userId:
     return null;
   }
 
+  // Validate the caller's JWT via Auth REST — no SDK shortcut for verifying an
+  // arbitrary user token server-side; raw fetch is the correct approach here.
   const userRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
     headers: {
       "Authorization": `Bearer ${token}`,
@@ -76,7 +71,7 @@ async function requireManageTeam(req: Request, res: Response): Promise<{ userId:
     return { userId, record: null };
   }
 
-  const record = await getCallerAdminRecord(userId, supabaseUrl, serviceRoleKey);
+  const record = await getCallerAdminRecord(userId);
   if (!record) {
     res.status(403).json({ error: "You do not have admin access" });
     return null;
@@ -129,6 +124,7 @@ router.post("/admin/create-user", async (req: Request, res: Response) => {
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
   try {
+    // Auth Admin user creation — must remain raw fetch (Admin REST API)
     const authRes = await fetch(`${supabaseUrl}/auth/v1/admin/users`, {
       method: "POST",
       headers: {
@@ -153,19 +149,15 @@ router.post("/admin/create-user", async (req: Request, res: Response) => {
       return;
     }
 
-    const dbRes = await fetch(`${supabaseUrl}/rest/v1/admin_users`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${serviceRoleKey}`,
-        "apikey": serviceRoleKey,
-        "Prefer": "return=representation",
-      },
-      body: JSON.stringify({ user_id: userId, email, name, role, permissions }),
-    });
+    // Insert admin_users row via supabaseAdmin SDK
+    const { data: dbData, error: dbError } = await supabaseAdmin
+      .from("admin_users")
+      .insert({ user_id: userId, email, name, role, permissions })
+      .select()
+      .single();
 
-    const dbData = await dbRes.json();
-    if (!dbRes.ok) {
+    if (dbError || !dbData) {
+      // Roll back auth user
       await fetch(`${supabaseUrl}/auth/v1/admin/users/${userId}`, {
         method: "DELETE",
         headers: {
@@ -173,11 +165,11 @@ router.post("/admin/create-user", async (req: Request, res: Response) => {
           "apikey": serviceRoleKey,
         },
       }).catch(() => {});
-      res.status(dbRes.status).json({ error: "Failed to save admin record; auth user has been cleaned up", details: dbData });
+      res.status(500).json({ error: "Failed to save admin record; auth user has been cleaned up", details: dbError?.message });
       return;
     }
 
-    res.status(201).json(Array.isArray(dbData) ? dbData[0] : dbData);
+    res.status(201).json(dbData);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unexpected error";
     res.status(500).json({ error: message });
@@ -199,28 +191,22 @@ router.delete("/admin/delete-user", async (req: Request, res: Response) => {
 
   try {
     // 1. Look up the admin_users row to get the Supabase Auth user_id
-    const rowRes = await fetch(
-      `${supabaseUrl}/rest/v1/admin_users?id=eq.${adminUsersId}&select=id,user_id&limit=1`,
-      {
-        headers: {
-          "Authorization": `Bearer ${serviceRoleKey}`,
-          "apikey": serviceRoleKey,
-        },
-      },
-    );
+    const { data: row, error: rowError } = await supabaseAdmin
+      .from("admin_users")
+      .select("id, user_id")
+      .eq("id", adminUsersId)
+      .maybeSingle();
 
-    if (!rowRes.ok) {
+    if (rowError) {
       res.status(500).json({ error: "Failed to look up admin user record" });
       return;
     }
-
-    const rows = await rowRes.json() as { id: string; user_id: string | null }[];
-    if (!rows.length) {
+    if (!row) {
       res.status(404).json({ error: "Admin user record not found" });
       return;
     }
 
-    const { user_id } = rows[0];
+    const { user_id } = row as { id: string; user_id: string | null };
 
     // 2. Delete the Supabase Auth account if one exists (ignore 404 — already gone)
     if (user_id) {
@@ -238,19 +224,13 @@ router.delete("/admin/delete-user", async (req: Request, res: Response) => {
       }
     }
 
-    // 3. Delete the admin_users row
-    const dbDelRes = await fetch(
-      `${supabaseUrl}/rest/v1/admin_users?id=eq.${adminUsersId}`,
-      {
-        method: "DELETE",
-        headers: {
-          "Authorization": `Bearer ${serviceRoleKey}`,
-          "apikey": serviceRoleKey,
-        },
-      },
-    );
+    // 3. Delete the admin_users row via supabaseAdmin SDK
+    const { error: delError } = await supabaseAdmin
+      .from("admin_users")
+      .delete()
+      .eq("id", adminUsersId);
 
-    if (!dbDelRes.ok) {
+    if (delError) {
       res.status(500).json({ error: "Auth user deleted but failed to remove admin record" });
       return;
     }

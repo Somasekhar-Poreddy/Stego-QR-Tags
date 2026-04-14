@@ -250,32 +250,37 @@ export function ShopScreen() {
 
       {/* Products grid */}
       <div className="px-4 pt-4 pb-4">
-        {loading ? (
+        {/* Loading skeleton — only when no data has been loaded yet */}
+        {loading && !products ? (
           <div className="grid grid-cols-2 gap-3">
             {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
           </div>
-        ) : error ? (
-          <div className="flex flex-col items-center justify-center py-16 gap-3">
-            <Package className="w-12 h-12 text-slate-200" />
-            <p className="text-sm font-semibold text-slate-500">Could not load products</p>
-            <p className="text-xs text-slate-400">{error}</p>
-            <button
-              onClick={() => setRetryKey((k) => k + 1)}
-              className="text-xs font-semibold text-primary underline"
-            >
-              Try again
-            </button>
-          </div>
-        ) : !products || products.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 gap-3">
-            <Package className="w-12 h-12 text-slate-200" />
-            <p className="text-sm font-semibold text-slate-500">No products yet</p>
-            <p className="text-xs text-slate-400">Check back soon for new items</p>
-          </div>
         ) : (
-          <div className="grid grid-cols-2 gap-3">
-            {products.map((p) => <ProductCard key={p.id} product={p} />)}
-          </div>
+          <>
+            {/* Non-blocking inline error banner — shown above retained product list */}
+            {error && (
+              <div className="flex items-center justify-between gap-2 bg-rose-50 border border-rose-100 rounded-xl px-3 py-2.5 mb-3">
+                <p className="text-xs text-rose-600">{error}</p>
+                <button
+                  onClick={() => setRetryKey((k) => k + 1)}
+                  className="text-xs font-semibold text-primary underline shrink-0"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+            {!products || products.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 gap-3">
+                <Package className="w-12 h-12 text-slate-200" />
+                <p className="text-sm font-semibold text-slate-500">No products yet</p>
+                <p className="text-xs text-slate-400">Check back soon for new items</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                {products.map((p) => <ProductCard key={p.id} product={p} />)}
+              </div>
+            )}
+          </>
         )}
       </div>
 

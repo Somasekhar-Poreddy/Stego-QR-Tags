@@ -35,8 +35,12 @@ export function useDataFetch<T>(
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const stableFn = useCallback(apiFn, deps);
 
+  // cancelled is a ref so cleanup always writes to the same object reference,
+  // even across React strict-mode double-invocations.
+  const cancelled = useRef(false);
+
   useEffect(() => {
-    let cancelled = false;
+    cancelled.current = false;
 
     if (!isLoggedIn) {
       setError("Not authenticated");
@@ -49,7 +53,7 @@ export function useDataFetch<T>(
 
     stableFn()
       .then((result) => {
-        if (cancelled) return;
+        if (cancelled.current) return;
 
         if (Array.isArray(result) && result.length > 0) {
           prevData.current = result;
@@ -67,7 +71,7 @@ export function useDataFetch<T>(
         }
       })
       .catch((err: unknown) => {
-        if (cancelled) return;
+        if (cancelled.current) return;
         const msg = err instanceof Error ? err.message : "Fetch failed";
         console.error("[useDataFetch] Error:", msg);
         // Restore previous data so the screen doesn't go blank on error
@@ -75,11 +79,11 @@ export function useDataFetch<T>(
         setError(msg);
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled.current) setLoading(false);
       });
 
     return () => {
-      cancelled = true;
+      cancelled.current = true;
     };
   // stableFn is already stabilised via useCallback above
   // eslint-disable-next-line react-hooks/exhaustive-deps

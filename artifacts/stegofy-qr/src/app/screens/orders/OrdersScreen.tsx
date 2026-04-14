@@ -164,32 +164,39 @@ export function OrdersScreen() {
       </div>
 
       <div className="p-4 space-y-3">
-        {loading ? (
+        {/* Loading skeleton — only when no data has been loaded yet */}
+        {loading && !orders ? (
           <>
             <OrderSkeleton />
             <OrderSkeleton />
             <OrderSkeleton />
           </>
-        ) : error ? (
-          <div className="flex flex-col items-center justify-center py-16 gap-3">
-            <Package className="w-12 h-12 text-slate-200" />
-            <p className="text-sm font-semibold text-slate-500">Could not load orders</p>
-            <p className="text-xs text-slate-400">{error}</p>
-          </div>
-        ) : !orders || orders.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 gap-3">
-            <Package className="w-12 h-12 text-slate-200" />
-            <p className="text-sm font-semibold text-slate-500">No orders yet</p>
-            <p className="text-xs text-slate-400">Your orders will appear here after checkout</p>
-            <button
-              onClick={() => navigate("/app/shop")}
-              className="mt-2 px-5 py-2.5 bg-primary text-white rounded-xl text-xs font-bold active:scale-[0.98] transition-transform"
-            >
-              Start Shopping
-            </button>
-          </div>
         ) : (
-          orders.map((o) => <OrderCard key={o.id} order={o} />)
+          <>
+            {/* Non-blocking inline error banner — shown above retained data */}
+            {error && (
+              <div className="flex items-center gap-2 bg-rose-50 border border-rose-100 rounded-xl px-3 py-2.5">
+                <Package className="w-4 h-4 text-rose-400 shrink-0" />
+                <p className="text-xs text-rose-600">{error}</p>
+              </div>
+            )}
+            {/* Empty state — only when there is genuinely nothing to show */}
+            {!orders || orders.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 gap-3">
+                <Package className="w-12 h-12 text-slate-200" />
+                <p className="text-sm font-semibold text-slate-500">No orders yet</p>
+                <p className="text-xs text-slate-400">Your orders will appear here after checkout</p>
+                <button
+                  onClick={() => navigate("/app/shop")}
+                  className="mt-2 px-5 py-2.5 bg-primary text-white rounded-xl text-xs font-bold active:scale-[0.98] transition-transform"
+                >
+                  Start Shopping
+                </button>
+              </div>
+            ) : (
+              orders.map((o) => <OrderCard key={o.id} order={o} />)
+            )}
+          </>
         )}
       </div>
     </div>
