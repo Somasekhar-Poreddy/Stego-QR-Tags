@@ -41,7 +41,6 @@ export async function ensureFreshSession(): Promise<void> {
     if (refreshError || !refreshed.session) {
       // Only NOW dispatch — we confirmed the session is truly gone
       if (typeof window !== "undefined") {
-        window.dispatchEvent(new CustomEvent(AUTH_EXPIRED_EVENT));
       }
       throw new AuthExpiredError();
     }
@@ -53,7 +52,6 @@ export async function ensureFreshSession(): Promise<void> {
     const { error } = await supabase.auth.refreshSession();
     if (error) {
       if (typeof window !== "undefined") {
-        window.dispatchEvent(new CustomEvent(AUTH_EXPIRED_EVENT));
       }
       throw new AuthExpiredError(error.message);
     }

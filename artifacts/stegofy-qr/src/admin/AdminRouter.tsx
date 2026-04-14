@@ -4,7 +4,6 @@ import { AdminLayout } from "@/admin/layout/AdminLayout";
 import { supabase } from "@/lib/supabase";
 import { useSessionKeepalive } from "@/hooks/useSessionKeepalive";
 import { SessionErrorBoundary } from "@/admin/SessionErrorBoundary";
-import { AUTH_EXPIRED_EVENT } from "@/lib/adminAuth";
 import { useAuth } from "@/app/context/AuthContext";
 
 import { DashboardScreen }       from "@/admin/screens/DashboardScreen";
@@ -68,13 +67,6 @@ export function AdminRouter() {
   // Global auth-expired event listener: any async loading path that throws
   // AuthExpiredError dispatches AUTH_EXPIRED_EVENT on window. Centralising the
   // redirect here means individual screens do not need to import AuthExpiredError.
-  useEffect(() => {
-    const handler = () => navigate("/admin/login?reason=expired");
-    window.addEventListener(AUTH_EXPIRED_EVENT, handler);
-    return () => window.removeEventListener(AUTH_EXPIRED_EVENT, handler);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   const { user, loading: authLoading } = useAuth();
 
   useEffect(() => {

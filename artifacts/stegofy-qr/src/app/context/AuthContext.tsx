@@ -290,30 +290,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (document.visibilityState !== "visible") return;
       if (!mounted) return;
       if (passwordRecoveryInProgress.current || otpSignupInProgress.current) return;
-      try {
-        const { data: { session }, error } = await supabase.auth.refreshSession();
-        if (!mounted) return;
-        if (error || !session) {
-          // Refresh failed — session is truly gone
-          setUser(null);
-          setStep("login");
-          return;
-        }
-        if (session.user) {
-          const built = await fetchAndBuildUser(session.user);
-          if (mounted) setUser(built);
-        }
-      } catch {
-        // non-fatal — user stays in current state; auth events will handle expiry
-      }
-    };
-    document.addEventListener("visibilitychange", handleVisibilityChange);
 
-    return () => {
-      mounted = false;
-      clearTimeout(loadingTimeout);
-      listener.subscription.unsubscribe();
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!mounted) return;
+
+        if (!session) return;
+
+        const secsLeft = (session.expires_at ?? 0) - Math.floor(Date.now() / 1000);
+
+        // Only refresh if token is actually close to expiry
+        if (secsLeft > 240) return;
+
+        const { data: { session: refreshed }, error } = await supabase.auth.refreshSession();
+        if (!mounted) return;
+        if (error || !refreshed) return;
+
+        // Do NOT rebuild user here unless you absolutely must
+        // Let onAuthStateChange(TOKEN_REFRESHED) handle auth lifecycle
+      } catch {
+        // non-fatal
+      }
     };
   }, []);
 
