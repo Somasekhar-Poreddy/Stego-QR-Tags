@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis,
   CartesianGrid, Tooltip, ResponsiveContainer,
@@ -10,9 +10,27 @@ import {
 import { ensureFreshSession } from "@/lib/adminAuth";
 import { DateRangeBar, useDateRange, RANGE_LABELS } from "@/admin/components/DateRangeBar";
 
-interface Stats { totalUsers: number; activeQRCodes: number; todayRequests: number; emergencyRequests: number; totalOrders: number; }
+interface Stats {
+  totalUsers: number;
+  activeQRCodes: number;
+  todayRequests: number;
+  emergencyRequests: number;
+  totalOrders: number;
+}
 
-function StatCard({ label, value, icon: Icon, color, bg }: { label: string; value: number | string; icon: React.ElementType; color: string; bg: string }) {
+function StatCard({
+  label,
+  value,
+  icon: Icon,
+  color,
+  bg,
+}: {
+  label: string;
+  value: number | string;
+  icon: React.ElementType;
+  color: string;
+  bg: string;
+}) {
   return (
     <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
       <div className="flex items-center justify-between mb-3">
@@ -73,12 +91,19 @@ export function DashboardScreen() {
   const dateRange = useDateRange("7d");
   const { from, to, rangeKey } = dateRange;
 
+  const hasLoadedStats = useRef(false);
+  const hasLoadedCharts = useRef(false);
+  const prevRangeKey = useRef("");
+
   const loadStats = useCallback(() => {
     setStatsLoading(true);
     setStatsError(false);
     ensureFreshSession()
       .then(() => getDashboardStats())
-      .then((data) => { setStats(data); setStatsError(false); })
+      .then((data) => {
+        setStats(data);
+        setStatsError(false);
+      })
       .catch((e) => {
         if (e?.name !== "AuthExpiredError") {
           setStatsError(true);
@@ -105,8 +130,20 @@ export function DashboardScreen() {
       .finally(() => setChartsLoading(false));
   }, []);
 
-  useEffect(() => { loadStats(); }, [loadStats]);
-  useEffect(() => { loadCharts(from, to); }, [loadCharts, from, to]);
+  useEffect(() => {
+    if (!hasLoadedStats.current) {
+      hasLoadedStats.current = true;
+      loadStats();
+    }
+  }, [loadStats]);
+
+  useEffect(() => {
+    if (!hasLoadedCharts.current || prevRangeKey.current !== rangeKey) {
+      hasLoadedCharts.current = true;
+      prevRangeKey.current = rangeKey;
+      loadCharts(from, to);
+    }
+  }, [loadCharts, from, to, rangeKey]);
 
   const handleRefresh = () => {
     loadStats();
@@ -118,8 +155,6 @@ export function DashboardScreen() {
 
   return (
     <div className="space-y-6">
-
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold text-slate-900">Dashboard</h2>
@@ -135,10 +170,8 @@ export function DashboardScreen() {
         </button>
       </div>
 
-      {/* Date range filter — always visible */}
       <DateRangeBar state={dateRange} label="Filter charts:" />
 
-      {/* Stat cards */}
       {statsLoading ? (
         <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
           {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-28" />)}
@@ -150,16 +183,15 @@ export function DashboardScreen() {
         />
       ) : (
         <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-          <StatCard label="Total Users"      value={stats.totalUsers}        icon={Users}          color="text-blue-600"    bg="bg-blue-50" />
-          <StatCard label="Active QR Codes"  value={stats.activeQRCodes}     icon={QrCode}         color="text-violet-600"  bg="bg-violet-50" />
-          <StatCard label="Requests Today"   value={stats.todayRequests}     icon={MessageSquare}  color="text-green-600"   bg="bg-green-50" />
-          <StatCard label="Emergency Reqs"   value={stats.emergencyRequests} icon={Zap}            color="text-red-500"     bg="bg-red-50" />
-          <StatCard label="Total Orders"     value={stats.totalOrders}       icon={ShoppingCart}   color="text-amber-600"   bg="bg-amber-50" />
-          <StatCard label="Revenue"          value="—"                       icon={DollarSign}     color="text-emerald-600" bg="bg-emerald-50" />
+          <StatCard label="Total Users" value={stats.totalUsers} icon={Users} color="text-blue-600" bg="bg-blue-50" />
+          <StatCard label="Active QR Codes" value={stats.activeQRCodes} icon={QrCode} color="text-violet-600" bg="bg-violet-50" />
+          <StatCard label="Requests Today" value={stats.todayRequests} icon={MessageSquare} color="text-green-600" bg="bg-green-50" />
+          <StatCard label="Emergency Reqs" value={stats.emergencyRequests} icon={Zap} color="text-red-500" bg="bg-red-50" />
+          <StatCard label="Total Orders" value={stats.totalOrders} icon={ShoppingCart} color="text-amber-600" bg="bg-amber-50" />
+          <StatCard label="Revenue" value="—" icon={DollarSign} color="text-emerald-600" bg="bg-emerald-50" />
         </div>
       )}
 
-      {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
           <p className="text-sm font-bold text-slate-800 mb-1">QR Scans</p>
@@ -203,7 +235,6 @@ export function DashboardScreen() {
           )}
         </div>
       </div>
-
     </div>
   );
 }

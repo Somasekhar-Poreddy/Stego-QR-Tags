@@ -1,0 +1,255 @@
+You are editing my React + TypeScript admin panel in Replit.
+
+PROJECT CONTEXT:
+This is an admin dashboard for my app. Data loads initially, but after a few seconds, navigation, rerender, or tab/window switching, screens can blank out or reload and lose visible data. I want a safe, production-style refactor for the admin screens only.
+
+FILES TO UPDATE:
+- DashboardScreen.tsx
+- ProductsScreen.tsx
+- UsersScreen.tsx
+- QRCodesScreen.tsx
+- OrdersScreen.tsx
+
+PRIMARY GOAL:
+Stop unnecessary reloads and blank states caused by useEffect re-running on rerenders/remounts/tab switches.
+
+RULES:
+1. Keep the existing UI, layout, Tailwind classes, table structure, cards, filters, modals, and components intact.
+2. Do NOT redesign anything.
+3. Do NOT change service method names unless required for TypeScript correctness.
+4. Do NOT remove ensureFreshSession if already used.
+5. Do NOT break search, filters, sort, pagination, manual refresh, retry buttons, or edit/delete/toggle actions.
+6. Return full updated code for each file.
+7. Prefer minimal surgical refactor, not a rewrite.
+
+GLOBAL REFACTOR PATTERN:
+For every screen, prevent first-load effects from re-running unnecessarily.
+
+Use this pattern:
+
+const hasLoaded = useRef(false);
+
+useEffect(() => {
+  if (hasLoaded.current) return;
+  hasLoaded.current = true;
+  reload();
+}, [reload]);
+
+If a screen has multiple separate loaders, use separate refs such as:
+- hasLoadedStats
+- hasLoadedCharts
+- hasLoadedUsers
+- hasLoadedOrders
+etc.
+
+If a screen reloads based on filters/date range, only rerun when the actual filter key changes, not on every rerender.
+
+Also apply these protections:
+- Do not overwrite existing state with empty arrays unless that empty result is expected from an intentional filter/search.
+- Keep loading/error states visible, but avoid blanking already-loaded content during background refetches when possible.
+- Preserve manual refresh button behavior.
+- Preserve retry button behavior.
+- Avoid effects that depend on unstable callbacks unless guarded with refs.
+
+========================================
+1) DashboardScreen.tsx
+========================================
+
+PROBLEM:
+This file loads stats and charts with useEffect, and the dashboard can blank or reload unexpectedly.
+
+DO THIS:
+- Add:
+  - const hasLoadedStats = useRef(false)
+  - const hasLoadedCharts = useRef(false)
+  - const prevRangeKey = useRef("")
+- Refactor initial stats load effect so loadStats() runs only once on first mount.
+- Refactor charts effect so loadCharts(from, to) runs:
+  - on first mount
+  - when rangeKey changes
+  - not on unrelated rerenders
+- Keep Refresh button working exactly as before.
+- Keep DateRangeBar behavior.
+- Keep stats/cards/charts UI unchanged.
+
+USE THIS PATTERN:
+
+useEffect(() => {
+  if (hasLoadedStats.current) return;
+  hasLoadedStats.current = true;
+  loadStats();
+}, [loadStats]);
+
+useEffect(() => {
+  if (!hasLoadedCharts.current || prevRangeKey.current !== rangeKey) {
+    hasLoadedCharts.current = true;
+    prevRangeKey.current = rangeKey;
+    loadCharts(from, to);
+  }
+}, [loadCharts, from, to, rangeKey]);
+
+========================================
+2) ProductsScreen.tsx
+========================================
+
+PROBLEM:
+This file appears to use an initial effect like:
+useEffect(() => { reload(); }, [reload]);
+This can re-trigger on rerenders/remounts and blank the products list.
+
+DO THIS:
+- Add:
+  - const hasLoaded = useRef(false)
+- Replace the initial reload effect with a guarded first-load effect:
+  - run reload() only once on first mount
+- Keep all existing features:
+  - search
+  - category filter
+  - status filter
+  - sort
+  - create/edit form
+  - delete
+  - toggle active/inactive
+- Keep product list filtering logic unchanged.
+- Keep the table/card UI unchanged.
+
+USE THIS PATTERN:
+
+const hasLoaded = useRef(false);
+
+useEffect(() => {
+  if (hasLoaded.current) return;
+  hasLoaded.current = true;
+  reload();
+}, [reload]);
+
+IMPORTANT:
+If reload returns empty unexpectedly due to a transient issue, avoid wiping already loaded product state unless the empty result is real and intentional.
+
+========================================
+3) UsersScreen.tsx
+========================================
+
+PROBLEM:
+This screen likely has multiple initial loaders such as:
+- load(30)
+- reload()
+- loadUserData()
+Some of them may rerun and blank the screen.
+
+DO THIS:
+- Find all mount-style effects used only for initial loading.
+- Guard each initial effect with useRef so it only runs once unless a real filter/page/search input changes.
+- If there are multiple independent datasets, use separate refs for each logical load.
+- Keep all existing user management UI and actions intact.
+- Keep search/filter/pagination working.
+- Keep retry/manual reload working.
+
+PATTERN:
+Example:
+
+const hasLoadedUsers = useRef(false);
+
+useEffect(() => {
+  if (hasLoadedUsers.current) return;
+  hasLoadedUsers.current = true;
+  load(30);
+}, [load]);
+
+If there is a reload() effect, convert it the same way.
+If there is loadUserData() for a separate panel, guard that separately.
+
+IMPORTANT:
+Do not trigger a full-screen blank state on small rerenders if users are already loaded.
+
+========================================
+4) QRCodesScreen.tsx
+========================================
+
+PROBLEM:
+This file likely has a mount effect such as:
+useEffect(() => { reload(); }, []);
+or similar reload logic that blanks data on remount.
+
+DO THIS:
+- Add:
+  - const hasLoaded = useRef(false)
+- Replace the initial effect with a guarded version using [reload] dependency.
+- Keep QR code list, filters, actions, and UI intact.
+- Keep manual reload actions intact.
+
+PATTERN:
+
+const hasLoaded = useRef(false);
+
+useEffect(() => {
+  if (hasLoaded.current) return;
+  hasLoaded.current = true;
+  reload();
+}, [reload]);
+
+IMPORTANT:
+Do not overwrite previously loaded QR state with transient empty responses.
+
+========================================
+5) OrdersScreen.tsx
+========================================
+
+PROBLEM:
+This screen also appears to use loading/reload patterns that can blank data.
+
+DO THIS:
+- Find the initial order load effect.
+- Guard it with useRef so it only runs once unless the user intentionally changes filters/search/page/date range.
+- If there are multiple separate data loads, use separate refs.
+- Keep all existing order management logic and UI intact.
+
+PATTERN:
+
+const hasLoadedOrders = useRef(false);
+
+useEffect(() => {
+  if (hasLoadedOrders.current) return;
+  hasLoadedOrders.current = true;
+  reload();
+}, [reload]);
+
+IMPORTANT:
+Do not clear already loaded orders just because a rerender/remount happened.
+
+========================================
+ADDITIONAL SAFETY RULES
+========================================
+
+Across all these files:
+- Import useRef if not already imported.
+- Keep existing TypeScript types.
+- Do not remove existing error handling.
+- Do not remove loading states, but avoid aggressive full reset if data already exists.
+- If any fetch function sets loading(true), try to preserve visible data while loading rather than causing a blank screen when possible.
+- Keep retry buttons calling the same loader functions.
+- Keep manual refresh controls working.
+- Keep all CRUD actions working.
+
+IF YOU FIND THIS PATTERN:
+useEffect(() => { someLoader(); }, [someLoader]);
+
+Convert it to a guarded first-load effect unless it truly needs to react to a real changing dependency.
+
+IF YOU FIND DATE/FILTER BASED CHARTS OR TABLES:
+Use a previous-key ref pattern:
+- prevRangeKey
+- prevFilterKey
+- prevPageKey
+Only reload when that key actually changes.
+
+OUTPUT FORMAT:
+Return the full updated code for:
+1. DashboardScreen.tsx
+2. ProductsScreen.tsx
+3. UsersScreen.tsx
+4. QRCodesScreen.tsx
+5. OrdersScreen.tsx
+
+Do not return explanations first.
+Return the files in full, one after another, clearly labeled by filename.
