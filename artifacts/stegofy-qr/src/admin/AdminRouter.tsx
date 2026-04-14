@@ -27,6 +27,9 @@ interface AdminInfo {
   permissions: Record<string, boolean>;
 }
 
+let _cachedAdminInfo: AdminInfo | null = null;
+let _cachedUserId: string | null = null;
+
 const ROUTE_PERMISSIONS: { path: string; permissionKey?: string }[] = [
   { path: "/admin/users", permissionKey: "manage_users" },
   { path: "/admin/qr-codes", permissionKey: "manage_qr_codes" },
@@ -56,13 +59,10 @@ function isPathAllowed(
 
 export function AdminRouter() {
   const [location, navigate] = useLocation();
-  const [checking, setChecking] = useState(true);
-  const [adminInfo, setAdminInfo] = useState<AdminInfo>({
-    name: "",
-    email: "",
-    role: "",
-    permissions: {},
-  });
+  const [checking, setChecking] = useState(_cachedAdminInfo === null);
+  const [adminInfo, setAdminInfo] = useState<AdminInfo>(
+    _cachedAdminInfo ?? { name: "", email: "", role: "", permissions: {} },
+  );
 
   const { sessionOk, reconnecting } = useSessionKeepalive();
   const { user, loading: authLoading } = useAuth();
@@ -73,6 +73,10 @@ export function AdminRouter() {
     if (!user) {
       navigate("/admin/login");
       return;
+    }
+
+    if (_cachedUserId !== user.id) {
+      setChecking(true);
     }
 
     async function bootstrap() {
@@ -103,6 +107,8 @@ export function AdminRouter() {
         // keep defaults
       }
 
+      _cachedAdminInfo = info;
+      _cachedUserId = user.id ?? null;
       setAdminInfo(info);
 
       if (!isPathAllowed(location, info.role, info.permissions)) {
