@@ -511,6 +511,9 @@ function SuccessScreen() {
   );
 }
 
+// Escalating retry delays for anon-session initialisation guard (ms)
+const SCAN_RETRY_DELAYS = [600, 1200, 2000];
+
 /* ─── Main Public Contact Page ────────────────────────────────────────────────── */
 export function PublicProfileScreen() {
   const [qrData, setQrData] = useState<QRPublicData | null>(null);
@@ -539,16 +542,12 @@ export function PublicProfileScreen() {
   // good data with a transient error or empty response from Supabase.
   const qrDataRef = useRef<QRPublicData | null>(null);
 
-  // Session-guard + retry: PublicProfileScreen is an *anon* screen so there is
-  // no user JWT to refresh. Instead we guard against the brief window after page
-  // load where the Supabase anon session hasn't established yet (RLS returns an
-  // error/empty before the client is fully initialised).
-  //
-  // Strategy:
-  //  1. On any Supabase error or empty result, wait 800 ms and try once more.
-  //  2. If both attempts fail, only show "not found" if no good data is cached in
-  //     `qrDataRef` — otherwise the last-good state is preserved silently.
-  const fetchQrData = useCallback(async (retries = 1): Promise<void> => {
+  // Session-guard + retry: PublicProfileScreen is anon-only (no user JWT to
+  // refresh), so we guard against the brief window after page load where the
+  // Supabase anon session hasn't established yet and RLS may reject the read.
+  // Up to 3 attempts with escalating delays (module-level constant).
+  // If all attempts fail AND no previously-loaded data exists, show not-found.
+  const fetchQrData = useCallback(async (attempt = 0): Promise<void> => {
     const { data, error } = await supabase
       .from("qr_codes")
       .select("id, type, data, pin_code, is_active, allow_contact, strict_mode, emergency_contact, name, privacy")
@@ -556,11 +555,11 @@ export function PublicProfileScreen() {
       .single();
 
     if (error || !data) {
-      if (retries > 0) {
-        await new Promise<void>((r) => setTimeout(r, 800));
-        return fetchQrData(retries - 1);
+      if (attempt < SCAN_RETRY_DELAYS.length) {
+        await new Promise<void>((r) => setTimeout(r, SCAN_RETRY_DELAYS[attempt]));
+        return fetchQrData(attempt + 1);
       }
-      // Both attempts failed — only show "not found" if no good data was loaded previously
+      // All attempts failed — only mark not-found if no cached data exists
       if (!qrDataRef.current) setNotFound(true);
       setLoading(false);
       return;
