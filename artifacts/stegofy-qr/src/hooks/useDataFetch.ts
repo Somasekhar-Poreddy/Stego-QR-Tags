@@ -46,6 +46,9 @@ export function useDataFetch<T>(
           prevData.current = result;
           setData(result);
         } else if (prevData.current.length > 0) {
+          console.warn(
+            "[useDataFetch] Empty result from server; retaining previous data to avoid blank-flash.",
+          );
           setData(prevData.current);
         } else {
           setData(result ?? []);
