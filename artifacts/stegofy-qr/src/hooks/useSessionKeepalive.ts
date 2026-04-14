@@ -12,8 +12,8 @@ const KEEPALIVE_INTERVAL_MS = 10 * 60 * 1000;
  *    - SIGNED_OUT: fires when either the user signs out manually OR when the
  *      refresh token itself is expired (Supabase's equivalent of TOKEN_EXPIRED
  *      in other auth systems). Redirects to /admin/login?reason=expired.
- *    - TOKEN_REFRESHED: fires after a successful proactive refresh; increments
- *      `refreshKey` so the route tree remounts and screens re-fetch data.
+ *    - TOKEN_REFRESHED: fires after a successful proactive refresh; marks
+ *      session as ok and clears the reconnecting banner.
  *    - SIGNED_IN: same as TOKEN_REFRESHED for session restoration purposes.
  *
  * 2. `visibilitychange` listener — when the user returns to the browser tab
@@ -63,16 +63,28 @@ export function useSessionKeepalive(): {
 
     async function handleVisibilityChange() {
       if (document.visibilityState !== "visible") return;
-      setReconnecting(true);
-      const { error } = await supabase.auth.refreshSession();
-      if (error) {
-        setSessionOk(false);
-        setReconnecting(false);
-        goToLogin();
-      } else {
-        setSessionOk(true);
-        setReconnecting(false);
+
+      // Only refresh if the token is actually close to expiry.
+      // Do NOT refresh unconditionally — it triggers unnecessary re-renders.
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { goToLogin(); return; }
+
+      const secsUntilExpiry = (session.expires_at ?? 0) - Math.floor(Date.now() / 1000);
+
+      // Only show reconnecting banner and refresh if token expires within 3 minutes
+      if (secsUntilExpiry < 180) {
+        setReconnecting(true);
+        const { error } = await supabase.auth.refreshSession();
+        if (error) {
+          setSessionOk(false);
+          setReconnecting(false);
+          goToLogin();
+        } else {
+          setSessionOk(true);
+          setReconnecting(false);
+        }
       }
+      // If token has more than 3 minutes left, do nothing — session is fine
     }
     document.addEventListener("visibilitychange", handleVisibilityChange);
 

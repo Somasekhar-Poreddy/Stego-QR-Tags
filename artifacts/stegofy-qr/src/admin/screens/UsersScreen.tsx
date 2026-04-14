@@ -1141,16 +1141,22 @@ function ActivityTab({ contacts }: { contacts: ContactRow[] }) {
    ───────────────────────────────────────────────── */
 function SessionsTab({ userId, totalCount }: { userId: string; totalCount: number }) {
   const [logs, setLogs] = useState<ActivityLog[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [limit, setLimit] = useState(30);
   const [hasMore, setHasMore] = useState(false);
 
   const load = useCallback(async (lim: number) => {
     setLoading(true);
-    const data = await adminGetUserActivityLogs(userId, lim + 1);
-    setHasMore(data.length > lim);
-    setLogs(data.slice(0, lim));
-    setLoading(false);
+    try {
+      const data = await adminGetUserActivityLogs(userId, lim + 1);
+      const slice = data.slice(0, lim);
+      if (slice.length > 0) setLogs(slice);
+      setHasMore(data.length > lim);
+    } catch (e) {
+      console.error("Load sessions failed:", e);
+    } finally {
+      setLoading(false);
+    }
   }, [userId]);
 
   useEffect(() => { load(30); }, [load]);
@@ -1314,7 +1320,7 @@ function ScansTab({
     [qrs],
   );
   const [scans, setScans] = useState<QRScan[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
   const [limit, setLimit] = useState(30);
   const [hasMore, setHasMore] = useState(false);
@@ -1337,12 +1343,15 @@ function ScansTab({
     setScanError(null);
     try {
       const data = await adminGetScansByQRIds(qrIds, lim + 1);
+      const slice = data.slice(0, lim);
+      if (slice.length > 0) setScans(slice);
       setHasMore(data.length > lim);
-      setScans(data.slice(0, lim));
     } catch (e) {
+      console.error("Load scans failed:", e);
       setScanError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, [qrIds]);
 
   useEffect(() => { load(30); }, [load]);
@@ -1526,7 +1535,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 function OrdersTab({ userId }: { userId: string }) {
   const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [detail, setDetail] = useState<Record<string, OrderWithItems>>({});
 
@@ -1661,7 +1670,7 @@ function UserDetailModal({ user, onRefresh, onClose }: {
   const [scanCount, setScanCount] = useState(0);
   const [orderCount, setOrderCount] = useState(0);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
-  const [loadingData, setLoadingData] = useState(true);
+  const [loadingData, setLoadingData] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [localUser, setLocalUser] = useState<UserRow>(user);
 
@@ -1851,7 +1860,7 @@ export function UsersScreen() {
   const [qrCounts, setQrCounts] = useState<Record<string, number>>({});
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<UserRow | null>(null);
   const [lastSeenMap, setLastSeenMap] = useState<Record<string, string>>({});
 
@@ -1859,8 +1868,8 @@ export function UsersScreen() {
     setLoading(true);
     try {
       const u = (await adminGetAllUsers()) as UserRow[];
-      setUsers(u);
-      if (u.length > 0) {
+      if (u && u.length > 0) {
+        setUsers(u);
         const ids = u.map((x) => x.id);
         const [counts, lastSeen] = await Promise.all([
           adminGetQRCountsByUser(ids),
@@ -1869,8 +1878,9 @@ export function UsersScreen() {
         setQrCounts(counts);
         setLastSeenMap(lastSeen);
       }
-    } catch { /* noop */ }
-    setLoading(false);
+    } catch { /* noop */ } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { reload(); }, [reload]);

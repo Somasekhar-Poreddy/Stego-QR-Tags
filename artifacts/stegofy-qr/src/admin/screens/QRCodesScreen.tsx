@@ -687,21 +687,19 @@ export function QRCodesScreen() {
   const [userMap, setUserMap] = useState<Record<string, OwnerRow>>({});
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [viewing, setViewing] = useState<QRRow | null>(null);
 
   const reload = () => {
     setLoading(true);
     Promise.all([adminGetAllQRCodes(), adminGetAllUsers()])
       .then(([codes, users]) => {
-        setQrs(codes as QRRow[]);
+        if (codes && (codes as QRRow[]).length > 0) setQrs(codes as QRRow[]);
         const map: Record<string, OwnerRow> = {};
         (users as OwnerRow[]).forEach((u) => { map[u.id] = u; });
         setUserMap(map);
       })
       .catch((err: unknown) => {
-        // Auth errors auto-redirect via the global AUTH_EXPIRED_EVENT.
-        // Log non-auth failures so they're visible in the browser console.
         console.error("[QRCodesScreen] Failed to load QR codes:", err);
       })
       .finally(() => setLoading(false));

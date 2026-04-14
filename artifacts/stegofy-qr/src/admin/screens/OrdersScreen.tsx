@@ -175,7 +175,7 @@ function PipelineStepper({
 
 function OrderDetail({ order, onUpdate }: { order: Order; onUpdate: () => void }) {
   const [detail, setDetail] = useState<OrderWithItems | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   // Track status locally so stepper updates immediately without collapsing the row
   const [localStatus, setLocalStatus] = useState<OrderStatus>(order.order_status);
@@ -373,7 +373,7 @@ export function OrdersScreen() {
   const [total, setTotal] = useState(0);
   const [tabCounts, setTabCounts] = useState<Partial<Record<OrderStatus | "all", number>>>({});
   const [search, setSearch] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<OrderStatus | "all">("all");
   const [page, setPage] = useState(0);
@@ -389,14 +389,15 @@ export function OrdersScreen() {
         adminGetOrders(tab, PAGE_SIZE, p * PAGE_SIZE),
         adminGetOrdersCount(tab),
       ]);
-      setOrders(rows);
+      if (rows && rows.length > 0) setOrders(rows);
       setTotal(cnt);
     } catch (e) {
       if ((e as { name?: string })?.name !== "AuthExpiredError") {
         setError(e instanceof Error ? e.message : "Failed to load orders");
       }
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, []);
 
   // Load tab counts once on mount

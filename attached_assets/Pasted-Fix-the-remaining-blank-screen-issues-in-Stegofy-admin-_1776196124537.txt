@@ -1,0 +1,150 @@
+Fix the remaining blank screen issues in Stegofy admin panel.
+These are the ONLY files to change. Do not touch anything else.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 1 — MOST CRITICAL
+File: artifacts/stegofy-qr/src/hooks/useSessionKeepalive.ts
+
+Find the handleVisibilityChange function:
+
+  async function handleVisibilityChange() {
+    if (document.visibilityState !== "visible") return;
+    setReconnecting(true);
+    const { error } = await supabase.auth.refreshSession();
+    if (error) {
+      setSessionOk(false);
+      setReconnecting(false);
+      goToLogin();
+    } else {
+      setSessionOk(true);
+      setReconnecting(false);
+    }
+  }
+
+Replace it entirely with this:
+
+  async function handleVisibilityChange() {
+    if (document.visibilityState !== "visible") return;
+
+    // Only refresh if the token is actually close to expiry
+    // Do NOT refresh unconditionally — it triggers unnecessary re-renders
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) { goToLogin(); return; }
+
+    const secsUntilExpiry = (session.expires_at ?? 0) - Math.floor(Date.now() / 1000);
+
+    // Only show reconnecting banner and refresh if token expires within 3 minutes
+    if (secsUntilExpiry < 180) {
+      setReconnecting(true);
+      const { error } = await supabase.auth.refreshSession();
+      if (error) {
+        setSessionOk(false);
+        setReconnecting(false);
+        goToLogin();
+      } else {
+        setSessionOk(true);
+        setReconnecting(false);
+      }
+    }
+    // If token has more than 3 minutes left, do nothing — session is fine
+  }
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 2
+File: artifacts/stegofy-qr/src/admin/screens/DashboardScreen.tsx
+
+Find both useState initializations at the top of the component:
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [chartsLoading, setChartsLoading] = useState(true);
+
+Change both to false:
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [chartsLoading, setChartsLoading] = useState(false);
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 3
+File: artifacts/stegofy-qr/src/admin/screens/UsersScreen.tsx
+
+Find ALL useState(true) for any loading variable at the TOP of any
+component inside this file. Change every one from true to false:
+
+Examples to find and change:
+  const [loading, setLoading] = useState(true);
+Change to:
+  const [loading, setLoading] = useState(false);
+
+Do this for every loading state in this file.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 4
+File: artifacts/stegofy-qr/src/admin/screens/QRCodesScreen.tsx
+File: artifacts/stegofy-qr/src/admin/screens/ProductsScreen.tsx
+File: artifacts/stegofy-qr/src/admin/screens/OrdersScreen.tsx
+
+Same as Fix 3 — in each file find:
+  const [loading, setLoading] = useState(true);
+Change to:
+  const [loading, setLoading] = useState(false);
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 5
+File: artifacts/stegofy-qr/src/admin/screens/DashboardScreen.tsx
+File: artifacts/stegofy-qr/src/admin/screens/UsersScreen.tsx
+File: artifacts/stegofy-qr/src/admin/screens/QRCodesScreen.tsx
+File: artifacts/stegofy-qr/src/admin/screens/ProductsScreen.tsx
+File: artifacts/stegofy-qr/src/admin/screens/OrdersScreen.tsx
+
+In every load/reload useCallback function that does setLoading(true) at
+the start, add a guard so it only clears existing data if loading is
+already false (i.e. first load). Pattern to apply:
+
+BEFORE:
+  const load = useCallback(async () => {
+    setLoading(true);
+    ...
+    setData(result);
+    setLoading(false);
+  }, [...]);
+
+AFTER:
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      ...
+      if (result && (Array.isArray(result) ? result.length > 0 : true)) {
+        setData(result);
+      }
+    } catch (e) {
+      // Do not clear data on error
+      console.error("Load failed:", e);
+    } finally {
+      setLoading(false);
+    }
+  }, [...]);
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 6 — Products Save Issue
+File: artifacts/stegofy-qr/src/services/productService.ts
+
+In these 4 functions add await ensureFreshSession() as first line
+if not already present:
+- adminCreateProduct
+- adminUpdateProduct
+- adminDeleteProduct
+- adminUpsertVariants
+
+File: artifacts/stegofy-qr/src/admin/screens/ProductsScreen.tsx
+
+Find: makeTimeout(15000)
+Change to: makeTimeout(45000)
+
+Find this line in handleSave:
+  await supabase.auth.refreshSession().catch(() => {});
+Delete it entirely.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+After changes verify:
+- handleVisibilityChange only calls refreshSession when token < 180 seconds
+- All loading useState start as false not true
+- makeTimeout is 45000 not 15000
+- No duplicate refreshSession call in handleSave

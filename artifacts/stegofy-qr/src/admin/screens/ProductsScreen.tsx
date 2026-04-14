@@ -876,7 +876,7 @@ function ProductRow({
 export function ProductsScreen() {
   const [products, setProducts] = useState<Product[]>([]);
   const [filtered, setFiltered] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
@@ -884,12 +884,17 @@ export function ProductsScreen() {
   const [formData, setFormData] = useState<FormData | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
-  const reload = useCallback(() => {
+  const reload = useCallback(async () => {
     setLoading(true);
     setError(null);
-    adminGetAllProducts()
-      .then((data) => { setProducts(data); setLoading(false); })
-      .catch((e) => { setError(e.message); setLoading(false); });
+    try {
+      const data = await adminGetAllProducts();
+      if (data && data.length > 0) setProducts(data);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load products");
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { reload(); }, [reload]);
