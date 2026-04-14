@@ -37,6 +37,7 @@ interface AuthContextType {
   authError: string | null;
   urlError: string | null;
   loading: boolean;
+  recovering: boolean;
   setStep: (step: AuthStep) => void;
   setUser: (user: User) => void;
   setAuthError: (msg: string | null) => void;
@@ -108,6 +109,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [authError, setAuthError] = useState<string | null>(null);
   const [urlError] = useState<string | null>(_urlError);
   const [loading, setLoading] = useState(true);
+  const [recovering, setRecovering] = useState(false);
 
   const otpSignupInProgress = useRef(false);
   const passwordRecoveryInProgress = useRef(_recoveryPending);
@@ -223,9 +225,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (passwordRecoveryInProgress.current) return;
 
         if (!explicitLogoutRef.current) {
+          setRecovering(true);
           const { error: refreshError } = await supabase.auth.refreshSession();
-          if (!mounted) return;
-          if (!refreshError) return;
+          if (!mounted) { setRecovering(false); return; }
+          if (!refreshError) { setRecovering(false); return; }
+          setRecovering(false);
         }
         explicitLogoutRef.current = false;
 
@@ -430,6 +434,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         authError,
         urlError,
         loading,
+        recovering,
         setStep,
         setUser,
         setAuthError,

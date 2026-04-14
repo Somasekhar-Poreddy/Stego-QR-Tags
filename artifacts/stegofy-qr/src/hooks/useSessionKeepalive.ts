@@ -19,16 +19,11 @@ export function useSessionKeepalive(): {
       navigateRef.current("/admin/login?reason=expired");
     }
 
-    let signedOutTimer: ReturnType<typeof setTimeout> | null = null;
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === "SIGNED_OUT") {
         setSessionOk(false);
         setReconnecting(true);
-        if (signedOutTimer) clearTimeout(signedOutTimer);
-        signedOutTimer = setTimeout(() => setReconnecting(false), 5000);
       } else if (event === "TOKEN_REFRESHED" || event === "SIGNED_IN") {
-        if (signedOutTimer) { clearTimeout(signedOutTimer); signedOutTimer = null; }
         setSessionOk(true);
         setReconnecting(false);
       }
@@ -58,7 +53,6 @@ export function useSessionKeepalive(): {
     return () => {
       subscription.unsubscribe();
       clearInterval(interval);
-      if (signedOutTimer) clearTimeout(signedOutTimer);
     };
   }, []);
 

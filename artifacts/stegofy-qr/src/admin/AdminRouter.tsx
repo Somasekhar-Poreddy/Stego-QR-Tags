@@ -59,7 +59,7 @@ function isPathAllowed(
 
 export function AdminRouter() {
   const [location, navigate] = useLocation();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, recovering } = useAuth();
   const { sessionOk, reconnecting } = useSessionKeepalive();
 
   const cacheHit = _cachedAdminInfo !== null && _cachedUserId === (user?.id ?? null);
@@ -72,7 +72,7 @@ export function AdminRouter() {
     if (authLoading) return;
 
     if (!user) {
-      if (reconnecting) return;
+      if (recovering) return;
       navigate("/admin/login");
       return;
     }
@@ -122,7 +122,7 @@ export function AdminRouter() {
 
     bootstrap();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authLoading, user?.id, reconnecting]);
+  }, [authLoading, user?.id, recovering]);
 
   useEffect(() => {
     if (checking) return;
