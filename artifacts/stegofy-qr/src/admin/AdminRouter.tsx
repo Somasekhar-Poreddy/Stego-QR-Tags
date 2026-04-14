@@ -72,6 +72,7 @@ export function AdminRouter() {
     if (authLoading) return;
 
     if (!user) {
+      if (reconnecting) return;
       navigate("/admin/login");
       return;
     }
@@ -121,7 +122,7 @@ export function AdminRouter() {
 
     bootstrap();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authLoading, user?.id]);
+  }, [authLoading, user?.id, reconnecting]);
 
   useEffect(() => {
     if (checking) return;
