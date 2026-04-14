@@ -1,0 +1,104 @@
+Fix these critical bugs causing ALL admin screens to go blank.
+Do not change anything else.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 1 — MOST CRITICAL
+File: artifacts/stegofy-qr/src/admin/AdminRouter.tsx
+
+Find this line:
+  <Switch key={refreshKey}>
+
+Change it to:
+  <Switch>
+
+Then find the variable declarations for useSessionKeepalive:
+  const { sessionOk, reconnecting, refreshKey } = useSessionKeepalive();
+
+Change it to:
+  const { sessionOk, reconnecting } = useSessionKeepalive();
+
+REASON: key={refreshKey} unmounts and remounts every screen on every token
+refresh, which happens on every tab switch. This is the main cause of all
+screens going blank.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 2
+File: artifacts/stegofy-qr/src/hooks/useSessionKeepalive.ts
+
+Find this block inside onAuthStateChange:
+  } else if (event === "TOKEN_REFRESHED" || event === "SIGNED_IN") {
+    setSessionOk(true);
+    setReconnecting(false);
+    setRefreshKey((k) => k + 1);
+  }
+
+Change it to:
+  } else if (event === "TOKEN_REFRESHED" || event === "SIGNED_IN") {
+    setSessionOk(true);
+    setReconnecting(false);
+    // Do NOT increment refreshKey — removing key={refreshKey} from Switch
+    // means screens no longer need to remount on token refresh
+  }
+
+Also find the return statement at the bottom:
+  return { sessionOk, reconnecting, refreshKey };
+
+Change it to:
+  return { sessionOk, reconnecting };
+
+And update the return type interface:
+  Find:   refreshKey: number;
+  Delete that line entirely from the return type.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 3
+File: artifacts/stegofy-qr/src/admin/screens/DashboardScreen.tsx
+AND all files in artifacts/stegofy-qr/src/admin/screens/ that import ensureFreshSession
+
+In every loadXxx useCallback function that starts with:
+  ensureFreshSession()
+    .then(() => ...)
+    .catch(() => { setXxxError(true); })
+
+Change the .catch() to NOT set an error on AuthExpiredError specifically.
+Instead use this pattern:
+
+  ensureFreshSession()
+    .then(() => getDashboardStats())  
+    .then((data) => { setStats(data); setStatsError(false); })
+    .catch((e) => {
+      // Only show error for non-auth failures
+      // Auth failures are handled globally by useSessionKeepalive
+      if (e?.name !== "AuthExpiredError") {
+        setStatsError(true);
+      }
+    })
+    .finally(() => setStatsLoading(false));
+
+Apply this same pattern to loadCharts and to all equivalent load functions
+in UsersScreen, QRCodesScreen, ProductsScreen, OrdersScreen.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 4
+File: artifacts/stegofy-qr/src/admin/screens/ProductsScreen.tsx
+
+In adminCreateProduct, adminUpdateProduct, adminDeleteProduct,
+adminUpsertVariants inside artifacts/stegofy-qr/src/services/productService.ts:
+
+Add await ensureFreshSession() as first line in each of these functions
+if not already present.
+
+Also find in ProductsScreen.tsx handleSave function:
+  await supabase.auth.refreshSession().catch(() => {});
+
+DELETE that line entirely — ensureFreshSession() handles this now.
+
+Also find: makeTimeout(15000)
+Change to: makeTimeout(45000)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+After all changes, verify that:
+1. No TypeScript errors exist for refreshKey (it should no longer be used anywhere)
+2. The Switch in AdminRouter.tsx has NO key prop
+3. useSessionKeepalive returns only { sessionOk, reconnecting }

@@ -28,18 +28,13 @@ const KEEPALIVE_INTERVAL_MS = 10 * 60 * 1000;
  * Returns:
  *   sessionOk    — false while a refresh is in-flight or after failure
  *   reconnecting — true only while a visibility-change refresh is in-flight
- *   refreshKey   — counter that increments after each successful TOKEN_REFRESHED;
- *                  AdminRouter keys the <Switch> on this so screens remount
- *                  and re-fetch data automatically after reconnect
  */
 export function useSessionKeepalive(): {
   sessionOk: boolean;
   reconnecting: boolean;
-  refreshKey: number;
 } {
   const [sessionOk, setSessionOk]       = useState(true);
   const [reconnecting, setReconnecting] = useState(false);
-  const [refreshKey, setRefreshKey]     = useState(0);
   const [, navigate]                   = useLocation();
   const navigateRef                     = useRef(navigate);
   navigateRef.current                   = navigate;
@@ -63,7 +58,6 @@ export function useSessionKeepalive(): {
       } else if (event === "TOKEN_REFRESHED" || event === "SIGNED_IN") {
         setSessionOk(true);
         setReconnecting(false);
-        setRefreshKey((k) => k + 1);
       }
     });
 
@@ -109,5 +103,5 @@ export function useSessionKeepalive(): {
     };
   }, []);
 
-  return { sessionOk, reconnecting, refreshKey };
+  return { sessionOk, reconnecting };
 }

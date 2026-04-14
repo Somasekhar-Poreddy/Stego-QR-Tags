@@ -157,6 +157,7 @@ export async function adminGetAllProducts(): Promise<Product[]> {
 export async function adminCreateProduct(
   input: ProductInput,
 ): Promise<{ id: string } | { error: string }> {
+  await ensureFreshSession();
   const { data, error } = await supabase
     .from("products")
     .insert(serializeProduct(input))
@@ -171,6 +172,7 @@ export async function adminUpdateProduct(
   id: string,
   input: Partial<ProductInput>,
 ): Promise<{ error?: string }> {
+  await ensureFreshSession();
   const { error } = await supabase
     .from("products")
     .update(serializeProduct(input as ProductInput))
@@ -180,6 +182,7 @@ export async function adminUpdateProduct(
 }
 
 export async function adminDeleteProduct(id: string): Promise<{ error?: string }> {
+  await ensureFreshSession();
   const { error } = await supabase.from("products").delete().eq("id", id);
   if (!error) invalidateProductCache();
   return { error: error?.message };
@@ -189,6 +192,7 @@ export async function adminUpsertVariants(
   productId: string,
   variants: Omit<ProductVariant, "id" | "product_id" | "created_at">[],
 ): Promise<{ error?: string }> {
+  await ensureFreshSession();
   const { error: delErr } = await supabase
     .from("product_variants")
     .delete()

@@ -63,9 +63,7 @@ export function AdminRouter() {
   });
 
   // Session keepalive: refreshes on tab focus + auth events + periodic interval.
-  // `refreshKey` increments after each TOKEN_REFRESHED event — used as a `key`
-  // on the route tree so screens automatically remount and re-fetch data.
-  const { sessionOk, reconnecting, refreshKey } = useSessionKeepalive();
+  const { sessionOk, reconnecting } = useSessionKeepalive();
 
   // Global auth-expired event listener: any async loading path that throws
   // AuthExpiredError dispatches AUTH_EXPIRED_EVENT on window. Centralising the
@@ -180,12 +178,9 @@ export function AdminRouter() {
         SessionErrorBoundary catches AuthExpiredError that bubbles up from
         any screen's render path. On auth error: auto-retries refreshSession()
         and remounts children on success; redirects to login on failure.
-        The `key={refreshKey}` on the Switch causes all screens to remount
-        (and re-fetch data) whenever the keepalive hook detects a successful
-        TOKEN_REFRESHED event after a period of inactivity.
       */}
       <SessionErrorBoundary onExpired={() => navigate("/admin/login?reason=expired")}>
-        <Switch key={refreshKey}>
+        <Switch>
           <Route path="/admin/users"         component={UsersScreen} />
           <Route path="/admin/qr-codes"      component={QRCodesScreen} />
           <Route path="/admin/requests"      component={ContactRequestsScreen} />

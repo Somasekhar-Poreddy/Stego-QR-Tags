@@ -21,6 +21,7 @@ import {
   type ProductVariant,
 } from "@/services/productService";
 import { supabase } from "@/lib/supabase";
+import { ensureFreshSession } from "@/lib/adminAuth";
 
 /* ─── constants ─── */
 
@@ -571,8 +572,7 @@ function ProductForm({
       );
 
     try {
-      // Refresh auth session so the token doesn't expire mid-save
-      await supabase.auth.refreshSession().catch(() => {});
+      await ensureFreshSession();
 
       const input = formToInput(form);
       let productId = form.id;
@@ -602,7 +602,7 @@ function ProductForm({
 
           if (!cancelled) onSaved();
         })(),
-        makeTimeout(15000).catch((e) => { cancelled = true; throw e; }),
+        makeTimeout(45000).catch((e) => { cancelled = true; throw e; }),
       ]);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Save failed");

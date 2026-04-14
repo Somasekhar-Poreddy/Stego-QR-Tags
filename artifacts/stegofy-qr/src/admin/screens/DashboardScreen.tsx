@@ -79,7 +79,11 @@ export function DashboardScreen() {
     ensureFreshSession()
       .then(() => getDashboardStats())
       .then((data) => { setStats(data); setStatsError(false); })
-      .catch(() => { setStatsError(true); })
+      .catch((e) => {
+        if (e?.name !== "AuthExpiredError") {
+          setStatsError(true);
+        }
+      })
       .finally(() => setStatsLoading(false));
   }, []);
 
@@ -93,7 +97,11 @@ export function DashboardScreen() {
         setReqTypes(types);
         setChartsError(false);
       })
-      .catch(() => { setChartsError(true); })
+      .catch((e) => {
+        if (e?.name !== "AuthExpiredError") {
+          setChartsError(true);
+        }
+      })
       .finally(() => setChartsLoading(false));
   }, []);
 

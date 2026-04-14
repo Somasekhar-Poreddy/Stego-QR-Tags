@@ -392,7 +392,9 @@ export function OrdersScreen() {
       setOrders(rows);
       setTotal(cnt);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load orders");
+      if ((e as { name?: string })?.name !== "AuthExpiredError") {
+        setError(e instanceof Error ? e.message : "Failed to load orders");
+      }
     }
     setLoading(false);
   }, []);

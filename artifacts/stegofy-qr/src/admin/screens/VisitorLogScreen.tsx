@@ -119,7 +119,9 @@ export function VisitorLogScreen() {
       setScans(rows);
       setTotal(cnt);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      if ((e as { name?: string })?.name !== "AuthExpiredError") {
+        setError(e instanceof Error ? e.message : String(e));
+      }
     }
     setLoading(false);
   }, []);
