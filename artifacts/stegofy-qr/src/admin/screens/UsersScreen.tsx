@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import {
   Search, ChevronLeft, ChevronRight, X, User, QrCode, MessageSquare,
   Trash2, ShieldOff, ShieldCheck, Copy, Check, ChevronDown, ChevronUp,
@@ -1159,7 +1159,12 @@ function SessionsTab({ userId, totalCount }: { userId: string; totalCount: numbe
     }
   }, [userId]);
 
-  useEffect(() => { load(30); }, [load]);
+  const hasLoadedSessions = useRef(false);
+  useEffect(() => {
+    if (hasLoadedSessions.current) return;
+    hasLoadedSessions.current = true;
+    load(30);
+  }, [load]);
 
   const handleLoadMore = () => {
     const next = limit + 30;
@@ -1354,7 +1359,12 @@ function ScansTab({
     }
   }, [qrIds]);
 
-  useEffect(() => { load(30); }, [load]);
+  const hasLoadedScans = useRef(false);
+  useEffect(() => {
+    if (hasLoadedScans.current) return;
+    hasLoadedScans.current = true;
+    load(30);
+  }, [load]);
 
   const handleLoadMore = () => {
     const next = limit + 30;
@@ -1707,7 +1717,12 @@ function UserDetailModal({ user, onRefresh, onClose }: {
     }
   }, [user.id]);
 
-  useEffect(() => { loadUserData(); }, [loadUserData]);
+  const hasLoadedUserData = useRef(false);
+  useEffect(() => {
+    if (hasLoadedUserData.current) return;
+    hasLoadedUserData.current = true;
+    loadUserData();
+  }, [loadUserData]);
 
   // Determine if current admin is a super-admin (checks env list + admin_users table)
   useEffect(() => {
@@ -1883,7 +1898,12 @@ export function UsersScreen() {
     }
   }, []);
 
-  useEffect(() => { reload(); }, [reload]);
+  const hasLoadedUsers = useRef(false);
+  useEffect(() => {
+    if (hasLoadedUsers.current) return;
+    hasLoadedUsers.current = true;
+    reload();
+  }, [reload]);
 
   useEffect(() => {
     const q = search.toLowerCase();

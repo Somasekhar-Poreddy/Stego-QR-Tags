@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import {
   Search, X, ChevronLeft, ChevronRight, Trash2, PauseCircle,
   Eye, Edit3, Save, RefreshCw, Phone, Key, ShieldCheck, Settings,
@@ -690,7 +690,9 @@ export function QRCodesScreen() {
   const [loading, setLoading] = useState(false);
   const [viewing, setViewing] = useState<QRRow | null>(null);
 
-  const reload = () => {
+  const hasLoaded = useRef(false);
+
+  const reload = useCallback(() => {
     setLoading(true);
     Promise.all([adminGetAllQRCodes(), adminGetAllUsers()])
       .then(([codes, users]) => {
@@ -703,8 +705,13 @@ export function QRCodesScreen() {
         console.error("[QRCodesScreen] Failed to load QR codes:", err);
       })
       .finally(() => setLoading(false));
-  };
-  useEffect(() => { reload(); }, []);
+  }, []);
+
+  useEffect(() => {
+    if (hasLoaded.current) return;
+    hasLoaded.current = true;
+    reload();
+  }, [reload]);
 
   useEffect(() => {
     const q = search.toLowerCase();

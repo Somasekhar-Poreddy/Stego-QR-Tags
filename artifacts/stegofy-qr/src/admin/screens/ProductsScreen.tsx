@@ -884,6 +884,8 @@ export function ProductsScreen() {
   const [formData, setFormData] = useState<FormData | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
+  const hasLoaded = useRef(false);
+
   const reload = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -897,7 +899,11 @@ export function ProductsScreen() {
     }
   }, []);
 
-  useEffect(() => { reload(); }, [reload]);
+  useEffect(() => {
+    if (hasLoaded.current) return;
+    hasLoaded.current = true;
+    reload();
+  }, [reload]);
 
   // Apply filters
   useEffect(() => {

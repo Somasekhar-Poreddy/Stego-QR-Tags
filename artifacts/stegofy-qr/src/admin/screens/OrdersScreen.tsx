@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import {
   Search, ShoppingBag, ChevronDown, ChevronUp, MapPin, Phone,
   Mail, AlertCircle, RefreshCw, Package, ChevronLeft, ChevronRight,
@@ -380,6 +380,9 @@ export function OrdersScreen() {
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
+  const hasLoadedOrders = useRef(false);
+  const prevTabPageKey = useRef("");
+
   const load = useCallback(async (tab: OrderStatus | "all", p: number) => {
     setLoading(true);
     setError(null);
@@ -413,7 +416,12 @@ export function OrdersScreen() {
   }, []);
 
   useEffect(() => {
-    load(activeTab, page);
+    const key = `${activeTab}:${page}`;
+    if (!hasLoadedOrders.current || prevTabPageKey.current !== key) {
+      hasLoadedOrders.current = true;
+      prevTabPageKey.current = key;
+      load(activeTab, page);
+    }
   }, [load, activeTab, page]);
 
   const refreshTabCounts = useCallback(() => {
