@@ -1,0 +1,112 @@
+I have a full-stack web application called "Stegofy" built with React (frontend), Node.js + Express (backend), and Supabase (Postgres + Auth). 
+
+I have a CRITICAL BUG: All data disappears across both the USER side and ADMIN side after a few seconds or after navigation. The UI goes blank with no errors shown.
+
+ROOT CAUSES IDENTIFIED:
+1. Supabase session not being restored asynchronously before data fetches run
+2. React useEffect overwriting state with empty [] when auth fails silently
+3. Supabase RLS returning empty [] instead of an error when auth.uid() is null
+4. Backend Express routes using anon key instead of service role key (bypasses RLS)
+5. No global auth listener — components fetch independently causing race conditions
+6. No guard preventing empty responses from overwriting previously loaded data
+
+PLEASE DO ALL OF THE FOLLOWING FIXES:
+
+---
+
+FIX 1 — Create two separate Supabase clients:
+
+A) src/lib/supabaseClient.js (Frontend only — React)
+- Use VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY from env
+- Set auth options: persistSession: true, autoRefreshToken: true, detectSessionInUrl: true
+
+B) src/lib/supabaseAdmin.js (Backend only — Node.js/Express)
+- Use SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY from env
+- Set auth options: autoRefreshToken: false, persistSession: false
+- Add a comment: "NEVER import this file in the frontend"
+
+---
+
+FIX 2 — Update ALL Express routes in the backend:
+- Find every file in the routes/ or api/ folder
+- Replace every instance of the regular supabase client with supabaseAdmin
+- This ensures admin and backend API calls bypass RLS entirely
+
+---
+
+FIX 3 — Create src/providers/AuthProvider.jsx:
+- Use createContext and useContext
+- State: session (default undefined), authReady (default false)
+- In useEffect:
+  - Call supabase.auth.getSession() ASYNC with .then() to set session and authReady=true
+  - Call supabase.auth.onAuthStateChange() to listen for ALL future auth events
+  - Unsubscribe on cleanup
+- While authReady is false, render a full-screen loading spinner instead of children
+- Export useAuth() hook that returns { session, user, isLoggedIn }
+
+---
+
+FIX 4 — Wrap the entire app in AuthProvider:
+- Open src/main.jsx (or index.jsx)
+- Wrap <App /> inside <AuthProvider>
+
+---
+
+FIX 5 — Create src/hooks/useFetch.js:
+- Accept (apiFn, deps=[]) as arguments
+- Use useAuth() to get isLoggedIn
+- State: { data: null, loading: true, error: null }
+- Use a useRef called prevData to remember the last successful data
+- In useEffect:
+  - If not isLoggedIn, set error "Not authenticated" and return early
+  - Set loading: true before calling apiFn()
+  - On success: if result is an empty array [] AND prevData has real data, log a warning and SKIP the state update (do not overwrite good data with empty)
+  - On success with real data: update prevData.current and set state
+  - On error: restore data to prevData.current (keep old data visible), set error message
+  - Use a cancelled flag and set it to true in the useEffect cleanup to prevent stale updates
+- Return { data, loading, error }
+
+---
+
+FIX 6 — Create route guards:
+A) src/components/guards/UserRoute.jsx
+- Import useAuth
+- If isLoggedIn, render children; else redirect to /login
+
+B) src/components/guards/AdminRoute.jsx
+- Import useAuth
+- Check isLoggedIn AND user?.user_metadata?.role === 'admin'
+- If not logged in: redirect to /login
+- If logged in but not admin: redirect to /unauthorized
+- Otherwise: render children
+
+---
+
+FIX 7 — Update ALL pages that fetch data:
+- Find every component that uses useEffect + fetch or useEffect + supabase query
+- Replace the data fetching logic with the new useFetch hook
+- Pattern: const { data, loading, error } = useFetch(myApiFn)
+- Add proper UI for each state:
+  - loading: show a skeleton or spinner
+  - error: show a red error message
+  - empty data: show an empty state message
+  - data loaded: render the component normally
+
+---
+
+FIX 8 — Update src/App.jsx routes:
+- Wrap all /dashboard/* and user routes inside <UserRoute>
+- Wrap all /admin/* routes inside <AdminRoute>
+- Public routes (login, /scan/:qrId, landing page) should remain unprotected
+
+---
+
+IMPORTANT RULES:
+- Do NOT break any existing features (QR creation, contact page, ecommerce, IP tracking)
+- Do NOT change database schema or Supabase table structure
+- Do NOT remove any existing UI or pages
+- Keep all existing route paths exactly the same
+- The supabaseAdmin client must ONLY be used in backend/server files, never in React components
+- After all changes, test that: dashboard loads data, navigation doesn't clear data, admin panel shows users/QR codes/orders/products, and user dashboard shows their QR codes
+
+Start with FIX 1 and FIX 2 first as they are the highest priority, then proceed in order.
