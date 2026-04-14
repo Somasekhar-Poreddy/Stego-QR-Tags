@@ -131,10 +131,12 @@ export function QRProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      // Query succeeded: always replace local state with server truth.
-      // This clears any stale or mock data from a previous user session.
+      // Query succeeded — but only replace local state when the server returned
+      // at least one row. An empty result on a transient auth gap (brief moment
+      // between token expiry and refresh) would otherwise wipe all QR codes from
+      // the UI. The functional update preserves the existing list in that case.
       const loaded = (data ?? []).map(rowToProfile);
-      setProfiles(loaded);
+      setProfiles((prev) => (loaded.length > 0 ? loaded : prev));
     } catch (err) {
       // Network unreachable — silently keep current localStorage state
       console.warn("QR profile load failed, using local data:", err);

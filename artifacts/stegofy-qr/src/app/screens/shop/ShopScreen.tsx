@@ -1,9 +1,10 @@
-import { useEffect, useState, useCallback } from "react";
+import { useState } from "react";
 import { ShoppingBag, Plus, Minus, Star, Package, ChevronRight } from "lucide-react";
 import { useLocation } from "wouter";
 import { AppHeader } from "@/app/components/AppHeader";
 import { useCart } from "@/app/context/CartContext";
 import { getActiveProducts, type Product } from "@/services/productService";
+import { useDataFetch } from "@/hooks/useDataFetch";
 import { cn } from "@/lib/utils";
 
 /* ─── Category tabs ─── */
@@ -214,19 +215,14 @@ export function StickyCartBar() {
 
 export function ShopScreen() {
   const [activeCategory, setActiveCategory] = useState("all");
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // retryKey allows the retry button to force a re-fetch without changing category
+  const [retryKey, setRetryKey] = useState(0);
 
-  const load = useCallback((cat: string) => {
-    setLoading(true);
-    setError(null);
-    getActiveProducts(cat === "all" ? undefined : cat)
-      .then((data) => { setProducts(data); setLoading(false); })
-      .catch((e) => { setError(e.message); setLoading(false); });
-  }, []);
-
-  useEffect(() => { load(activeCategory); }, [load, activeCategory]);
+  // useDataFetch: guards auth, preserves previous products on empty/error, cancels on unmount
+  const { data: products, loading, error } = useDataFetch<Product>(
+    () => getActiveProducts(activeCategory === "all" ? undefined : activeCategory),
+    [activeCategory, retryKey],
+  );
 
   return (
     <div className="min-h-full bg-slate-50">
@@ -264,13 +260,13 @@ export function ShopScreen() {
             <p className="text-sm font-semibold text-slate-500">Could not load products</p>
             <p className="text-xs text-slate-400">{error}</p>
             <button
-              onClick={() => load(activeCategory)}
+              onClick={() => setRetryKey((k) => k + 1)}
               className="text-xs font-semibold text-primary underline"
             >
               Try again
             </button>
           </div>
-        ) : products.length === 0 ? (
+        ) : !products || products.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 gap-3">
             <Package className="w-12 h-12 text-slate-200" />
             <p className="text-sm font-semibold text-slate-500">No products yet</p>

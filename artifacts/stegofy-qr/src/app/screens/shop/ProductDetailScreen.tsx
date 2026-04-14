@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Star, Plus, Minus, ChevronLeft, Package, CheckCircle2, ChevronRight, ShoppingBag, AlertCircle } from "lucide-react";
 import { useLocation } from "wouter";
 import { useCart } from "@/app/context/CartContext";
 import { getProductById, getProductReviews, type ProductWithVariants, type Review } from "@/services/productService";
+import { useDataFetch } from "@/hooks/useDataFetch";
 import { cn } from "@/lib/utils";
 import { StickyCartBar } from "@/app/screens/shop/ShopScreen";
 
@@ -128,25 +129,44 @@ export function ProductDetailScreen({ productId }: { productId: string }) {
   const { addItem, removeItem, getQty } = useCart();
 
   const [product, setProduct] = useState<ProductWithVariants | null>(null);
-  const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
   const [addedFeedback, setAddedFeedback] = useState(false);
 
+  // prevProduct ref ensures a transient fetch error never clears an already-loaded product
+  const prevProduct = useRef<ProductWithVariants | null>(null);
+
+  // Product fetch — manual because getProductById returns a single object (not T[])
   useEffect(() => {
+    let cancelled = false;
     setLoading(true);
     setError(null);
-    Promise.all([getProductById(productId), getProductReviews(productId)])
-      .then(([prod, revs]) => {
+    getProductById(productId)
+      .then((prod) => {
+        if (cancelled) return;
         if (!prod) { setError("Product not found"); setLoading(false); return; }
+        prevProduct.current = prod;
         setProduct(prod);
-        setReviews(revs);
         if (prod.variants.length > 0) setSelectedVariantId(prod.variants[0].id);
         setLoading(false);
       })
-      .catch((e) => { setError(e.message); setLoading(false); });
+      .catch((e: unknown) => {
+        if (cancelled) return;
+        const msg = e instanceof Error ? e.message : "Failed to load product";
+        // Preserve the previously loaded product — don't blank the screen on error
+        if (prevProduct.current) setProduct(prevProduct.current);
+        setError(msg);
+        setLoading(false);
+      });
+    return () => { cancelled = true; };
   }, [productId]);
+
+  // Reviews fetch — useDataFetch handles auth guard, prev-state preservation, and cleanup
+  const { data: reviews } = useDataFetch<Review>(
+    () => getProductReviews(productId),
+    [productId],
+  );
 
   if (loading) {
     return (
@@ -393,7 +413,7 @@ export function ProductDetailScreen({ productId }: { productId: string }) {
       )}
 
       {/* Reviews */}
-      {reviews.length > 0 && (
+      {reviews && reviews.length > 0 && (
         <div className="bg-white mx-4 mt-3 rounded-2xl border border-slate-100 p-4">
           <h3 className="text-sm font-bold text-slate-800 mb-1">
             Reviews

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   ChevronLeft, Shield, AlertTriangle, AlertOctagon,
   Lightbulb, Truck, Wind, MapPin, HeartPulse, Navigation,
@@ -535,37 +535,56 @@ export function PublicProfileScreen() {
     return match?.[1] ?? "";
   })();
 
+  // Keep a ref to the last successfully loaded QR data so we never overwrite
+  // good data with a transient error or empty response from Supabase.
+  const qrDataRef = useRef<QRPublicData | null>(null);
+
+  // Retry wrapper: on Supabase error we wait 800 ms and try once more.
+  // This covers the brief gap where the anon session hasn't established yet
+  // (RLS returns empty / error before the client is fully initialised).
+  const fetchQrData = useCallback(async (retries = 1): Promise<void> => {
+    const { data, error } = await supabase
+      .from("qr_codes")
+      .select("id, type, data, pin_code, is_active, allow_contact, strict_mode, emergency_contact, name, privacy")
+      .eq("id", qrId)
+      .single();
+
+    if (error || !data) {
+      if (retries > 0) {
+        await new Promise<void>((r) => setTimeout(r, 800));
+        return fetchQrData(retries - 1);
+      }
+      // Both attempts failed — only show "not found" if no good data was loaded previously
+      if (!qrDataRef.current) setNotFound(true);
+      setLoading(false);
+      return;
+    }
+
+    qrDataRef.current = data as QRPublicData;
+    setQrData(data as QRPublicData);
+    setLoading(false);
+
+    // Fire-and-forget: record this QR scan; setScanId triggers pending intent effect
+    fetch("/api/track-scan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        qr_id: data.id,
+        session_id: getSessionId(),
+        referrer: document.referrer || null,
+      }),
+    })
+      .then((r) => r.json())
+      .then((body: { id?: string }) => {
+        if (body.id) setScanId(body.id);
+      })
+      .catch(() => {});
+  }, [qrId]);
+
   useEffect(() => {
     if (!qrId) { setLoading(false); setNotFound(true); return; }
-    (async () => {
-      const { data, error } = await supabase
-        .from("qr_codes")
-        .select("id, type, data, pin_code, is_active, allow_contact, strict_mode, emergency_contact, name, privacy")
-        .eq("id", qrId)
-        .single();
-      if (error || !data) {
-        setNotFound(true);
-      } else {
-        setQrData(data as QRPublicData);
-        // Fire-and-forget: record this QR scan; setScanId triggers pending intent effect
-        fetch("/api/track-scan", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            qr_id: data.id,
-            session_id: getSessionId(),
-            referrer: document.referrer || null,
-          }),
-        })
-          .then((r) => r.json())
-          .then((body: { id?: string }) => {
-            if (body.id) setScanId(body.id);
-          })
-          .catch(() => {});
-      }
-      setLoading(false);
-    })();
-  }, [qrId]);
+    fetchQrData();
+  }, [qrId, fetchQrData]);
 
   // Fire-and-forget: update scan row with intent on selection or when scan ID arrives.
   // Depends on both so it replays if user selected intent before POST returned.

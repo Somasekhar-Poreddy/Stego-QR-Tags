@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useLocation } from "wouter";
 import { ChevronLeft, ChevronDown, ChevronUp, Package, ShoppingBag } from "lucide-react";
 import { useAuth } from "@/app/context/AuthContext";
 import { getUserOrders, getUserOrderWithItems, type Order, type OrderWithItems, type OrderStatus, ORDER_STATUS_LABELS } from "@/services/orderService";
+import { useDataFetch } from "@/hooks/useDataFetch";
 import { cn } from "@/lib/utils";
 
 /* ─── Status badge ─── */
@@ -142,17 +143,12 @@ function OrderSkeleton() {
 export function OrdersScreen() {
   const [, navigate] = useLocation();
   const { user } = useAuth();
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!user?.id) return;
-    getUserOrders(user.id)
-      .then(setOrders)
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-  }, [user?.id]);
+  // useDataFetch: guards auth, preserves prev orders on empty/error, cancels on unmount
+  const { data: orders, loading, error } = useDataFetch<Order>(
+    () => (user?.id ? getUserOrders(user.id) : Promise.resolve([])),
+    [user?.id],
+  );
 
   return (
     <div className="min-h-screen bg-slate-50 max-w-lg mx-auto">
@@ -180,7 +176,7 @@ export function OrdersScreen() {
             <p className="text-sm font-semibold text-slate-500">Could not load orders</p>
             <p className="text-xs text-slate-400">{error}</p>
           </div>
-        ) : orders.length === 0 ? (
+        ) : !orders || orders.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 gap-3">
             <Package className="w-12 h-12 text-slate-200" />
             <p className="text-sm font-semibold text-slate-500">No orders yet</p>
