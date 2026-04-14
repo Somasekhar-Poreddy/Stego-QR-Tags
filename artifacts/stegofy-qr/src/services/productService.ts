@@ -103,7 +103,14 @@ export async function getProductById(id: string): Promise<ProductWithVariants | 
     .eq("id", id)
     .single();
 
-  if (error || !data) return null;
+  // PGRST116 = row not found (zero rows from .single()) — genuinely absent product.
+  // Any other error is transient (auth/network); throw so the caller's catch path
+  // can preserve previously-loaded state instead of showing a false not-found.
+  if (error) {
+    if (error.code === "PGRST116") return null;
+    throw new Error(error.message);
+  }
+  if (!data) return null;
 
   const variants = await getProductVariants(id);
   const result = { ...normalizeProduct(data), variants };
