@@ -539,9 +539,15 @@ export function PublicProfileScreen() {
   // good data with a transient error or empty response from Supabase.
   const qrDataRef = useRef<QRPublicData | null>(null);
 
-  // Retry wrapper: on Supabase error we wait 800 ms and try once more.
-  // This covers the brief gap where the anon session hasn't established yet
-  // (RLS returns empty / error before the client is fully initialised).
+  // Session-guard + retry: PublicProfileScreen is an *anon* screen so there is
+  // no user JWT to refresh. Instead we guard against the brief window after page
+  // load where the Supabase anon session hasn't established yet (RLS returns an
+  // error/empty before the client is fully initialised).
+  //
+  // Strategy:
+  //  1. On any Supabase error or empty result, wait 800 ms and try once more.
+  //  2. If both attempts fail, only show "not found" if no good data is cached in
+  //     `qrDataRef` — otherwise the last-good state is preserved silently.
   const fetchQrData = useCallback(async (retries = 1): Promise<void> => {
     const { data, error } = await supabase
       .from("qr_codes")

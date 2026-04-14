@@ -222,15 +222,19 @@ router.post("/admin/decrypt-ip", async (req: Request, res: Response) => {
   }
 
   // Fire-and-forget audit log via supabaseAdmin SDK
-  supabaseAdmin
-    .from("admin_ip_access_logs")
-    .insert({
-      admin_id: adminId,
-      qr_id: qr_id ?? null,
-      scan_id: scan_id ?? null,
-    })
-    .then(() => {})
-    .catch(() => {});
+  void (async () => {
+    try {
+      await supabaseAdmin
+        .from("admin_ip_access_logs")
+        .insert({
+          admin_id: adminId,
+          qr_id: qr_id ?? null,
+          scan_id: scan_id ?? null,
+        });
+    } catch {
+      // Intentionally silent — audit logging failure must not break the response
+    }
+  })();
 
   res.status(200).json({ ip: plain_ip });
 });
