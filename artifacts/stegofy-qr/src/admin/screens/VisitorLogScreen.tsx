@@ -144,14 +144,18 @@ export function VisitorLogScreen() {
       description:
         "Decrypting an IP address is logged for audit. Confirm with your password to continue.",
       confirmLabel: "Decrypt",
+      successMessage: "IP decrypted.",
       run: async () => {
         setLoadingIp((prev) => ({ ...prev, [scan.id]: true }));
-        const result = await adminDecryptIP(scan.encrypted_ip!, scan.qr_id, scan.id);
-        setLoadingIp((prev) => ({ ...prev, [scan.id]: false }));
-        if ("ip" in result) {
-          revealIp(scan.id, result.ip);
-        } else {
-          revealIp(scan.id, `Error: ${result.error}`);
+        try {
+          const result = await adminDecryptIP(scan.encrypted_ip!, scan.qr_id, scan.id);
+          if ("ip" in result) {
+            revealIp(scan.id, result.ip);
+          } else {
+            throw new Error(result.error);
+          }
+        } finally {
+          setLoadingIp((prev) => ({ ...prev, [scan.id]: false }));
         }
       },
     });

@@ -242,4 +242,79 @@ router.delete("/admin/delete-user", async (req: Request, res: Response) => {
   }
 });
 
+/* ─────────────────────────────────────────────────────────────────────────
+   Delete an END-USER (regular app user, not a team admin).
+   ---------------------------------------------------------------------------
+   Uses the service role to delete the auth.users row. FK constraints with
+   ON DELETE CASCADE (cart_items, user_activity_logs) will clean up
+   automatically; rows with ON DELETE SET NULL (orders, qr_scans) will be
+   anonymised rather than removed.
+   ----------------------------------------------------------------------- */
+router.post("/admin/delete-end-user", async (req: Request, res: Response) => {
+  const caller = await requireManageTeam(req, res);
+  if (!caller) return;
+
+  const { userId } = req.body as { userId?: string };
+  if (!userId || typeof userId !== "string") {
+    res.status(400).json({ error: "userId is required" });
+    return;
+  }
+
+  const supabaseUrl = getSupabaseUrl();
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+
+  // Safety: refuse to delete a user who is themselves an admin via
+  // admin_users, to prevent accidental super_admin self-deletion from the
+  // Users screen. Admin accounts should be managed via /admin/delete-user.
+  const { data: adminRow } = await supabaseAdmin
+    .from("admin_users")
+    .select("id, role")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (adminRow) {
+    res.status(400).json({
+      error:
+        "This account is also an admin team member. Use the Team screen to remove their admin access first.",
+    });
+    return;
+  }
+
+  try {
+    // 1. Delete app-level rows whose FKs reference user_profiles directly.
+    //    These tables don't cascade from auth.users, so we clean them first.
+    //    We intentionally proceed on individual non-fatal errors — the goal
+    //    is to leave the account fully removed, not half-deleted.
+    const cleanup = async (table: string, col: string) => {
+      const { error } = await supabaseAdmin.from(table).delete().eq(col, userId);
+      if (error) console.warn(`[delete-end-user] ${table}.${col} cleanup error:`, error.message);
+    };
+    await cleanup("contact_requests", "user_id");
+    await cleanup("qr_codes", "user_id");
+    await cleanup("user_profiles", "id");
+
+    // 2. Delete the auth.users row via the Supabase Auth Admin REST API.
+    //    Supabase cascades to cart_items (ON DELETE CASCADE), anonymises
+    //    orders (ON DELETE SET NULL), etc.
+    const authDelRes = await fetch(`${supabaseUrl}/auth/v1/admin/users/${userId}`, {
+      method: "DELETE",
+      headers: {
+        "Authorization": `Bearer ${serviceRoleKey}`,
+        "apikey": serviceRoleKey,
+      },
+    });
+    if (!authDelRes.ok && authDelRes.status !== 404) {
+      const body = (await authDelRes.json().catch(() => ({}))) as { msg?: string };
+      res.status(500).json({
+        error: body.msg ?? `Failed to delete auth user (HTTP ${authDelRes.status})`,
+      });
+      return;
+    }
+
+    res.status(200).json({ success: true });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unexpected error";
+    res.status(500).json({ error: message });
+  }
+});
+
 export default router;
