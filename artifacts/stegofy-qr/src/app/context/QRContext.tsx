@@ -36,12 +36,29 @@ interface QRContextType {
   addProfile: (profile: Omit<QRProfile, "id" | "scans" | "createdAt">) => QRProfile;
   updateProfile: (id: string, updates: Partial<QRProfile>) => void;
   deleteProfile: (id: string) => void;
-  loadUserProfiles: (userId: string) => Promise<void>;
+  /**
+   * Loads QR profiles for the given user from Supabase.
+   * Returns true when the load succeeded (regardless of how many rows came
+   * back) and false when it failed or was suppressed (no session, network
+   * error, RLS block). Callers should retry on `false`, not on `true`.
+   */
+  loadUserProfiles: (userId: string) => Promise<boolean>;
 }
 
 const QRContext = createContext<QRContextType | null>(null);
 
 const STORAGE_KEY = "stegofy_qr_profiles_v1";
+
+function readProfilesFromStorage(): QRProfile[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as QRProfile[]) : [];
+  } catch {
+    return [];
+  }
+}
 
 function rowToProfile(row: Record<string, unknown>): QRProfile {
   return {
@@ -71,7 +88,9 @@ function rowToProfile(row: Record<string, unknown>): QRProfile {
 }
 
 export function QRProvider({ children }: { children: ReactNode }) {
-  const [profiles, setProfiles] = useState<QRProfile[]>([]);
+  // Initialise from localStorage so the UI never starts empty when we already
+  // have cached profiles from a previous session.
+  const [profiles, setProfiles] = useState<QRProfile[]>(() => readProfilesFromStorage());
 
   useEffect(() => {
     try {
@@ -79,8 +98,16 @@ export function QRProvider({ children }: { children: ReactNode }) {
     } catch {}
   }, [profiles]);
 
-  const loadUserProfiles = useCallback(async (userId: string): Promise<void> => {
+  const loadUserProfiles = useCallback(async (userId: string): Promise<boolean> => {
     try {
+      // Guard 1: no session ⇒ RLS will silently return [] and we'd wipe state.
+      // Skip the fetch entirely and let AuthContext handle the auth flow.
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        console.warn("[QRContext] No active session; skipping profile load.");
+        return false;
+      }
+
       const { data, error } = await supabase
         .from("qr_codes")
         .select("*")
@@ -88,16 +115,31 @@ export function QRProvider({ children }: { children: ReactNode }) {
         .order("created_at", { ascending: false });
 
       if (error) {
-        // Supabase reachable but query failed — keep local state as fallback
-        console.warn("Could not load QR profiles from Supabase:", error.message);
-        return;
+        // Supabase reachable but query failed — keep current state as fallback.
+        console.warn("[QRContext] Profile load failed:", error.message);
+        return false;
       }
 
       const loaded = (data ?? []).map(rowToProfile);
-      setProfiles(loaded);
+
+      // Guard 2: never replace a populated list with an empty one. An empty
+      // response can mean "user genuinely has no QRs" OR "RLS silently
+      // filtered everything out because the JWT was rotating". The safe
+      // thing on a tie is to keep what we have.
+      setProfiles((prev) => {
+        if (loaded.length === 0 && prev.length > 0) {
+          console.warn(
+            "[QRContext] Empty profile response while local state is populated — retaining existing profiles to avoid blank UI.",
+          );
+          return prev;
+        }
+        return loaded;
+      });
+      return true;
     } catch (err) {
-      // Network unreachable — silently keep current localStorage state
-      console.warn("QR profile load failed, using local data:", err);
+      // Network unreachable — keep current state.
+      console.warn("[QRContext] Profile load threw:", err);
+      return false;
     }
   }, []);
 

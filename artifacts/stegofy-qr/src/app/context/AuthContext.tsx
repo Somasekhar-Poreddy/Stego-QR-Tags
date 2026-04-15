@@ -188,6 +188,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (event === "SIGNED_IN" && session?.user) {
         if (passwordRecoveryInProgress.current) return;
 
+        // CRITICAL: Supabase fires SIGNED_IN on every tab focus / window refocus,
+        // even if the user was already signed in. If we treat that as a real
+        // login we'll setLoading(true), AppRouter will swap to <SessionLoader/>,
+        // every screen will unmount, and all in-component state (lists, forms,
+        // pagination) is lost. To prevent that, short-circuit when the user
+        // hasn't actually changed.
+        if (prevUserIdRef.current === session.user.id) {
+          if (mounted) setLoading(false);
+          return;
+        }
+
         // Set loading=true immediately so guards in AdminRouter/AppRouter wait
         // for us to finish building the user rather than redirecting to login.
         if (mounted) setLoading(true);
@@ -222,7 +233,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       if (event === "TOKEN_REFRESHED" && session?.user) {
         if (passwordRecoveryInProgress.current) return;
-        if (mounted) setLoading(false);
+        // Do NOT touch `loading` here — TOKEN_REFRESHED fires every ~55 min
+        // (and on tab focus). Flipping `loading` would unmount every screen
+        // via AppRouter's `if (loading) return <SessionLoader/>` guard.
+        // The token is already updated inside the supabase client; we just
+        // record that we're still authenticated.
+        prevUserIdRef.current = session.user.id;
         return;
       }
       if (event === "SIGNED_OUT") {
