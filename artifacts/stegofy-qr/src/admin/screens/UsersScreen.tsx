@@ -22,6 +22,7 @@ import {
   adminDecryptIP, type ActivityLog, type QRScan,
 } from "@/services/adminService";
 import { supabase } from "@/lib/supabase";
+import { useReauthGuard } from "@/admin/components/useReauthGuard";
 
 /* ─────────────────────────────────────────────────
    TYPES
@@ -973,6 +974,8 @@ function QRCodesTab({ qrs: initialQrs, contacts, onRefreshQrs }: {
     contactsByQr[c.qr_id].push(c);
   });
 
+  const reauth = useReauthGuard();
+
   const handleToggle = async (qrId: string, currentStatus: string) => {
     if (currentStatus === "active") {
       await adminDisableQRCode(qrId);
@@ -981,15 +984,26 @@ function QRCodesTab({ qrs: initialQrs, contacts, onRefreshQrs }: {
     }
     onRefreshQrs();
   };
-  const handleDelete = async (qrId: string) => {
-    if (!confirm("Delete this QR code? This cannot be undone.")) return;
-    await adminDeleteQRCode(qrId); onRefreshQrs();
+  const handleDelete = (qrId: string) => {
+    reauth.guard({
+      title: "Delete QR code",
+      description:
+        "This permanently deletes the QR code and all its scan history. This cannot be undone.",
+      confirmLabel: "Delete QR code",
+      variant: "danger",
+      run: async () => {
+        await adminDeleteQRCode(qrId);
+        onRefreshQrs();
+      },
+    });
   };
   const handleUpdated = (qrId: string, updates: Partial<QRRow>) => {
     setQrs((prev) => prev.map((q) => q.id === qrId ? { ...q, ...updates } : q));
   };
 
   return (
+    <>
+    {reauth.modal}
     <div className="p-5 space-y-4">
       <div className="grid grid-cols-3 gap-3">
         {[
@@ -1020,6 +1034,7 @@ function QRCodesTab({ qrs: initialQrs, contacts, onRefreshQrs }: {
         </div>
       )}
     </div>
+    </>
   );
 }
 
@@ -1372,16 +1387,26 @@ function ScansTab({
     load(next);
   };
 
-  const handleViewIp = async (scan: QRScan) => {
+  const reauth = useReauthGuard();
+
+  const handleViewIp = (scan: QRScan) => {
     if (!scan.encrypted_ip) return;
-    setLoadingIp((prev) => ({ ...prev, [scan.id]: true }));
-    const result = await adminDecryptIP(scan.encrypted_ip, scan.qr_id, scan.id);
-    setLoadingIp((prev) => ({ ...prev, [scan.id]: false }));
-    if ("ip" in result) {
-      revealIp(scan.id, result.ip);
-    } else {
-      revealIp(scan.id, `Error: ${result.error}`);
-    }
+    reauth.guard({
+      title: "Decrypt visitor IP",
+      description:
+        "Decrypting an IP address is logged for audit. Confirm with your password to continue.",
+      confirmLabel: "Decrypt",
+      run: async () => {
+        setLoadingIp((prev) => ({ ...prev, [scan.id]: true }));
+        const result = await adminDecryptIP(scan.encrypted_ip!, scan.qr_id, scan.id);
+        setLoadingIp((prev) => ({ ...prev, [scan.id]: false }));
+        if ("ip" in result) {
+          revealIp(scan.id, result.ip);
+        } else {
+          revealIp(scan.id, `Error: ${result.error}`);
+        }
+      },
+    });
   };
 
   const getDeviceIcon = (device: string | null) => {
@@ -1409,6 +1434,8 @@ function ScansTab({
   }
 
   return (
+    <>
+    {reauth.modal}
     <div className="px-5 py-4 space-y-4">
       {/* Summary */}
       <div className="grid grid-cols-2 gap-3">
@@ -1528,6 +1555,7 @@ function ScansTab({
         </button>
       )}
     </div>
+    </>
   );
 }
 
@@ -1760,13 +1788,23 @@ function UserDetailModal({ user, onRefresh, onClose }: {
     onRefresh();
     onClose();
   };
-  const handleDelete = async () => {
-    if (!confirm(`Delete user "${fullName}"? This cannot be undone.`)) return;
-    setActionLoading(true);
-    await adminDeleteUser(user.id);
-    setActionLoading(false);
-    onRefresh();
-    onClose();
+  const reauth = useReauthGuard();
+
+  const handleDelete = () => {
+    reauth.guard({
+      title: "Delete user",
+      description:
+        `This permanently deletes "${fullName}", along with all their QR codes, scans, and orders. This cannot be undone.`,
+      confirmLabel: "Delete user",
+      variant: "danger",
+      run: async () => {
+        setActionLoading(true);
+        await adminDeleteUser(user.id);
+        setActionLoading(false);
+        onRefresh();
+        onClose();
+      },
+    });
   };
 
   const tabs: { key: TabKey; label: string; icon: React.ReactNode; badge?: number }[] = [
@@ -1780,6 +1818,8 @@ function UserDetailModal({ user, onRefresh, onClose }: {
 
   return (
     /* True full-screen overlay — covers the entire viewport */
+    <>
+    {reauth.modal}
     <div className="fixed inset-0 z-50 bg-white flex flex-col">
       {/* ─── Header ─────────────────────────────────────────── */}
       <div className="bg-gradient-to-r from-primary/5 to-violet-50 border-b border-slate-100 px-5 py-4 shrink-0">
@@ -1863,6 +1903,7 @@ function UserDetailModal({ user, onRefresh, onClose }: {
         </div>
       </div>
     </div>
+    </>
   );
 }
 

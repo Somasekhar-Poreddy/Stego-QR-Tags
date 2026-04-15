@@ -11,6 +11,7 @@ import {
   adminGetAllQRCodes, adminDisableQRCode, adminDeleteQRCode,
   adminGetAllUsers, adminEnableQRCode, adminUpdateQRCode,
 } from "@/services/adminService";
+import { useReauthGuard } from "@/admin/components/useReauthGuard";
 
 /* ─────────────────────────────────────────────────
    DATA FIELD LABEL MAP (human-readable keys)
@@ -729,15 +730,28 @@ export function QRCodesScreen() {
 
   const handleDisable = async (id: string) => { await adminDisableQRCode(id); reload(); };
   const handleEnable = async (id: string) => { await adminEnableQRCode(id); reload(); };
-  const handleDelete = async (id: string) => {
-    if (!confirm("Delete this QR code? This cannot be undone.")) return;
-    await adminDeleteQRCode(id); reload();
+  const reauth = useReauthGuard();
+
+  const handleDelete = (id: string) => {
+    reauth.guard({
+      title: "Delete QR code",
+      description:
+        "This permanently deletes the QR code and all its scan history. This cannot be undone.",
+      confirmLabel: "Delete QR code",
+      variant: "danger",
+      run: async () => {
+        await adminDeleteQRCode(id);
+        reload();
+      },
+    });
   };
   const handleUpdated = (qrId: string, updates: Partial<QRRow>) => {
     setQrs((prev) => prev.map((q) => q.id === qrId ? { ...q, ...updates } : q));
   };
 
   return (
+    <>
+    {reauth.modal}
     <div className="space-y-4">
       <div className="flex items-center gap-4">
         <div className="flex-1 relative">
@@ -850,5 +864,6 @@ export function QRCodesScreen() {
         />
       )}
     </div>
+    </>
   );
 }
