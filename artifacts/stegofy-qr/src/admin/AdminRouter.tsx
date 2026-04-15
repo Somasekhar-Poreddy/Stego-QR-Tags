@@ -1,8 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Switch, Route, useLocation } from "wouter";
 import { AdminLayout } from "@/admin/layout/AdminLayout";
 import { supabase } from "@/lib/supabase";
 import { useSessionKeepalive } from "@/hooks/useSessionKeepalive";
+import { useIdleLogout } from "@/hooks/useIdleLogout";
+import { useAbsoluteSessionCap } from "@/hooks/useAbsoluteSessionCap";
+import { IdleWarningModal } from "@/admin/components/IdleWarningModal";
 import { SessionErrorBoundary } from "@/admin/SessionErrorBoundary";
 import { useAuth } from "@/app/context/AuthContext";
 
@@ -57,6 +60,13 @@ function isPathAllowed(
   return permissions[match.permissionKey] === true;
 }
 
+// Idle window: 30 minutes of no activity → forced logout. Last 60s shows
+// the warning modal so the admin can stay signed in if they're still there.
+const IDLE_LOGOUT_MS = 30 * 60 * 1000;
+const IDLE_WARNING_MS = 60 * 1000;
+// Absolute cap: even an actively-clicking admin gets booted after 12 hours.
+const ABSOLUTE_CAP_MS = 12 * 60 * 60 * 1000;
+
 export function AdminRouter() {
   const [location, navigate] = useLocation();
   const { user, loading: authLoading, recovering } = useAuth();
@@ -67,6 +77,40 @@ export function AdminRouter() {
   const [adminInfo, setAdminInfo] = useState<AdminInfo>(
     _cachedAdminInfo ?? { name: "", email: "", role: "", permissions: {} },
   );
+
+  // Auto sign-out + redirect helper, shared by idle timeout, absolute cap,
+  // and the warning-modal "Sign out" button.
+  const forceSignOut = useCallback(
+    async (reason: "idle" | "absolute" | "manual" = "idle") => {
+      try {
+        await supabase.auth.signOut();
+      } catch {
+        // ignore — we're navigating away anyway
+      }
+      // Clear admin info cache so the next login re-bootstraps cleanly.
+      _cachedAdminInfo = null;
+      _cachedUserId = null;
+      navigate(`/admin/login?reason=${reason}`);
+    },
+    [navigate],
+  );
+
+  // Tier 1.1 — idle logout. Only enabled once we've actually got an admin
+  // user; otherwise the hook would tick on the login screen for no reason.
+  const enabledIdle = !!user && !authLoading && !checking;
+  const { warning: idleWarning, secondsLeft, reset: resetIdle } = useIdleLogout({
+    idleMs: IDLE_LOGOUT_MS,
+    warningMs: IDLE_WARNING_MS,
+    enabled: enabledIdle,
+    onLogout: () => forceSignOut("idle"),
+  });
+
+  // Tier 1.2 — absolute session cap.
+  useAbsoluteSessionCap({
+    capMs: ABSOLUTE_CAP_MS,
+    enabled: enabledIdle,
+    onExpired: () => forceSignOut("absolute"),
+  });
 
   useEffect(() => {
     if (authLoading) return;
@@ -88,10 +132,14 @@ export function AdminRouter() {
       setChecking(true);
     }
 
+    // Capture the (already null-checked above) user into a local so the
+    // narrowing survives across the async function boundary inside bootstrap.
+    const currentUser = user;
+
     async function bootstrap() {
       let info: AdminInfo = {
-        name: user.email?.split("@")[0] || "Admin",
-        email: user.email || "",
+        name: currentUser.email?.split("@")[0] || "Admin",
+        email: currentUser.email || "",
         role: "",
         permissions: {},
       };
@@ -100,14 +148,14 @@ export function AdminRouter() {
         const { data } = await supabase
           .from("admin_users")
           .select("name, role, email, permissions")
-          .eq("user_id", user.id)
+          .eq("user_id", currentUser.id)
           .limit(1);
 
         const record = Array.isArray(data) && data.length > 0 ? data[0] : null;
         if (record) {
           info = {
-            name: record.name || user.email?.split("@")[0] || "Admin",
-            email: record.email || user.email || "",
+            name: record.name || currentUser.email?.split("@")[0] || "Admin",
+            email: record.email || currentUser.email || "",
             role: record.role || "",
             permissions: (record.permissions as Record<string, boolean>) || {},
           };
@@ -117,7 +165,7 @@ export function AdminRouter() {
       }
 
       _cachedAdminInfo = info;
-      _cachedUserId = user.id ?? null;
+      _cachedUserId = currentUser.id ?? null;
       setAdminInfo(info);
 
       if (!isPathAllowed(location, info.role, info.permissions)) {
@@ -177,6 +225,13 @@ export function AdminRouter() {
           Reconnecting session…
         </div>
       )}
+
+      <IdleWarningModal
+        open={idleWarning}
+        secondsLeft={secondsLeft}
+        onStay={resetIdle}
+        onLogout={() => forceSignOut("manual")}
+      />
 
       <SessionErrorBoundary onExpired={() => navigate("/admin/login?reason=expired")}>
         <Switch>

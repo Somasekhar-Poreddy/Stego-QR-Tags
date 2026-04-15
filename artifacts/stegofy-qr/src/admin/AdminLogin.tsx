@@ -45,10 +45,15 @@ export function AdminLogin() {
           </div>
         </div>
 
-        {reason === "expired" && (
+        {(reason === "expired" || reason === "idle" || reason === "absolute" || reason === "manual") && (
           <div className="mb-4 flex items-start gap-2.5 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
             <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-500" />
-            <span>Your session expired. Please sign in again to continue.</span>
+            <span>
+              {reason === "idle" && "You were signed out due to inactivity. Please sign in again."}
+              {reason === "absolute" && "Your session reached its 12-hour limit. Please sign in again."}
+              {reason === "manual" && "You were signed out. Sign in to continue."}
+              {reason === "expired" && "Your session expired. Please sign in again to continue."}
+            </span>
           </div>
         )}
 

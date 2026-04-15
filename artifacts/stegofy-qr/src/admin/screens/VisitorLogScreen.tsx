@@ -9,6 +9,7 @@ import {
 } from "@/services/adminService";
 import { ensureFreshSession } from "@/lib/adminAuth";
 import { useAuth } from "@/app/context/AuthContext";
+import { useReauthGuard } from "@/admin/components/useReauthGuard";
 import { cn } from "@/lib/utils";
 
 const ADMIN_IDS = (import.meta.env.VITE_ADMIN_USER_IDS ?? "").split(",").map((s: string) => s.trim()).filter(Boolean);
@@ -134,21 +135,33 @@ export function VisitorLogScreen() {
     setRevealedIps({});
   };
 
-  const handleViewIp = async (scan: ScanWithQRName) => {
+  const reauth = useReauthGuard();
+
+  const handleViewIp = (scan: ScanWithQRName) => {
     if (!scan.encrypted_ip) return;
-    setLoadingIp((prev) => ({ ...prev, [scan.id]: true }));
-    const result = await adminDecryptIP(scan.encrypted_ip, scan.qr_id, scan.id);
-    setLoadingIp((prev) => ({ ...prev, [scan.id]: false }));
-    if ("ip" in result) {
-      revealIp(scan.id, result.ip);
-    } else {
-      revealIp(scan.id, `Error: ${result.error}`);
-    }
+    reauth.guard({
+      title: "Decrypt visitor IP",
+      description:
+        "Decrypting an IP address is logged for audit. Confirm with your password to continue.",
+      confirmLabel: "Decrypt",
+      run: async () => {
+        setLoadingIp((prev) => ({ ...prev, [scan.id]: true }));
+        const result = await adminDecryptIP(scan.encrypted_ip!, scan.qr_id, scan.id);
+        setLoadingIp((prev) => ({ ...prev, [scan.id]: false }));
+        if ("ip" in result) {
+          revealIp(scan.id, result.ip);
+        } else {
+          revealIp(scan.id, `Error: ${result.error}`);
+        }
+      },
+    });
   };
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
   return (
+    <>
+    {reauth.modal}
     <div className="space-y-5">
       {/* Header */}
       <div>
@@ -355,5 +368,6 @@ export function VisitorLogScreen() {
         </>
       )}
     </div>
+    </>
   );
 }
