@@ -188,6 +188,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (event === "SIGNED_IN" && session?.user) {
         if (passwordRecoveryInProgress.current) return;
 
+        // Set loading=true immediately so guards in AdminRouter/AppRouter wait
+        // for us to finish building the user rather than redirecting to login.
+        if (mounted) setLoading(true);
+
         if (_codeParamPending) {
           await new Promise<void>((r) => setTimeout(r, 400));
           _codeParamPending = false;

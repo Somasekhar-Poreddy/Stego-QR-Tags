@@ -1,4 +1,4 @@
-const CACHE_NAME = "stegofy-v1";
+const CACHE_NAME = "stegofy-v2";
 const STATIC_ASSETS = ["/", "/app", "/manifest.json"];
 
 // URLs that must NEVER be cached — always hit the network directly

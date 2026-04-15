@@ -73,7 +73,14 @@ export function AdminRouter() {
 
     if (!user) {
       if (recovering) return;
-      navigate("/admin/login");
+      // Before redirecting, confirm there is genuinely no Supabase session.
+      // This guards against the race where AdminLogin navigates to /admin
+      // before AuthContext has finished processing the SIGNED_IN event.
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (!session) navigate("/admin/login");
+        // If a session exists, AuthContext will finish building the user
+        // and re-trigger this effect — no redirect needed yet.
+      });
       return;
     }
 
