@@ -111,11 +111,32 @@ export function DashboardScreen() {
   const hasLoadedCharts = useRef(false);
   const prevRangeKey = useRef("");
 
+  // Multi-tab lock contention errors from supabase-js are transient; retry
+  // once after a short delay before surfacing them to the user.
+  const isLockContention = (e: unknown) => {
+    const msg = (e as { message?: string })?.message?.toLowerCase?.() ?? "";
+    return msg.includes("lock") && (msg.includes("stole") || msg.includes("released"));
+  };
+
+  const runWithLockRetry = async <T,>(fn: () => Promise<T>): Promise<T> => {
+    try {
+      return await fn();
+    } catch (e) {
+      if (isLockContention(e)) {
+        await new Promise((r) => setTimeout(r, 600));
+        return await fn();
+      }
+      throw e;
+    }
+  };
+
   const loadStats = useCallback(() => {
     setStatsLoading(true);
     setStatsError(null);
-    ensureFreshSession()
-      .then(() => getDashboardStats())
+    runWithLockRetry(async () => {
+      await ensureFreshSession();
+      return getDashboardStats();
+    })
       .then((data) => {
         setStats(data);
         setStatsError(null);
@@ -132,8 +153,10 @@ export function DashboardScreen() {
   const loadCharts = useCallback((f: Date, t: Date) => {
     setChartsLoading(true);
     setChartsError(null);
-    ensureFreshSession()
-      .then(() => Promise.all([getScansPerDay(f, t), getRequestsByType(f, t)]))
+    runWithLockRetry(async () => {
+      await ensureFreshSession();
+      return Promise.all([getScansPerDay(f, t), getRequestsByType(f, t)]);
+    })
       .then(([scans, types]) => {
         setScansData(scans);
         setReqTypes(types);

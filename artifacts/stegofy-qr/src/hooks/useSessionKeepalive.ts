@@ -48,8 +48,26 @@ export function useSessionKeepalive(): {
         if (secsLeft >= REFRESH_THRESHOLD_SECS) return;
 
         setReconnecting(true);
-        const { error } = await supabase.auth.refreshSession();
+        let error: { message?: string } | null = null;
+        try {
+          const result = await supabase.auth.refreshSession();
+          error = result.error;
+        } catch (e) {
+          error = e as { message?: string };
+        }
         if (cancelled) return;
+
+        // Multi-tab lock contention: another tab is refreshing right now.
+        // That's fine — we don't need to redirect to login. Just back off
+        // for this tick and trust the other tab's refresh to succeed.
+        const msg = (error?.message ?? "").toLowerCase();
+        const isLockContention =
+          msg.includes("lock") && (msg.includes("stole") || msg.includes("released"));
+        if (error && isLockContention) {
+          setReconnecting(false);
+          return;
+        }
+
         if (error) {
           setSessionOk(false);
           setReconnecting(false);
