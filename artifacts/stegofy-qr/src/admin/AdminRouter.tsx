@@ -35,6 +35,54 @@ interface AdminInfo {
 let _cachedAdminInfo: AdminInfo | null = null;
 let _cachedUserId: string | null = null;
 
+// localStorage-backed cache so a newly-opened tab can render the correct
+// admin name instantly, even before its own admin_users query returns — and
+// so a tab whose query fails (lock contention / JWT race) doesn't fall back
+// to the email-prefix display name when a sibling tab already knows the real
+// one.
+const ADMIN_INFO_STORAGE_PREFIX = "stegofy_admin_info_v1:";
+
+function readAdminInfoFromStorage(userId: string): AdminInfo | null {
+  try {
+    const raw = localStorage.getItem(ADMIN_INFO_STORAGE_PREFIX + userId);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (
+      parsed &&
+      typeof parsed.name === "string" &&
+      typeof parsed.email === "string" &&
+      typeof parsed.role === "string" &&
+      parsed.permissions &&
+      typeof parsed.permissions === "object"
+    ) {
+      return parsed as AdminInfo;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function writeAdminInfoToStorage(userId: string, info: AdminInfo) {
+  try {
+    localStorage.setItem(ADMIN_INFO_STORAGE_PREFIX + userId, JSON.stringify(info));
+  } catch {
+    // quota / privacy mode — ignore
+  }
+}
+
+function clearAdminInfoFromStorage(userId: string | null) {
+  if (!userId) return;
+  try {
+    localStorage.removeItem(ADMIN_INFO_STORAGE_PREFIX + userId);
+  } catch {}
+}
+
+function isLockContentionError(e: unknown): boolean {
+  const msg = (e as { message?: string })?.message?.toLowerCase?.() ?? "";
+  return msg.includes("lock") && (msg.includes("stole") || msg.includes("released"));
+}
+
 const ROUTE_PERMISSIONS: { path: string; permissionKey?: string }[] = [
   { path: "/admin/users", permissionKey: "manage_users" },
   { path: "/admin/qr-codes", permissionKey: "manage_qr_codes" },
@@ -74,10 +122,20 @@ export function AdminRouter() {
   const { user, loading: authLoading, recovering } = useAuth();
   const { sessionOk, reconnecting } = useSessionKeepalive();
 
-  const cacheHit = _cachedAdminInfo !== null && _cachedUserId === (user?.id ?? null);
+  // Cache lookup precedence: module-level (same tab, instant) → localStorage
+  // (different tab, same browser window — still instant and avoids the
+  // "fallback name during race" bug).
+  const storageSeed = user?.id ? readAdminInfoFromStorage(user.id) : null;
+  const moduleCache =
+    _cachedAdminInfo !== null && _cachedUserId === (user?.id ?? null)
+      ? _cachedAdminInfo
+      : null;
+  const seedInfo = moduleCache ?? storageSeed;
+
+  const cacheHit = seedInfo !== null;
   const [checking, setChecking] = useState(!cacheHit);
   const [adminInfo, setAdminInfo] = useState<AdminInfo>(
-    _cachedAdminInfo ?? { name: "", email: "", role: "", permissions: {} },
+    seedInfo ?? { name: "", email: "", role: "", permissions: {} },
   );
 
   // MFA gate state. `unknown` means we haven't checked yet; `ok` means the
@@ -90,6 +148,7 @@ export function AdminRouter() {
   // and the warning-modal "Sign out" button.
   const forceSignOut = useCallback(
     async (reason: "idle" | "absolute" | "manual" = "idle") => {
+      const signedOutUserId = user?.id ?? _cachedUserId;
       try {
         await supabase.auth.signOut();
       } catch {
@@ -98,9 +157,10 @@ export function AdminRouter() {
       // Clear admin info cache so the next login re-bootstraps cleanly.
       _cachedAdminInfo = null;
       _cachedUserId = null;
+      clearAdminInfoFromStorage(signedOutUserId ?? null);
       navigate(`/admin/login?reason=${reason}`);
     },
-    [navigate],
+    [navigate, user?.id],
   );
 
   // Tier 1.1 — idle logout. Only enabled once we've actually got an admin
@@ -144,14 +204,40 @@ export function AdminRouter() {
     // narrowing survives across the async function boundary inside bootstrap.
     const currentUser = user;
 
-    async function bootstrap() {
-      let info: AdminInfo = {
-        name: currentUser.email?.split("@")[0] || "Admin",
-        email: currentUser.email || "",
-        role: "",
-        permissions: {},
-      };
+    // Retry the admin_users lookup once after a short delay if we hit the
+    // Supabase multi-tab lock error — a sibling tab refreshing the token
+    // can briefly invalidate ours, and by the time we retry the other tab
+    // has finished.
+    async function lookupAdminRecord(): Promise<
+      | { ok: true; record: { name: string; role: string; email: string; permissions: Record<string, boolean> } | null }
+      | { ok: false; reason: "lock" | "error" }
+    > {
+      try {
+        const { data, error } = await supabase
+          .from("admin_users")
+          .select("name, role, email, permissions")
+          .eq("user_id", currentUser.id)
+          .limit(1);
+        if (error) {
+          return { ok: false, reason: isLockContentionError(error) ? "lock" : "error" };
+        }
+        const first = Array.isArray(data) && data.length > 0 ? data[0] : null;
+        if (!first) return { ok: true, record: null };
+        return {
+          ok: true,
+          record: {
+            name: (first.name as string) ?? "",
+            role: (first.role as string) ?? "",
+            email: (first.email as string) ?? "",
+            permissions: (first.permissions as Record<string, boolean>) ?? {},
+          },
+        };
+      } catch (e) {
+        return { ok: false, reason: isLockContentionError(e) ? "lock" : "error" };
+      }
+    }
 
+    async function bootstrap() {
       // Env-based allowlist, mirrors the Express backend — lets super-admins
       // predate the admin_users table / be the initial bootstrap admin.
       const allowedIds = ((import.meta.env.VITE_ADMIN_USER_IDS ?? "") as string)
@@ -160,65 +246,80 @@ export function AdminRouter() {
         .filter(Boolean);
       const isAllowlisted = !!currentUser.id && allowedIds.includes(currentUser.id);
 
-      let verifiedAdmin = false;
-      let lookupFailed = false;
+      // Start one: first attempt.
+      let result = await lookupAdminRecord();
 
-      try {
-        const { data, error } = await supabase
-          .from("admin_users")
-          .select("name, role, email, permissions")
-          .eq("user_id", currentUser.id)
-          .limit(1);
+      // If it's lock-contention, retry once after 600ms.
+      if (!result.ok && result.reason === "lock") {
+        await new Promise((r) => setTimeout(r, 600));
+        result = await lookupAdminRecord();
+      }
 
-        if (error) {
-          lookupFailed = true;
-        } else {
-          const record = Array.isArray(data) && data.length > 0 ? data[0] : null;
-          if (record) {
-            verifiedAdmin = true;
-            info = {
-              name: record.name || currentUser.email?.split("@")[0] || "Admin",
-              email: record.email || currentUser.email || "",
-              role: record.role || "",
-              permissions: (record.permissions as Record<string, boolean>) || {},
-            };
-          }
-        }
-      } catch {
-        lookupFailed = true;
+      const verifiedAdmin = result.ok && result.record !== null;
+      const lookupFailed = !result.ok;
+
+      // Build the info object, in priority order:
+      //   1. the admin_users row if we just loaded it
+      //   2. cached info from localStorage (set by a previous successful load
+      //      in THIS or a sibling tab) — preserves display name on transient
+      //      query failure
+      //   3. the email-prefix fallback (last resort)
+      const cachedInfo = currentUser.id ? readAdminInfoFromStorage(currentUser.id) : null;
+
+      let info: AdminInfo;
+      if (result.ok && result.record) {
+        info = {
+          name: result.record.name || currentUser.email?.split("@")[0] || "Admin",
+          email: result.record.email || currentUser.email || "",
+          role: result.record.role || "",
+          permissions: result.record.permissions || {},
+        };
+      } else if (cachedInfo) {
+        // Keep the last-known-good info rather than degrade to email prefix.
+        info = cachedInfo;
+      } else {
+        info = {
+          name: currentUser.email?.split("@")[0] || "Admin",
+          email: currentUser.email || "",
+          role: isAllowlisted ? "super_admin" : "",
+          permissions: {},
+        };
       }
 
       // ── ADMIN GATE ──────────────────────────────────────────────────
-      // If this account is NOT in admin_users and NOT in the env allowlist,
-      // they are not an admin — sign them out of /admin completely so they
-      // don't see the dashboard chrome. Without this gate, any authenticated
-      // Supabase user (including regular end-users who signed up in the
-      // user app) could load the admin UI, see errors from blocked RLS
-      // queries, and generally be in a place they shouldn't be.
-      //
-      // If the admin_users query itself failed (network / RLS error), we
-      // fall back to the allowlist: only let env-allowlisted accounts
-      // through in that case so a compromised DB RLS policy can't silently
-      // open the door. Everyone else is redirected with a clear reason.
-      if (!verifiedAdmin && !isAllowlisted) {
+      // If the user is neither in admin_users nor on the env allowlist,
+      // refuse access. Lookup-failure + no cache + no allowlist = refuse
+      // (fail closed). If the lookup failed but we have cached info from a
+      // previous success OR the user is allowlisted, trust that — the
+      // lookup failure is almost certainly transient lock contention.
+      const hasAcceptableCredentials =
+        verifiedAdmin || isAllowlisted || (lookupFailed && cachedInfo !== null);
+
+      if (!hasAcceptableCredentials) {
         try {
           await supabase.auth.signOut();
         } catch {}
         _cachedAdminInfo = null;
         _cachedUserId = null;
+        clearAdminInfoFromStorage(currentUser.id ?? null);
         const reason = lookupFailed ? "admin-check-failed" : "not-admin";
         navigate(`/admin/login?reason=${reason}`);
         return;
       }
 
-      // Allowlisted super-admins get super_admin role by default so the
-      // permission model works consistently.
-      if (isAllowlisted && !verifiedAdmin) {
+      // Allowlisted super-admins who aren't in admin_users get super_admin
+      // role by default so the permission model works consistently. Only
+      // apply when the DB didn't give us a real record.
+      if (isAllowlisted && !verifiedAdmin && !info.role) {
         info = { ...info, role: "super_admin" };
       }
 
       _cachedAdminInfo = info;
       _cachedUserId = currentUser.id ?? null;
+      if (currentUser.id && (verifiedAdmin || isAllowlisted)) {
+        // Persist so sibling tabs see the real name instantly.
+        writeAdminInfoToStorage(currentUser.id, info);
+      }
       setAdminInfo(info);
 
       if (!isPathAllowed(location, info.role, info.permissions)) {
