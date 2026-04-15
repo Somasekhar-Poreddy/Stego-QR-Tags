@@ -80,12 +80,12 @@ function ChartError({ onRetry }: { onRetry: () => void }) {
 
 export function DashboardScreen() {
   const [stats, setStats] = useState<Stats | null>(null);
-  const [statsLoading, setStatsLoading] = useState(false);
+  const [statsLoading, setStatsLoading] = useState(true);
   const [statsError, setStatsError] = useState(false);
 
   const [scansData, setScansData] = useState<{ date: string; scans: number }[]>([]);
   const [reqTypes, setReqTypes] = useState<{ name: string; value: number }[]>([]);
-  const [chartsLoading, setChartsLoading] = useState(false);
+  const [chartsLoading, setChartsLoading] = useState(true);
   const [chartsError, setChartsError] = useState(false);
 
   const dateRange = useDateRange("7d");

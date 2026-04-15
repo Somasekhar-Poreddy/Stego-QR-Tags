@@ -7,12 +7,15 @@ import { useAuth } from "@/app/context/AuthContext";
  * - Stale-result prevention: per-effect `cancelled` flag, set in cleanup.
  * - Previous-data retention: `prevData` ref keeps last good result visible
  *   during transient empty responses or errors (no blank-flash).
+ * - Recovery guard: when Supabase fires SIGNED_OUT during a token refresh,
+ *   `recovering` is true; we wait for recovery to finish rather than showing
+ *   an error or clearing data.
  */
 export function useDataFetch<T>(
   apiFn: () => Promise<T[]>,
   deps: React.DependencyList = [],
 ) {
-  const { user } = useAuth();
+  const { user, recovering } = useAuth();
   const isLoggedIn = !!user;
 
   const [data, setData] = useState<T[] | null>(null);
@@ -30,6 +33,12 @@ export function useDataFetch<T>(
     let cancelled = false;
 
     if (!isLoggedIn) {
+      if (recovering) {
+        // Supabase is mid-session-recovery; keep previous data visible and stay
+        // in loading state until the user is restored.
+        setLoading(true);
+        return;
+      }
       setError("Not authenticated");
       setLoading(false);
       return;
@@ -69,7 +78,7 @@ export function useDataFetch<T>(
     };
   // stableFn is already stabilised via useCallback above
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoggedIn, stableFn]);
+  }, [isLoggedIn, recovering, stableFn]);
 
   return { data, loading, error };
 }

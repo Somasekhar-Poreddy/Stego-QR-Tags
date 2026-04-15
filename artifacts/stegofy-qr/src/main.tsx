@@ -12,19 +12,3 @@ if ("serviceWorker" in navigator) {
   });
 }
 
-// Force unregister any OLD stale service workers that may be caching Supabase responses
-if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.getRegistrations().then((registrations) => {
-    for (const reg of registrations) {
-      reg.unregister().then(() => {
-        console.log("Old SW unregistered — re-registering clean version");
-      });
-    }
-    // Re-register the clean version after clearing old ones
-    setTimeout(() => {
-      navigator.serviceWorker
-        .register("/sw.js")
-        .catch((err) => console.warn("SW re-registration failed:", err));
-    }, 500);
-  });
-}
