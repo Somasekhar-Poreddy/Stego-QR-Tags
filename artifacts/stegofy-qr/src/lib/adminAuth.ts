@@ -53,3 +53,26 @@ export async function ensureFreshSession(): Promise<void> {
     }
   }
 }
+
+/**
+ * Quick check before issuing a Supabase query. Returns true if a session
+ * exists, false if it doesn't (without throwing). Use this to short-circuit
+ * fetches that would otherwise hit RLS and silently return [].
+ *
+ * Unlike `ensureFreshSession`, this does NOT throw — it's safe to call from
+ * code paths that prefer to keep previous state visible rather than redirect
+ * to the login screen on a transient gap.
+ */
+export async function hasActiveSession(): Promise<boolean> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return false;
+    const secsUntilExpiry = (session.expires_at ?? 0) - Math.floor(Date.now() / 1000);
+    if (secsUntilExpiry > 30) return true;
+    // Token is about to expire — try a refresh; if it works, we're alive.
+    const { data: refreshed, error } = await supabase.auth.refreshSession();
+    return !error && !!refreshed.session;
+  } catch {
+    return false;
+  }
+}

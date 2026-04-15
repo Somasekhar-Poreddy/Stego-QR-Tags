@@ -68,18 +68,24 @@ export function AppRouter() {
     }
   }, [location, step, setStep]);
 
-  // Load QR profiles from Supabase once when user becomes authenticated.
-  // Guard with loadedForRef so we only fire once per user session, not on every render.
+  // Load QR profiles from Supabase when the user becomes authenticated.
+  // Guard with loadedForRef so we only fire once per user session, not on
+  // every render — but only mark "loaded" AFTER the fetch actually succeeds.
+  // If the fetch fails (network error, RLS block during token rotation),
+  // leave the ref unset so the next render / focus / dependency change can
+  // retry instead of staying blank forever.
   useEffect(() => {
     if (step === "app" && user?.id && loadedForRef.current !== user.id) {
-      loadedForRef.current = user.id;
-      loadUserProfiles(user.id);
+      const userId = user.id;
+      loadUserProfiles(userId).then((ok) => {
+        if (ok) loadedForRef.current = userId;
+      });
     }
     // Reset when user logs out so next login re-fetches
     if (step === "login") {
       loadedForRef.current = null;
     }
-  }, [step, user?.id]);
+  }, [step, user?.id, loadUserProfiles]);
 
   // Create QR and Success flows are accessible without authentication
   // so users can generate a QR immediately before being asked to sign up

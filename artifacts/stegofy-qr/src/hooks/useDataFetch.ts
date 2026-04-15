@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useAuth } from "@/app/context/AuthContext";
+import { hasActiveSession } from "@/lib/adminAuth";
 
 /**
  * Data-fetching hook with stability guarantees.
@@ -10,6 +11,10 @@ import { useAuth } from "@/app/context/AuthContext";
  * - Recovery guard: when Supabase fires SIGNED_OUT during a token refresh,
  *   `recovering` is true; we wait for recovery to finish rather than showing
  *   an error or clearing data.
+ * - Proactive session refresh: before each fetch, ensures the JWT is still
+ *   valid (and refreshes if it's about to expire). This prevents the "RLS
+ *   silently returned [] because auth.uid() was null during JWT rotation"
+ *   class of bug, which would otherwise overwrite real data with empty.
  */
 export function useDataFetch<T>(
   apiFn: () => Promise<T[]>,
@@ -47,8 +52,25 @@ export function useDataFetch<T>(
     setLoading(true);
     setError(null);
 
-    stableFn()
-      .then((result) => {
+    // Run the fetch inside an async wrapper so we can await the proactive
+    // session check without changing the existing then/catch shape.
+    (async () => {
+      // Proactive: refresh the JWT if it's about to expire. Skip the fetch
+      // entirely if no session can be obtained — preserves previous data
+      // rather than wiping it during a rotation gap.
+      const alive = await hasActiveSession();
+      if (cancelled) return;
+      if (!alive) {
+        console.warn(
+          "[useDataFetch] No active session before fetch; keeping previous data.",
+        );
+        if (prevData.current.length > 0) setData(prevData.current);
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const result = await stableFn();
         if (cancelled) return;
 
         if (Array.isArray(result) && result.length > 0) {
@@ -62,16 +84,15 @@ export function useDataFetch<T>(
         } else {
           setData(result ?? []);
         }
-      })
-      .catch((err: unknown) => {
+      } catch (err: unknown) {
         if (cancelled) return;
         const msg = err instanceof Error ? err.message : "Fetch failed";
         setData(prevData.current.length > 0 ? prevData.current : null);
         setError(msg);
-      })
-      .finally(() => {
+      } finally {
         if (!cancelled) setLoading(false);
-      });
+      }
+    })();
 
     return () => {
       cancelled = true;
