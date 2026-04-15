@@ -1,0 +1,49 @@
+{
+    "access_token": "eyJhbGciOiJFUzI1NiIsImtpZCI6ImJjOTViOWU5LTk5Y2UtNDRhOS04YjYzLTQ1YmEwODVhYjcyOCIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJodHRwczovL292c3Bzem91bHZkdWtldWZ5c2huLnN1cGFiYXNlLmNvL2F1dGgvdjEiLCJzdWIiOiJiNmQyYjU1Ni0xYzYxLTQ0ZWQtOTk2NC1mODBiM2E4MGFjNzciLCJhdWQiOiJhdXRoZW50aWNhdGVkIiwiZXhwIjoxNzc2MjU4NDE3LCJpYXQiOjE3NzYyNTQ4MTcsImVtYWlsIjoicG9yZWRkeXNvbWFzZWtoYXJAZ21haWwuY29tIiwicGhvbmUiOiIiLCJhcHBfbWV0YWRhdGEiOnsicHJvdmlkZXIiOiJlbWFpbCIsInByb3ZpZGVycyI6WyJlbWFpbCJdfSwidXNlcl9tZXRhZGF0YSI6eyJlbWFpbF92ZXJpZmllZCI6dHJ1ZX0sInJvbGUiOiJhdXRoZW50aWNhdGVkIiwiYWFsIjoiYWFsMSIsImFtciI6W3sibWV0aG9kIjoicGFzc3dvcmQiLCJ0aW1lc3RhbXAiOjE3NzYyNTQ4MTd9XSwic2Vzc2lvbl9pZCI6IjE3OTExYzdhLTY3OTktNDg4Yi1iYWMyLTNkMWJiZTNhZjYyYSIsImlzX2Fub255bW91cyI6ZmFsc2V9.MAEevOCQgkTn5k8QTavdkyoH6vX4eCMMceFY6mnjAAXws4MuPeAa4N5skwEvBEzZ9DQ-NYRr7OE5GCUQmojYRQ",
+    "token_type": "bearer",
+    "expires_in": 3600,
+    "expires_at": 1776258417,
+    "refresh_token": "m6wtma2f5quh",
+    "user": {
+        "id": "b6d2b556-1c61-44ed-9964-f80b3a80ac77",
+        "aud": "authenticated",
+        "role": "authenticated",
+        "email": "poreddysomasekhar@gmail.com",
+        "email_confirmed_at": "2026-04-10T19:08:47.13334Z",
+        "phone": "",
+        "confirmed_at": "2026-04-10T19:08:47.13334Z",
+        "recovery_sent_at": "2026-04-10T19:47:45.296086Z",
+        "last_sign_in_at": "2026-04-15T12:06:57.76462306Z",
+        "app_metadata": {
+            "provider": "email",
+            "providers": [
+                "email"
+            ]
+        },
+        "user_metadata": {
+            "email_verified": true
+        },
+        "identities": [
+            {
+                "identity_id": "0347dd50-111a-4cee-8aad-caad731d1384",
+                "id": "b6d2b556-1c61-44ed-9964-f80b3a80ac77",
+                "user_id": "b6d2b556-1c61-44ed-9964-f80b3a80ac77",
+                "identity_data": {
+                    "email": "poreddysomasekhar@gmail.com",
+                    "email_verified": false,
+                    "phone_verified": false,
+                    "sub": "b6d2b556-1c61-44ed-9964-f80b3a80ac77"
+                },
+                "provider": "email",
+                "last_sign_in_at": "2026-04-10T19:08:47.128386Z",
+                "created_at": "2026-04-10T19:08:47.128806Z",
+                "updated_at": "2026-04-10T19:08:47.128806Z",
+                "email": "poreddysomasekhar@gmail.com"
+            }
+        ],
+        "created_at": "2026-04-10T19:08:47.118503Z",
+        "updated_at": "2026-04-15T12:06:57.775186Z",
+        "is_anonymous": false
+    },
+    "weak_password": null
+}
