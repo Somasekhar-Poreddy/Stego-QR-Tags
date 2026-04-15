@@ -7,6 +7,8 @@ import { useIdleLogout } from "@/hooks/useIdleLogout";
 import { useAbsoluteSessionCap } from "@/hooks/useAbsoluteSessionCap";
 import { IdleWarningModal } from "@/admin/components/IdleWarningModal";
 import { SessionErrorBoundary } from "@/admin/SessionErrorBoundary";
+import { MfaChallengeScreen } from "@/admin/MfaChallengeScreen";
+import { MfaEnrollScreen } from "@/admin/MfaEnrollScreen";
 import { useAuth } from "@/app/context/AuthContext";
 
 import { DashboardScreen } from "@/admin/screens/DashboardScreen";
@@ -77,6 +79,12 @@ export function AdminRouter() {
   const [adminInfo, setAdminInfo] = useState<AdminInfo>(
     _cachedAdminInfo ?? { name: "", email: "", role: "", permissions: {} },
   );
+
+  // MFA gate state. `unknown` means we haven't checked yet; `ok` means the
+  // session is at AAL2 (or MFA isn't required for this role); `challenge`
+  // means MFA is enrolled but not satisfied for this session; `enroll` means
+  // a super_admin needs to set up MFA for the first time.
+  const [mfaState, setMfaState] = useState<"unknown" | "ok" | "challenge" | "enroll">("unknown");
 
   // Auto sign-out + redirect helper, shared by idle timeout, absolute cap,
   // and the warning-modal "Sign out" button.
@@ -186,12 +194,66 @@ export function AdminRouter() {
     }
   }, [location, checking, adminInfo, navigate]);
 
-  if (checking) {
+  // MFA enforcement. Runs once we know the admin role.
+  // - super_admin must have a verified TOTP factor.
+  // - any role that has enrolled MFA must satisfy it for this session.
+  useEffect(() => {
+    if (checking || !user) return;
+
+    let cancelled = false;
+    async function evaluateMfa() {
+      try {
+        const aal = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+        if (cancelled) return;
+
+        // currentLevel === 'aal2' means MFA already satisfied for this session.
+        if (aal.data?.currentLevel === "aal2") {
+          setMfaState("ok");
+          return;
+        }
+
+        // currentLevel === 'aal1' but nextLevel === 'aal2' means MFA is
+        // enrolled but not satisfied — challenge required.
+        if (aal.data?.currentLevel === "aal1" && aal.data?.nextLevel === "aal2") {
+          setMfaState("challenge");
+          return;
+        }
+
+        // No MFA enrolled. Force enrollment for super_admin only; let other
+        // roles in without it (they can opt-in later via Settings).
+        if (adminInfo.role === "super_admin") {
+          setMfaState("enroll");
+        } else {
+          setMfaState("ok");
+        }
+      } catch {
+        // If the MFA check itself fails we don't want to lock everyone out
+        // of the dashboard — fall open and let the regular session checks
+        // handle the auth path.
+        if (!cancelled) setMfaState("ok");
+      }
+    }
+
+    evaluateMfa();
+    return () => {
+      cancelled = true;
+    };
+  }, [checking, user?.id, adminInfo.role]);
+
+  if (checking || mfaState === "unknown") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
       </div>
     );
+  }
+
+  if (mfaState === "challenge") {
+    return <MfaChallengeScreen onVerified={() => setMfaState("ok")} />;
+  }
+
+  if (mfaState === "enroll") {
+    return <MfaEnrollScreen onEnrolled={() => setMfaState("ok")} />;
   }
 
   return (
