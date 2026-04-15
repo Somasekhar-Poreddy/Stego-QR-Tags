@@ -12,6 +12,7 @@ import {
   adminGetAllUsers, adminEnableQRCode, adminUpdateQRCode,
 } from "@/services/adminService";
 import { useReauthGuard } from "@/admin/components/useReauthGuard";
+import { useToast } from "@/hooks/use-toast";
 
 /* ─────────────────────────────────────────────────
    DATA FIELD LABEL MAP (human-readable keys)
@@ -226,10 +227,15 @@ function QREditModal({ qr: initialQr, owner, onClose, onUpdated, onEnable, onDis
       privacy_mode: computePrivacyMode(privacy),
       pin_code: pinToSave,
     };
-    const { error } = await adminUpdateQRCode(qr.id, updates);
+    let saveError: string | null = null;
+    try {
+      await adminUpdateQRCode(qr.id, updates);
+    } catch (e) {
+      saveError = e instanceof Error ? e.message : "Unknown error";
+    }
     setSaving(false);
-    if (error) {
-      setSaveMsg({ ok: false, text: "Failed to save. Please try again." });
+    if (saveError) {
+      setSaveMsg({ ok: false, text: `Failed to save: ${saveError}` });
     } else {
       const updated: QRRow = { ...qr, ...updates as Partial<QRRow>, pin_code: pinToSave };
       setQr(updated);
@@ -728,8 +734,33 @@ export function QRCodesScreen() {
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageData = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  const handleDisable = async (id: string) => { await adminDisableQRCode(id); reload(); };
-  const handleEnable = async (id: string) => { await adminEnableQRCode(id); reload(); };
+  const { toast } = useToast();
+  const handleDisable = async (id: string) => {
+    try {
+      await adminDisableQRCode(id);
+      toast({ title: "QR code disabled." });
+      reload();
+    } catch (e) {
+      toast({
+        title: "Disable failed",
+        description: e instanceof Error ? e.message : "Unknown error",
+        variant: "destructive",
+      });
+    }
+  };
+  const handleEnable = async (id: string) => {
+    try {
+      await adminEnableQRCode(id);
+      toast({ title: "QR code enabled." });
+      reload();
+    } catch (e) {
+      toast({
+        title: "Enable failed",
+        description: e instanceof Error ? e.message : "Unknown error",
+        variant: "destructive",
+      });
+    }
+  };
   const reauth = useReauthGuard();
 
   const handleDelete = (id: string) => {
@@ -739,6 +770,7 @@ export function QRCodesScreen() {
         "This permanently deletes the QR code and all its scan history. This cannot be undone.",
       confirmLabel: "Delete QR code",
       variant: "danger",
+      successMessage: "QR code deleted.",
       run: async () => {
         await adminDeleteQRCode(id);
         reload();

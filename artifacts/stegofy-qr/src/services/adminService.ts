@@ -36,14 +36,43 @@ export async function adminGetAllUsers() {
   if (error) throwAsAuthError(error);
   return data ?? [];
 }
-export async function adminBlockUser(id: string) {
-  return supabase.from("user_profiles").update({ status: "blocked" }).eq("id", id);
+export async function adminBlockUser(id: string): Promise<void> {
+  const { error } = await supabase.from("user_profiles").update({ status: "blocked" }).eq("id", id);
+  if (error) throwAsAuthError(error);
 }
-export async function adminUnblockUser(id: string) {
-  return supabase.from("user_profiles").update({ status: "active" }).eq("id", id);
+export async function adminUnblockUser(id: string): Promise<void> {
+  const { error } = await supabase.from("user_profiles").update({ status: "active" }).eq("id", id);
+  if (error) throwAsAuthError(error);
 }
-export async function adminDeleteUser(id: string) {
-  return supabase.from("user_profiles").delete().eq("id", id);
+
+/**
+ * Deletes a regular end-user account.
+ *
+ * This calls the backend /api/admin/delete-end-user endpoint which uses the
+ * service role to:
+ *   1. Clean up app-level rows (contact_requests, qr_codes, user_profiles)
+ *   2. Delete the auth.users row (cascades to cart_items, anonymises orders)
+ *
+ * Doing this purely from the client via `supabase.from("user_profiles").delete()`
+ * only removes the profile row and leaves the auth user able to sign in, and
+ * can silently fail when RLS is restrictive.
+ */
+export async function adminDeleteUser(userId: string): Promise<void> {
+  await ensureFreshSession();
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token;
+  const res = await fetch("/api/admin/delete-end-user", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ userId }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({})) as { error?: string };
+    throw new Error(body.error ?? `Delete failed (HTTP ${res.status})`);
+  }
 }
 export async function adminGetUserQRCodes(userId: string) {
   const { data } = await supabase.from("qr_codes").select("*").eq("user_id", userId).order("created_at", { ascending: false });
@@ -366,17 +395,21 @@ export async function adminGetAllQRCodes() {
   if (error) throwAsAuthError(error);
   return data ?? [];
 }
-export async function adminDisableQRCode(id: string) {
-  return supabase.from("qr_codes").update({ status: "inactive", is_active: false }).eq("id", id);
+export async function adminDisableQRCode(id: string): Promise<void> {
+  const { error } = await supabase.from("qr_codes").update({ status: "inactive", is_active: false }).eq("id", id);
+  if (error) throwAsAuthError(error);
 }
-export async function adminEnableQRCode(id: string) {
-  return supabase.from("qr_codes").update({ status: "active", is_active: true }).eq("id", id);
+export async function adminEnableQRCode(id: string): Promise<void> {
+  const { error } = await supabase.from("qr_codes").update({ status: "active", is_active: true }).eq("id", id);
+  if (error) throwAsAuthError(error);
 }
-export async function adminDeleteQRCode(id: string) {
-  return supabase.from("qr_codes").delete().eq("id", id);
+export async function adminDeleteQRCode(id: string): Promise<void> {
+  const { error } = await supabase.from("qr_codes").delete().eq("id", id);
+  if (error) throwAsAuthError(error);
 }
-export async function adminUpdateQRCode(id: string, updates: Record<string, unknown>) {
-  return supabase.from("qr_codes").update(updates).eq("id", id);
+export async function adminUpdateQRCode(id: string, updates: Record<string, unknown>): Promise<void> {
+  const { error } = await supabase.from("qr_codes").update(updates).eq("id", id);
+  if (error) throwAsAuthError(error);
 }
 
 /* ═══════════════════════════════════════════════════
@@ -424,11 +457,12 @@ export async function getDashboardStats() {
 }
 
 export async function getScansPerDay(from: Date, to: Date): Promise<{ date: string; scans: number }[]> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("qr_scans")
     .select("created_at")
     .gte("created_at", from.toISOString())
     .lte("created_at", to.toISOString());
+  if (error) throwAsAuthError(error);
 
   const counts: Record<string, number> = {};
   const cur = new Date(from);
@@ -447,7 +481,8 @@ export async function getRequestsByType(from?: Date, to?: Date): Promise<{ name:
   let q = supabase.from("contact_requests").select("intent");
   if (from) q = q.gte("created_at", from.toISOString());
   if (to) q = q.lte("created_at", to.toISOString());
-  const { data } = await q;
+  const { data, error } = await q;
+  if (error) throwAsAuthError(error);
   const counts: Record<string, number> = {};
   (data ?? []).forEach((row) => {
     const key = (row.intent as string) || "unknown";

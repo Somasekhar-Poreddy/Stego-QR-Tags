@@ -23,6 +23,7 @@ import {
 } from "@/services/adminService";
 import { supabase } from "@/lib/supabase";
 import { useReauthGuard } from "@/admin/components/useReauthGuard";
+import { useToast } from "@/hooks/use-toast";
 
 /* ─────────────────────────────────────────────────
    TYPES
@@ -232,19 +233,25 @@ function ProfileTab({ user, onRefresh, onUserUpdated }: {
       facebook: editSocial.facebook?.trim() || undefined,
       twitter: editSocial.twitter?.trim() || undefined,
     };
-    const { error } = await adminUpdateUserProfile(user.id, {
-      first_name: form.first_name || null,
-      last_name: form.last_name || null,
-      mobile: form.mobile || null,
-      age_group: form.age_group || null,
-      gender: form.gender || null,
-      status: form.status || "active",
-      addresses: cleanAddresses,
-      social_links: cleanSocial,
-    });
+    let saveError: Error | null = null;
+    try {
+      const result = await adminUpdateUserProfile(user.id, {
+        first_name: form.first_name || null,
+        last_name: form.last_name || null,
+        mobile: form.mobile || null,
+        age_group: form.age_group || null,
+        gender: form.gender || null,
+        status: form.status || "active",
+        addresses: cleanAddresses,
+        social_links: cleanSocial,
+      });
+      if (result && "error" in result && result.error) saveError = result.error as Error;
+    } catch (e) {
+      saveError = e instanceof Error ? e : new Error("Unknown error");
+    }
     setSaving(false);
-    if (error) {
-      setSaveMsg({ ok: false, text: "Failed to save. Please try again." });
+    if (saveError) {
+      setSaveMsg({ ok: false, text: `Failed to save: ${saveError.message}` });
     } else {
       setEditSocial(cleanSocial);
       const updatedFields: Partial<UserRow> = {
@@ -717,10 +724,15 @@ function QRCard({ qr: initialQr, contacts, onToggle, onDelete, onUpdated }: {
       privacy_mode: computePrivacyMode(privacy),
       pin_code: pinToSave,
     };
-    const { error } = await adminUpdateQRCode(qr.id, updates);
+    let saveError: string | null = null;
+    try {
+      await adminUpdateQRCode(qr.id, updates);
+    } catch (e) {
+      saveError = e instanceof Error ? e.message : "Unknown error";
+    }
     setSavingSettings(false);
-    if (error) {
-      setSettingsMsg({ ok: false, text: "Failed to save. Please try again." });
+    if (saveError) {
+      setSettingsMsg({ ok: false, text: `Failed to save: ${saveError}` });
     } else {
       const updated: QRRow = { ...qr, ...updates as Partial<QRRow>, pin_code: pinToSave };
       setQr(updated);
@@ -975,14 +987,25 @@ function QRCodesTab({ qrs: initialQrs, contacts, onRefreshQrs }: {
   });
 
   const reauth = useReauthGuard();
+  const { toast } = useToast();
 
   const handleToggle = async (qrId: string, currentStatus: string) => {
-    if (currentStatus === "active") {
-      await adminDisableQRCode(qrId);
-    } else {
-      await adminEnableQRCode(qrId);
+    try {
+      if (currentStatus === "active") {
+        await adminDisableQRCode(qrId);
+        toast({ title: "QR code disabled." });
+      } else {
+        await adminEnableQRCode(qrId);
+        toast({ title: "QR code enabled." });
+      }
+      onRefreshQrs();
+    } catch (e) {
+      toast({
+        title: currentStatus === "active" ? "Disable failed" : "Enable failed",
+        description: e instanceof Error ? e.message : "Unknown error",
+        variant: "destructive",
+      });
     }
-    onRefreshQrs();
   };
   const handleDelete = (qrId: string) => {
     reauth.guard({
@@ -991,6 +1014,7 @@ function QRCodesTab({ qrs: initialQrs, contacts, onRefreshQrs }: {
         "This permanently deletes the QR code and all its scan history. This cannot be undone.",
       confirmLabel: "Delete QR code",
       variant: "danger",
+      successMessage: "QR code deleted.",
       run: async () => {
         await adminDeleteQRCode(qrId);
         onRefreshQrs();
@@ -1396,14 +1420,19 @@ function ScansTab({
       description:
         "Decrypting an IP address is logged for audit. Confirm with your password to continue.",
       confirmLabel: "Decrypt",
+      successMessage: "IP decrypted.",
       run: async () => {
         setLoadingIp((prev) => ({ ...prev, [scan.id]: true }));
-        const result = await adminDecryptIP(scan.encrypted_ip!, scan.qr_id, scan.id);
-        setLoadingIp((prev) => ({ ...prev, [scan.id]: false }));
-        if ("ip" in result) {
-          revealIp(scan.id, result.ip);
-        } else {
-          revealIp(scan.id, `Error: ${result.error}`);
+        try {
+          const result = await adminDecryptIP(scan.encrypted_ip!, scan.qr_id, scan.id);
+          if ("ip" in result) {
+            revealIp(scan.id, result.ip);
+          } else {
+            // Surface the backend error instead of silently showing it inline.
+            throw new Error(result.error);
+          }
+        } finally {
+          setLoadingIp((prev) => ({ ...prev, [scan.id]: false }));
         }
       },
     });
@@ -1774,19 +1803,41 @@ function UserDetailModal({ user, onRefresh, onClose }: {
   const fullName = [localUser.first_name, localUser.last_name].filter(Boolean).join(" ") || "Unknown User";
   const avatarLetters = initials(localUser);
 
+  const { toast } = useToast();
+
   const handleBlock = async () => {
     setActionLoading(true);
-    await adminBlockUser(user.id);
-    setActionLoading(false);
-    onRefresh();
-    onClose();
+    try {
+      await adminBlockUser(user.id);
+      toast({ title: `Blocked ${fullName}.` });
+      onRefresh();
+      onClose();
+    } catch (e) {
+      toast({
+        title: "Block failed",
+        description: e instanceof Error ? e.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setActionLoading(false);
+    }
   };
   const handleUnblock = async () => {
     setActionLoading(true);
-    await adminUnblockUser(user.id);
-    setActionLoading(false);
-    onRefresh();
-    onClose();
+    try {
+      await adminUnblockUser(user.id);
+      toast({ title: `Unblocked ${fullName}.` });
+      onRefresh();
+      onClose();
+    } catch (e) {
+      toast({
+        title: "Unblock failed",
+        description: e instanceof Error ? e.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setActionLoading(false);
+    }
   };
   const reauth = useReauthGuard();
 
@@ -1797,12 +1848,16 @@ function UserDetailModal({ user, onRefresh, onClose }: {
         `This permanently deletes "${fullName}", along with all their QR codes, scans, and orders. This cannot be undone.`,
       confirmLabel: "Delete user",
       variant: "danger",
+      successMessage: `Deleted ${fullName}.`,
       run: async () => {
         setActionLoading(true);
-        await adminDeleteUser(user.id);
-        setActionLoading(false);
-        onRefresh();
-        onClose();
+        try {
+          await adminDeleteUser(user.id);
+          onRefresh();
+          onClose();
+        } finally {
+          setActionLoading(false);
+        }
       },
     });
   };

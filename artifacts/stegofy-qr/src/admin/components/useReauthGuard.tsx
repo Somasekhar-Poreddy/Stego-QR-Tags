@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
 import { useAuth } from "@/app/context/AuthContext";
+import { useToast } from "@/hooks/use-toast";
 import { ConfirmWithPasswordModal } from "@/admin/components/ConfirmWithPasswordModal";
 
 interface GuardConfig {
@@ -9,6 +10,8 @@ interface GuardConfig {
   variant?: "default" | "danger";
   /** The action to run after the password is verified. */
   run: () => void | Promise<void>;
+  /** Shown as a toast on successful completion. Defaults to "Done." */
+  successMessage?: string;
 }
 
 /**
@@ -33,6 +36,7 @@ interface GuardConfig {
  */
 export function useReauthGuard() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [pending, setPending] = useState<GuardConfig | null>(null);
 
   const guard = useCallback((cfg: GuardConfig) => {
@@ -49,11 +53,19 @@ export function useReauthGuard() {
     setPending(null);
     try {
       await cfg.run();
+      toast({
+        title: cfg.successMessage ?? "Done.",
+      });
     } catch (e) {
-      // The action surfaces its own errors; we don't reopen the modal.
+      const msg = e instanceof Error ? e.message : "The action failed.";
       console.error("[useReauthGuard] action threw:", e);
+      toast({
+        title: "Action failed",
+        description: msg,
+        variant: "destructive",
+      });
     }
-  }, [pending]);
+  }, [pending, toast]);
 
   const modal = (
     <ConfirmWithPasswordModal

@@ -48,11 +48,24 @@ function Skeleton({ className = "" }: { className?: string }) {
   return <div className={`bg-slate-100 rounded-xl animate-pulse ${className}`} />;
 }
 
-function ErrorBanner({ message, onRetry }: { message: string; onRetry: () => void }) {
+function ErrorBanner({
+  message,
+  detail,
+  onRetry,
+}: {
+  message: string;
+  detail?: string;
+  onRetry: () => void;
+}) {
   return (
-    <div className="flex items-center gap-3 bg-red-50 border border-red-100 rounded-2xl px-4 py-3">
-      <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
-      <p className="text-sm text-red-600 flex-1">{message}</p>
+    <div className="flex items-start gap-3 bg-red-50 border border-red-100 rounded-2xl px-4 py-3">
+      <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+      <div className="flex-1 min-w-0">
+        <p className="text-sm text-red-600">{message}</p>
+        {detail && (
+          <p className="text-xs text-red-500/80 mt-1 break-words font-mono">{detail}</p>
+        )}
+      </div>
       <button
         onClick={onRetry}
         className="text-xs font-semibold text-red-600 underline underline-offset-2 hover:text-red-700 flex-shrink-0"
@@ -63,11 +76,14 @@ function ErrorBanner({ message, onRetry }: { message: string; onRetry: () => voi
   );
 }
 
-function ChartError({ onRetry }: { onRetry: () => void }) {
+function ChartError({ detail, onRetry }: { detail?: string; onRetry: () => void }) {
   return (
-    <div className="h-48 flex flex-col items-center justify-center gap-2">
+    <div className="h-48 flex flex-col items-center justify-center gap-2 px-4 text-center">
       <AlertCircle className="w-6 h-6 text-slate-300" />
       <p className="text-sm text-slate-400">Could not load chart data</p>
+      {detail && (
+        <p className="text-[10px] text-slate-400 font-mono max-w-full break-words">{detail}</p>
+      )}
       <button
         onClick={onRetry}
         className="text-xs font-semibold text-primary underline underline-offset-2"
@@ -81,12 +97,12 @@ function ChartError({ onRetry }: { onRetry: () => void }) {
 export function DashboardScreen() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [statsLoading, setStatsLoading] = useState(true);
-  const [statsError, setStatsError] = useState(false);
+  const [statsError, setStatsError] = useState<string | null>(null);
 
   const [scansData, setScansData] = useState<{ date: string; scans: number }[]>([]);
   const [reqTypes, setReqTypes] = useState<{ name: string; value: number }[]>([]);
   const [chartsLoading, setChartsLoading] = useState(true);
-  const [chartsError, setChartsError] = useState(false);
+  const [chartsError, setChartsError] = useState<string | null>(null);
 
   const dateRange = useDateRange("7d");
   const { from, to, rangeKey } = dateRange;
@@ -97,16 +113,17 @@ export function DashboardScreen() {
 
   const loadStats = useCallback(() => {
     setStatsLoading(true);
-    setStatsError(false);
+    setStatsError(null);
     ensureFreshSession()
       .then(() => getDashboardStats())
       .then((data) => {
         setStats(data);
-        setStatsError(false);
+        setStatsError(null);
       })
       .catch((e) => {
         if (e?.name !== "AuthExpiredError") {
-          setStatsError(true);
+          setStatsError(e instanceof Error ? e.message : "Unknown error");
+          console.error("[Dashboard] getDashboardStats failed:", e);
         }
       })
       .finally(() => setStatsLoading(false));
@@ -114,17 +131,18 @@ export function DashboardScreen() {
 
   const loadCharts = useCallback((f: Date, t: Date) => {
     setChartsLoading(true);
-    setChartsError(false);
+    setChartsError(null);
     ensureFreshSession()
       .then(() => Promise.all([getScansPerDay(f, t), getRequestsByType(f, t)]))
       .then(([scans, types]) => {
         setScansData(scans);
         setReqTypes(types);
-        setChartsError(false);
+        setChartsError(null);
       })
       .catch((e) => {
         if (e?.name !== "AuthExpiredError") {
-          setChartsError(true);
+          setChartsError(e instanceof Error ? e.message : "Unknown error");
+          console.error("[Dashboard] chart load failed:", e);
         }
       })
       .finally(() => setChartsLoading(false));
@@ -179,6 +197,7 @@ export function DashboardScreen() {
       ) : statsError || stats === null ? (
         <ErrorBanner
           message="Could not load platform stats."
+          detail={statsError ?? undefined}
           onRetry={loadStats}
         />
       ) : (
@@ -199,7 +218,7 @@ export function DashboardScreen() {
           {chartsLoading ? (
             <Skeleton className="h-48" />
           ) : chartsError ? (
-            <ChartError onRetry={() => loadCharts(from, to)} />
+            <ChartError detail={chartsError} onRetry={() => loadCharts(from, to)} />
           ) : (
             <ResponsiveContainer width="100%" height={200}>
               <LineChart data={scansData}>
@@ -219,7 +238,7 @@ export function DashboardScreen() {
           {chartsLoading ? (
             <Skeleton className="h-48" />
           ) : chartsError ? (
-            <ChartError onRetry={() => loadCharts(from, to)} />
+            <ChartError detail={chartsError} onRetry={() => loadCharts(from, to)} />
           ) : reqTypes.length === 0 ? (
             <div className="h-48 flex items-center justify-center text-sm text-slate-400">No data in this period</div>
           ) : (

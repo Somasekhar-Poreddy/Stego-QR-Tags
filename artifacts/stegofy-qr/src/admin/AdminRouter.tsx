@@ -152,24 +152,69 @@ export function AdminRouter() {
         permissions: {},
       };
 
+      // Env-based allowlist, mirrors the Express backend — lets super-admins
+      // predate the admin_users table / be the initial bootstrap admin.
+      const allowedIds = ((import.meta.env.VITE_ADMIN_USER_IDS ?? "") as string)
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const isAllowlisted = !!currentUser.id && allowedIds.includes(currentUser.id);
+
+      let verifiedAdmin = false;
+      let lookupFailed = false;
+
       try {
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from("admin_users")
           .select("name, role, email, permissions")
           .eq("user_id", currentUser.id)
           .limit(1);
 
-        const record = Array.isArray(data) && data.length > 0 ? data[0] : null;
-        if (record) {
-          info = {
-            name: record.name || currentUser.email?.split("@")[0] || "Admin",
-            email: record.email || currentUser.email || "",
-            role: record.role || "",
-            permissions: (record.permissions as Record<string, boolean>) || {},
-          };
+        if (error) {
+          lookupFailed = true;
+        } else {
+          const record = Array.isArray(data) && data.length > 0 ? data[0] : null;
+          if (record) {
+            verifiedAdmin = true;
+            info = {
+              name: record.name || currentUser.email?.split("@")[0] || "Admin",
+              email: record.email || currentUser.email || "",
+              role: record.role || "",
+              permissions: (record.permissions as Record<string, boolean>) || {},
+            };
+          }
         }
       } catch {
-        // keep defaults
+        lookupFailed = true;
+      }
+
+      // ── ADMIN GATE ──────────────────────────────────────────────────
+      // If this account is NOT in admin_users and NOT in the env allowlist,
+      // they are not an admin — sign them out of /admin completely so they
+      // don't see the dashboard chrome. Without this gate, any authenticated
+      // Supabase user (including regular end-users who signed up in the
+      // user app) could load the admin UI, see errors from blocked RLS
+      // queries, and generally be in a place they shouldn't be.
+      //
+      // If the admin_users query itself failed (network / RLS error), we
+      // fall back to the allowlist: only let env-allowlisted accounts
+      // through in that case so a compromised DB RLS policy can't silently
+      // open the door. Everyone else is redirected with a clear reason.
+      if (!verifiedAdmin && !isAllowlisted) {
+        try {
+          await supabase.auth.signOut();
+        } catch {}
+        _cachedAdminInfo = null;
+        _cachedUserId = null;
+        const reason = lookupFailed ? "admin-check-failed" : "not-admin";
+        navigate(`/admin/login?reason=${reason}`);
+        return;
+      }
+
+      // Allowlisted super-admins get super_admin role by default so the
+      // permission model works consistently.
+      if (isAllowlisted && !verifiedAdmin) {
+        info = { ...info, role: "super_admin" };
       }
 
       _cachedAdminInfo = info;

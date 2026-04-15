@@ -161,6 +161,18 @@ export function AdminLogin() {
           </div>
         )}
 
+        {(reason === "not-admin" || reason === "admin-check-failed") && (
+          <div className="mb-4 flex items-start gap-2.5 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-800">
+            <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-red-500" />
+            <span>
+              {reason === "not-admin" &&
+                "This account doesn't have admin access. Sign in with an admin account, or contact a super admin to request access."}
+              {reason === "admin-check-failed" &&
+                "We couldn't verify admin permissions right now. Try again in a moment — if it keeps happening, contact a super admin."}
+            </span>
+          </div>
+        )}
+
         {lockUntil && secondsUntilUnlock > 0 && (
           <div className="mb-4 flex items-start gap-2.5 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-800">
             <Lock className="mt-0.5 h-4 w-4 flex-shrink-0 text-red-500" />
