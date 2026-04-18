@@ -606,8 +606,10 @@ export {
 
 async function authedFetch(path: string, init: RequestInit = {}): Promise<Response> {
   await ensureFreshSession();
-  const { data: { session } } = await supabase.auth.getSession();
-  const token = session?.access_token;
+  // Session is now guaranteed fresh — grab the token once (no second
+  // getSession call, which would race for the auth lock again).
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
   return fetch(path, {
     ...init,
     headers: {

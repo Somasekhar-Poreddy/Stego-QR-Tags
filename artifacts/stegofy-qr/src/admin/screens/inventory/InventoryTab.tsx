@@ -53,17 +53,17 @@ export function InventoryTab({ initialBatchId, initialFocus }: Props) {
   const [detailId, setDetailId] = useState<string | null>(initialFocus ?? null);
   const [error, setError] = useState<string | null>(null);
 
-  // Re-run whenever a filter changes.
+  // Sequential loads to avoid Supabase auth-lock contention. Each call
+  // shares the deduplicated ensureFreshSession, but running them back-to-
+  // back instead of in parallel avoids multiple getSession() races.
   const reload = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [paged, cnts] = await Promise.all([
-        getInventoryPaginated({ status, type, batchId, search, page, pageSize: PAGE_SIZE }),
-        getInventoryCounts(),
-      ]);
+      const paged = await getInventoryPaginated({ status, type, batchId, search, page, pageSize: PAGE_SIZE });
       setItems(paged.items);
       setTotal(paged.total);
+      const cnts = await getInventoryCounts();
       setCounts(cnts);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load inventory.");
@@ -74,9 +74,12 @@ export function InventoryTab({ initialBatchId, initialFocus }: Props) {
 
   useEffect(() => { reload(); }, [reload]);
 
-  // Load batch list once for the filter dropdown.
+  // Load batch list for the filter dropdown (after the main data settles).
   useEffect(() => {
-    getBatches({ pageSize: 100 }).then(({ batches }) => setBatches(batches)).catch(() => {});
+    const t = setTimeout(() => {
+      getBatches({ pageSize: 100 }).then(({ batches }) => setBatches(batches)).catch(() => {});
+    }, 100);
+    return () => clearTimeout(t);
   }, []);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
