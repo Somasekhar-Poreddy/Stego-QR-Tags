@@ -13,6 +13,7 @@ import {
 import {
   downloadBatchStickerPdf,
 } from "@/admin/utils/inventoryPdfGenerator";
+import { useToast } from "@/hooks/use-toast";
 
 interface Props {
   batch: QRInventoryBatch;
@@ -29,6 +30,7 @@ const DEFAULT_BODY = (batchNumber: string, count: number, vendorName: string) =>
 <p>Thanks,<br/>Stegofy Admin</p>`;
 
 export function SendToVendorModal({ batch, onClose, onDone }: Props) {
+  const { toast } = useToast();
   const [step, setStep] = useState<Step>("details");
 
   const [vendorName, setVendorName] = useState(batch.vendor_name ?? "");
@@ -106,6 +108,7 @@ export function SendToVendorModal({ batch, onClose, onDone }: Props) {
         html: editor?.getHTML() ?? "<p></p>",
         attachPdf,
       });
+      toast({ title: "Email sent to vendor.", description: `Batch ${batch.batch_number} marked as sent.` });
       onDone();
     } catch (err) {
       setEmailError(err instanceof Error ? err.message : "Failed to send email.");

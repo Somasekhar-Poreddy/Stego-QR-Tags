@@ -139,25 +139,47 @@ router.post("/admin/send-vendor-email", async (req: Request, res: Response) => {
     return;
   }
 
-  // Record email_sent event per item and update batch status — only after successful send
-  try {
-    if (items.length > 0) {
-      await supabaseAdmin.from("qr_inventory_events").insert(
-        items.map((item) => ({
-          inventory_id: item.id,
-          event_type: "email_sent",
-          description: `Vendor email sent to ${to.trim()}`,
-          metadata: { batch_id: batchId, email_subject: subject.trim() },
-        })),
-      );
+  // Update item statuses + log events + update batch — only after successful send
+  const now = new Date().toISOString();
+
+  if (items.length > 0) {
+    const { error: itemStatusErr } = await supabaseAdmin
+      .from("qr_inventory")
+      .update({ status: "sent_to_vendor", updated_at: now })
+      .eq("batch_id", batchId)
+      .eq("status", "unassigned");
+    if (itemStatusErr) {
+      res.status(500).json({
+        error: "Email sent but failed to update inventory item statuses. Please refresh and check.",
+      });
+      return;
     }
 
-    await supabaseAdmin
-      .from("qr_inventory_batches")
-      .update({ status: "sent_to_vendor", sent_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-      .eq("id", batchId);
-  } catch {
-    // Non-fatal: email was already sent successfully
+    const { error: eventsErr } = await supabaseAdmin.from("qr_inventory_events").insert(
+      items.map((item) => ({
+        inventory_id: item.id,
+        event_type: "sent_to_vendor",
+        description: `Email sent to ${to.trim()}`,
+        metadata: { batch_id: batchId, email_subject: subject.trim(), channel: "email" },
+      })),
+    );
+    if (eventsErr) {
+      res.status(500).json({
+        error: "Email sent but failed to record timeline events. Please refresh and check.",
+      });
+      return;
+    }
+  }
+
+  const { error: batchUpdateErr } = await supabaseAdmin
+    .from("qr_inventory_batches")
+    .update({ status: "sent_to_vendor", sent_at: now, updated_at: now })
+    .eq("id", batchId);
+  if (batchUpdateErr) {
+    res.status(500).json({
+      error: "Email sent but failed to update batch status. Please refresh and check.",
+    });
+    return;
   }
 
   res.status(200).json({ success: true });
