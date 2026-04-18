@@ -1,3 +1,30 @@
+import { supabaseAdmin } from "../lib/supabaseAdmin.js";
+
+/* ── IP2Location API key cache (read from settings table, fallback to env) ── */
+let cachedIp2LocationKey: string | null = null;
+let cacheExpiresAt = 0;
+const CACHE_TTL_MS = 60_000;
+
+async function getIp2LocationKey(): Promise<string> {
+  const now = Date.now();
+  if (cachedIp2LocationKey !== null && now < cacheExpiresAt) {
+    return cachedIp2LocationKey;
+  }
+  try {
+    const { data } = await supabaseAdmin
+      .from("settings")
+      .select("value")
+      .eq("key", "ip2location_api_key")
+      .maybeSingle();
+    const dbKey = (data as { value?: string } | null)?.value ?? "";
+    cachedIp2LocationKey = dbKey || (process.env.IP2LOCATION_API_KEY ?? "");
+  } catch {
+    cachedIp2LocationKey = process.env.IP2LOCATION_API_KEY ?? "";
+  }
+  cacheExpiresAt = now + CACHE_TTL_MS;
+  return cachedIp2LocationKey;
+}
+
 export interface GeoData {
   city: string | null;
   state: string | null;
@@ -37,7 +64,7 @@ async function fetchPrimary(ip: string): Promise<GeoData | null> {
 
 async function fetchFallback(ip: string): Promise<GeoData | null> {
   try {
-    const key = process.env.IP2LOCATION_API_KEY;
+    const key = await getIp2LocationKey();
     const url = key
       ? `https://api.ip2location.io/?key=${key}&ip=${ip}`
       : `https://api.ip2location.io/?ip=${ip}`;

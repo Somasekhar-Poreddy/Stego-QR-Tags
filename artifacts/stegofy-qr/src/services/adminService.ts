@@ -1055,6 +1055,15 @@ export async function resolveTicket(id: string) {
 }
 
 /* ═══════════════════════════════════════════════════
+   CONFIG STATUS
+   ═══════════════════════════════════════════════════ */
+export async function getConfigStatus(): Promise<{ ip_encryption_key_set: boolean }> {
+  const res = await authedFetch("/api/admin/config-status");
+  if (!res.ok) throw new Error("Failed to fetch config status");
+  return res.json() as Promise<{ ip_encryption_key_set: boolean }>;
+}
+
+/* ═══════════════════════════════════════════════════
    SETTINGS
    ═══════════════════════════════════════════════════ */
 export async function getSettings(): Promise<Setting[]> {

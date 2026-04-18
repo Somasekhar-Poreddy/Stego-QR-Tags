@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { Save, RotateCcw, Settings, Plus, Trash2, ChevronDown, ChevronUp } from "lucide-react";
-import { getSettings, upsertSetting, type Setting } from "@/services/adminService";
+import { Save, RotateCcw, Settings, Plus, Trash2, ChevronDown, ChevronUp, Eye, EyeOff, Key } from "lucide-react";
+import { getSettings, upsertSetting, getConfigStatus, type Setting } from "@/services/adminService";
 
 const FEATURE_KEYS = ["allow_free_qr", "masked_call_enabled", "whatsapp_enabled", "video_call_enabled"];
 const CONFIG_KEYS = ["max_qr_per_user", "emergency_notify_email", "support_email", "app_version"];
@@ -55,15 +55,34 @@ export function SettingsScreen() {
   const [saved, setSaved] = useState(false);
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
 
+  const [ip2locationKey, setIp2locationKey] = useState("");
+  const [showIp2locationKey, setShowIp2locationKey] = useState(false);
+  const [savingApiKey, setSavingApiKey] = useState(false);
+  const [savedApiKey, setSavedApiKey] = useState(false);
+  const [encryptionKeySet, setEncryptionKeySet] = useState<boolean | null>(null);
+
   useEffect(() => {
     getSettings().then((settings) => {
       const map: Record<string, string> = { ...DEFAULT_VALUES };
       settings.forEach((s) => { map[s.key] = s.value ?? ""; });
       setValues(map);
       setFaqs(parseFaqs(map["faq_list"] ?? "[]"));
+      const stored = settings.find((s) => s.key === "ip2location_api_key");
+      if (stored?.value) setIp2locationKey(stored.value);
       setLoading(false);
     });
+    getConfigStatus()
+      .then((status) => setEncryptionKeySet(status.ip_encryption_key_set))
+      .catch(() => setEncryptionKeySet(false));
   }, []);
+
+  const handleSaveApiKey = async () => {
+    setSavingApiKey(true);
+    await upsertSetting("ip2location_api_key", ip2locationKey);
+    setSavingApiKey(false);
+    setSavedApiKey(true);
+    setTimeout(() => setSavedApiKey(false), 2000);
+  };
 
   const set = (key: string, val: string) => setValues((v) => ({ ...v, [key]: val }));
 
@@ -146,6 +165,69 @@ export function SettingsScreen() {
             ))}
           </div>
         )}
+      </div>
+
+      {/* API Keys & Integrations */}
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <Key className="w-4 h-4 text-primary" />
+          <p className="font-bold text-slate-900">API Keys &amp; Integrations</p>
+        </div>
+
+        {/* IP2Location API Key */}
+        <div className="py-3 border-b border-slate-50">
+          <label className="text-sm font-semibold text-slate-800 block mb-1">IP2Location API Key</label>
+          <p className="text-xs text-slate-400 mb-2">Used as fallback for geo-lookup on QR scans. Saved to the database.</p>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <input
+                type={showIp2locationKey ? "text" : "password"}
+                value={ip2locationKey}
+                onChange={(e) => setIp2locationKey(e.target.value)}
+                placeholder="Enter IP2Location API key…"
+                className="w-full px-3 py-2 pr-10 rounded-xl border border-slate-200 text-sm outline-none focus:border-primary transition-colors font-mono"
+              />
+              <button
+                type="button"
+                onClick={() => setShowIp2locationKey((v) => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                {showIp2locationKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+            <button
+              onClick={handleSaveApiKey}
+              disabled={savingApiKey}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-all whitespace-nowrap ${savedApiKey ? "bg-green-500 text-white" : "bg-primary text-white hover:bg-primary/90"} disabled:opacity-60`}
+            >
+              <Save className="w-3.5 h-3.5" />
+              {savingApiKey ? "Saving…" : savedApiKey ? "Saved!" : "Save"}
+            </button>
+          </div>
+        </div>
+
+        {/* IP Encryption Key — read-only status */}
+        <div className="py-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-slate-800">IP Encryption Key</p>
+              <p className="text-xs text-slate-400 mt-0.5">Must be set as an environment variable (IP_ENCRYPTION_KEY). Cannot be stored in the database.</p>
+            </div>
+            {encryptionKeySet === null ? (
+              <span className="text-xs text-slate-400 font-medium">Checking…</span>
+            ) : encryptionKeySet ? (
+              <span className="flex items-center gap-1 px-2.5 py-1 bg-green-50 text-green-700 rounded-lg text-xs font-semibold">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />
+                Configured
+              </span>
+            ) : (
+              <span className="flex items-center gap-1 px-2.5 py-1 bg-amber-50 text-amber-700 rounded-lg text-xs font-semibold">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block" />
+                Not set
+              </span>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Save / Reset */}
