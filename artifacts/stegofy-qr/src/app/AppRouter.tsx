@@ -13,6 +13,7 @@ import { OnboardingScreen } from "@/app/screens/onboarding/OnboardingScreen";
 import { HomeScreen } from "@/app/screens/home/HomeScreen";
 import { MyQRScreen } from "@/app/screens/qr/MyQRScreen";
 import { CreateQRScreen } from "@/app/screens/qr/CreateQRScreen";
+import { ClaimQRScreen } from "@/app/screens/qr/ClaimQRScreen";
 import { QRSuccessScreen } from "@/app/screens/qr/QRSuccessScreen";
 import { ManageQRScreen } from "@/app/screens/qr/ManageQRScreen";
 import { ScanScreen } from "@/app/screens/scan/ScanScreen";
@@ -57,8 +58,24 @@ function SessionLoader() {
 export function AppRouter() {
   const { step, setStep, user, loading } = useAuth();
   const { loadUserProfiles } = useQR();
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
   const loadedForRef = useRef<string | null>(null);
+
+  // After a successful sign-in, resume any pending QR claim that was stashed
+  // while the user was unauthenticated (PublicProfileScreen → claim splash).
+  useEffect(() => {
+    if (step !== "app") return;
+    const pending = sessionStorage.getItem("stegofy_pending_claim");
+    if (!pending) return;
+    sessionStorage.removeItem("stegofy_pending_claim");
+    try {
+      const parsed = JSON.parse(pending) as { code?: string };
+      const code = parsed.code ? `?code=${encodeURIComponent(parsed.code)}` : "";
+      setLocation(`/app/claim${code}`);
+    } catch {
+      setLocation("/app/claim");
+    }
+  }, [step, setLocation]);
 
   // When landing directly on /app/signup via URL (e.g. from Navbar "Sign Up"),
   // advance the step so the signup form shows immediately
@@ -122,6 +139,7 @@ export function AppRouter() {
           {(params) => params ? <ManageQRScreen profileId={params.id} /> : null}
         </Route>
         <Route path="/app/qr" component={MyQRScreen} />
+        <Route path="/app/claim" component={ClaimQRScreen} />
         <Route path="/app/scan/profile" component={ScanProfileScreen} />
         <Route path="/app/scan" component={ScanScreen} />
         <Route path="/app/shop/:id">
