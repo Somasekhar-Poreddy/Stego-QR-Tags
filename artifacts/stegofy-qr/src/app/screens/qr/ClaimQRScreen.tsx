@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useQR, type QRType } from "@/app/context/QRContext";
+import { useAuth } from "@/app/context/AuthContext";
 import { cn } from "@/lib/utils";
 import {
   FORM_SCHEMA, type FieldDef, getNameKey, getFormLabel,
@@ -191,6 +192,7 @@ function VerifiedChip({ code, type }: { code: string; type: QRType }) {
 export function ClaimQRScreen() {
   const [, navigate] = useLocation();
   const { addProfile } = useQR();
+  const { setStep: setAuthStep } = useAuth();
 
   const [step, setStep] = useState<Step>("verify");
   const [authChecked, setAuthChecked] = useState(false);
@@ -213,7 +215,10 @@ export function ClaimQRScreen() {
       if (!data.session) {
         const pendingCode = readQueryParam("code");
         if (pendingCode) {
-          sessionStorage.setItem("stegofy_pending_claim", JSON.stringify({ code: pendingCode }));
+          sessionStorage.setItem(
+            "stegofy_pending_claim",
+            JSON.stringify({ code: pendingCode, params: window.location.search }),
+          );
         }
         setStep("auth");
       }
@@ -378,13 +383,13 @@ export function ClaimQRScreen() {
             )}
             <div className="flex flex-col gap-3">
               <button
-                onClick={() => navigate("/app/signup")}
+                onClick={() => { setAuthStep("signup"); navigate("/app/signup"); }}
                 className="w-full py-3 rounded-2xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 flex items-center justify-center gap-2"
               >
                 <UserPlus className="w-4 h-4" /> Create account
               </button>
               <button
-                onClick={() => navigate("/app/login")}
+                onClick={() => { setAuthStep("login"); navigate("/app/login"); }}
                 className="w-full py-3 rounded-2xl border border-slate-200 text-slate-700 text-sm font-semibold hover:bg-slate-50 flex items-center justify-center gap-2"
               >
                 <LogIn className="w-4 h-4" /> Already have an account
@@ -574,7 +579,7 @@ export function ClaimQRScreen() {
                   </span>
                 </div>
                 {Object.entries(formData)
-                  .filter(([, v]) => v !== "" && v !== false && !CONTACT_KEYS.includes("") && typeof v === "string")
+                  .filter(([, v]) => v !== "" && v !== false && typeof v === "string")
                   .filter(([k]) => !CONTACT_KEYS.includes(k) && k !== getNameKey(inventoryType))
                   .slice(0, 4)
                   .map(([k, v]) => {

@@ -69,9 +69,9 @@ export function AppRouter() {
     if (!pending) return;
     sessionStorage.removeItem("stegofy_pending_claim");
     try {
-      const parsed = JSON.parse(pending) as { code?: string };
-      const code = parsed.code ? `?code=${encodeURIComponent(parsed.code)}` : "";
-      setLocation(`/app/claim${code}`);
+      const parsed = JSON.parse(pending) as { code?: string; params?: string };
+      const qs = parsed.params ?? (parsed.code ? `?code=${encodeURIComponent(parsed.code)}` : "");
+      setLocation(`/app/claim${qs}`);
     } catch {
       setLocation("/app/claim");
     }
