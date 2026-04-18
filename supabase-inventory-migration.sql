@@ -99,13 +99,15 @@ CREATE POLICY "Admins insert inventory" ON qr_inventory FOR INSERT WITH CHECK (i
 CREATE POLICY "Admins update inventory" ON qr_inventory FOR UPDATE USING (is_admin_user()) WITH CHECK (is_admin_user());
 CREATE POLICY "Admins delete inventory" ON qr_inventory FOR DELETE USING (is_admin_user());
 
--- Public read of a single inventory row by id, used by PublicProfileScreen
--- when a scan hits a not-yet-claimed sticker. Only exposes claim-safe columns
--- because the row includes pin_code — the *column* is intentionally covered
--- here so Supabase returns it, but the frontend must never render it; backend
--- claim/verify endpoint is the only path that checks pin_code server-side.
--- Keep this narrow to scan-landing needs; never grant SELECT pin_code client-side
--- without the /claim/verify gate.
+-- Public read of a single inventory row by id. Allows anonymous scanners to
+-- detect an unclaimed sticker so the app can show the "Activate your QR"
+-- claim splash instead of a not-found error. The GET /api/qr/info/:id endpoint
+-- (service-role) is the primary path; this policy is a secondary safety net for
+-- direct Supabase client reads. Restricted to unclaimed rows with a display_code
+-- so it cannot be used to enumerate all inventory.
+CREATE POLICY "Public read inventory for claim"
+  ON qr_inventory FOR SELECT
+  USING (status IN ('unassigned', 'sent_to_vendor', 'in_stock') AND display_code IS NOT NULL);
 
 
 -- ─── 3. qr_inventory_events (activity timeline) ──────────────────────────────

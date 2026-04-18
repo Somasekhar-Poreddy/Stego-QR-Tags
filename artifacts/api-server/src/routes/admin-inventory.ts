@@ -658,4 +658,51 @@ router.post("/admin/inventory/claim/finalize", async (req: Request, res: Respons
   res.status(201).json({ qr_id: qrRow.id, inventory_id: invRow.id });
 });
 
+// ─── Public: claim-info lookup ───────────────────────────────────────────────
+// No auth required. Used by PublicProfileScreen when a scanned QR id exists in
+// qr_inventory but not yet in qr_codes (i.e. the sticker hasn't been claimed).
+// Uses the service-role client so RLS never blocks the read.
+// Returns:
+//   200 { claimable: true,  display_code, type }  — unclaimed, ready to claim
+//   200 { claimable: false }                       — already assigned
+//   404 { error }                                  — not found in inventory
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+router.get("/qr/info/:id", async (req: Request, res: Response) => {
+  const { id } = req.params;
+  if (!id || !UUID_RE.test(id)) {
+    res.status(404).json({ error: "QR not found" });
+    return;
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("qr_inventory")
+    .select("id, status, type, display_code")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error) {
+    res.status(500).json({ error: error.message });
+    return;
+  }
+  if (!data) {
+    res.status(404).json({ error: "QR not found in inventory" });
+    return;
+  }
+
+  const row = data as { id: string; status: string; type: string | null; display_code: string | null };
+  if (row.status === "assigned") {
+    res.json({ claimable: false });
+    return;
+  }
+  if (!row.display_code) {
+    res.status(404).json({ error: "Sticker has no display code yet" });
+    return;
+  }
+
+  res.json({ claimable: true, display_code: row.display_code, type: row.type });
+});
+
 export default router;
+

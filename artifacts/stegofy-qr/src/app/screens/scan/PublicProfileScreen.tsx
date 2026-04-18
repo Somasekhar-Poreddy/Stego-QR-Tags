@@ -594,22 +594,22 @@ export function PublicProfileScreen() {
         await new Promise<void>((r) => setTimeout(r, SCAN_RETRY_DELAYS[attempt]));
         return fetchQrData(attempt + 1);
       }
-      // qr_codes lookup exhausted — fall back to qr_inventory so freshly-
-      // printed, unclaimed stickers show a "Claim this QR" splash instead of
-      // a generic "not found" error. We only offer claim for pre-assigned
-      // statuses; if the inventory row is already `assigned` the qr_codes
-      // lookup will succeed on a subsequent retry (or the user is looking at
-      // a very stale record — we fall through to not-found).
-      const { data: inv } = await supabase
-        .from("qr_inventory")
-        .select("id, status, type, display_code")
-        .eq("id", qrId)
-        .maybeSingle();
-      const invRow = inv as { id: string; status: string; type: string | null; display_code: string | null } | null;
-      if (invRow && invRow.status !== "assigned" && invRow.display_code) {
-        setClaimable({ displayCode: invRow.display_code, type: invRow.type });
-        setLoading(false);
-        return;
+      // qr_codes lookup exhausted — fall back to the API's claim-info endpoint.
+      // This uses the service-role key server-side and bypasses RLS, so it
+      // reliably detects freshly-printed unclaimed stickers and shows the
+      // "Activate your QR" splash instead of a generic not-found error.
+      try {
+        const infoRes = await fetch(`/api/qr/info/${encodeURIComponent(qrId)}`);
+        if (infoRes.ok) {
+          const info = await infoRes.json() as { claimable?: boolean; display_code?: string; type?: string | null };
+          if (info.claimable && info.display_code) {
+            setClaimable({ displayCode: info.display_code, type: info.type ?? null });
+            setLoading(false);
+            return;
+          }
+        }
+      } catch {
+        // Network error — fall through to not-found
       }
       // All attempts failed — only mark not-found if no cached data exists
       if (!qrDataRef.current) setNotFound(true);
