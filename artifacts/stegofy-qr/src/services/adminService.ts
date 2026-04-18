@@ -1,6 +1,5 @@
 import { supabase } from "@/lib/supabase";
 import { ensureFreshSession, throwAsAuthError } from "@/lib/adminAuth";
-import { v4 as uuidv4 } from "uuid";
 
 /* ─── Re-exported types shared with other modules ─── */
 export type { UserProfile } from "@/services/userService";
@@ -14,9 +13,66 @@ export interface AdminUser {
   id: string; user_id: string | null; email: string; name: string | null;
   role: string; permissions: Record<string, boolean>; created_at: string;
 }
+export type InventoryStatus = "unassigned" | "sent_to_vendor" | "in_stock" | "assigned";
+export type BatchStatus = "created" | "sent_to_vendor" | "received" | "fully_assigned";
 export interface QRInventoryItem {
-  id: string; qr_code: string; type: string | null; category: string | null;
-  status: string; created_at: string;
+  id: string;
+  qr_code: string;
+  type: string | null;
+  category: string | null;
+  status: InventoryStatus;
+  created_at: string;
+  updated_at?: string | null;
+  batch_id?: string | null;
+  display_code?: string | null;
+  pin_code?: string | null;
+  qr_url?: string | null;
+  linked_qr_id?: string | null;
+  linked_user_id?: string | null;
+  vendor_name?: string | null;
+}
+export interface QRInventoryBatch {
+  id: string;
+  batch_number: string;
+  category: string | null;
+  type: string | null;
+  total_count: number;
+  vendor_name: string | null;
+  vendor_contact: string | null;
+  vendor_notes: string | null;
+  status: BatchStatus;
+  sent_at: string | null;
+  received_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+export interface QRInventoryEvent {
+  id: string;
+  inventory_id: string;
+  event_type: string;
+  description: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+}
+export interface InventoryCategorySetting {
+  id: string;
+  category: string;
+  low_stock_threshold: number;
+  reorder_count: number;
+  alert_email: string | null;
+  last_alerted_at: string | null;
+  auto_generate: boolean;
+  updated_at: string;
+}
+export interface LowStockAlert {
+  id: string;
+  category: string;
+  current_stock: number;
+  threshold: number;
+  status: "open" | "resolved" | "dismissed";
+  resolved_by_batch_id: string | null;
+  created_at: string;
+  resolved_at: string | null;
 }
 export interface Notification {
   id: string; title: string; message: string; target: string; created_at: string;
@@ -547,18 +603,356 @@ export {
 /* ═══════════════════════════════════════════════════
    QR INVENTORY
    ═══════════════════════════════════════════════════ */
+
+async function authedFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  await ensureFreshSession();
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token;
+  return fetch(path, {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      "x-app-origin": typeof window !== "undefined" ? window.location.origin : "",
+      ...(init.headers ?? {}),
+    },
+  });
+}
+
+// Legacy wrapper — keep for any external caller still importing it.
 export async function getInventory(): Promise<QRInventoryItem[]> {
-  const { data } = await supabase.from("qr_inventory").select("*").order("created_at", { ascending: false });
+  await ensureFreshSession();
+  const { data, error } = await supabase
+    .from("qr_inventory")
+    .select("*")
+    .order("created_at", { ascending: false });
+  if (error) throwAsAuthError(error);
   return (data ?? []) as QRInventoryItem[];
 }
-export async function bulkGenerateInventory(count: number, type: string, category: string) {
-  const rows = Array.from({ length: count }, () => ({
-    qr_code: `STG-INV-${uuidv4().slice(0, 8).toUpperCase()}`,
-    type: type || null,
-    category: category || null,
-    status: "unclaimed",
-  }));
-  return supabase.from("qr_inventory").insert(rows);
+
+export interface InventoryFilters {
+  status?: InventoryStatus | "all";
+  type?: string | "all";
+  batchId?: string | "all";
+  search?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export async function getInventoryPaginated(
+  filters: InventoryFilters = {},
+): Promise<{ items: QRInventoryItem[]; total: number }> {
+  await ensureFreshSession();
+  const page = filters.page ?? 1;
+  const pageSize = filters.pageSize ?? 25;
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
+  let q = supabase.from("qr_inventory").select("*", { count: "exact" });
+  if (filters.status && filters.status !== "all") q = q.eq("status", filters.status);
+  if (filters.type && filters.type !== "all") q = q.eq("type", filters.type);
+  if (filters.batchId && filters.batchId !== "all") q = q.eq("batch_id", filters.batchId);
+  if (filters.search) {
+    const s = filters.search.trim();
+    // qr_code, display_code, or qr_url (case-insensitive partial match)
+    q = q.or(`qr_code.ilike.%${s}%,display_code.ilike.%${s}%,qr_url.ilike.%${s}%`);
+  }
+  q = q.order("created_at", { ascending: false }).range(from, to);
+
+  const { data, error, count } = await q;
+  if (error) throwAsAuthError(error);
+  return { items: (data ?? []) as QRInventoryItem[], total: count ?? 0 };
+}
+
+export async function getInventoryCounts(): Promise<Record<InventoryStatus | "all", number>> {
+  await ensureFreshSession();
+  const statuses: InventoryStatus[] = ["unassigned", "sent_to_vendor", "in_stock", "assigned"];
+  const results = await Promise.all([
+    supabase.from("qr_inventory").select("id", { count: "exact", head: true }),
+    ...statuses.map((s) =>
+      supabase.from("qr_inventory").select("id", { count: "exact", head: true }).eq("status", s),
+    ),
+  ]);
+  const firstError = results.find((r) => r.error)?.error;
+  if (firstError) throwAsAuthError(firstError);
+  return {
+    all: results[0].count ?? 0,
+    unassigned: results[1].count ?? 0,
+    sent_to_vendor: results[2].count ?? 0,
+    in_stock: results[3].count ?? 0,
+    assigned: results[4].count ?? 0,
+  };
+}
+
+export async function getInventoryById(
+  id: string,
+): Promise<{ item: QRInventoryItem | null; events: QRInventoryEvent[] }> {
+  await ensureFreshSession();
+  const [itemRes, eventsRes] = await Promise.all([
+    supabase.from("qr_inventory").select("*").eq("id", id).maybeSingle(),
+    supabase
+      .from("qr_inventory_events")
+      .select("*")
+      .eq("inventory_id", id)
+      .order("created_at", { ascending: false }),
+  ]);
+  if (itemRes.error) throwAsAuthError(itemRes.error);
+  if (eventsRes.error) throwAsAuthError(eventsRes.error);
+  return {
+    item: (itemRes.data as QRInventoryItem | null) ?? null,
+    events: (eventsRes.data ?? []) as QRInventoryEvent[],
+  };
+}
+
+export async function updateInventoryItem(
+  id: string,
+  updates: Partial<Pick<QRInventoryItem, "type" | "category" | "vendor_name">>,
+): Promise<void> {
+  const { error } = await supabase
+    .from("qr_inventory")
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) throwAsAuthError(error);
+  await supabase.from("qr_inventory_events").insert({
+    inventory_id: id,
+    event_type: "edited",
+    description: "Inventory row edited",
+    metadata: { fields: Object.keys(updates) },
+  });
+}
+
+export async function deleteInventoryItem(id: string): Promise<void> {
+  const res = await authedFetch("/api/admin/inventory/bulk-delete", {
+    method: "DELETE",
+    body: JSON.stringify({ ids: [id] }),
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? `Delete failed (${res.status})`);
+  }
+}
+
+export async function bulkDeleteInventory(ids: string[]): Promise<{ deleted: number }> {
+  const res = await authedFetch("/api/admin/inventory/bulk-delete", {
+    method: "DELETE",
+    body: JSON.stringify({ ids }),
+  });
+  const body = (await res.json().catch(() => ({}))) as { deleted?: number; error?: string };
+  if (!res.ok) throw new Error(body.error ?? `Delete failed (${res.status})`);
+  return { deleted: body.deleted ?? 0 };
+}
+
+export async function getInventoryEvents(inventoryId: string): Promise<QRInventoryEvent[]> {
+  const { data, error } = await supabase
+    .from("qr_inventory_events")
+    .select("*")
+    .eq("inventory_id", inventoryId)
+    .order("created_at", { ascending: false });
+  if (error) throwAsAuthError(error);
+  return (data ?? []) as QRInventoryEvent[];
+}
+
+/* ─── Batches ─────────────────────────────────────────────────────────────── */
+
+export interface BatchFilters {
+  status?: BatchStatus | "all";
+  page?: number;
+  pageSize?: number;
+}
+
+export async function getBatches(
+  filters: BatchFilters = {},
+): Promise<{ batches: QRInventoryBatch[]; total: number }> {
+  await ensureFreshSession();
+  const page = filters.page ?? 1;
+  const pageSize = filters.pageSize ?? 25;
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+  let q = supabase.from("qr_inventory_batches").select("*", { count: "exact" });
+  if (filters.status && filters.status !== "all") q = q.eq("status", filters.status);
+  q = q.order("created_at", { ascending: false }).range(from, to);
+  const { data, error, count } = await q;
+  if (error) throwAsAuthError(error);
+  return { batches: (data ?? []) as QRInventoryBatch[], total: count ?? 0 };
+}
+
+export async function getBatchById(
+  id: string,
+): Promise<{ batch: QRInventoryBatch | null; items: QRInventoryItem[] }> {
+  await ensureFreshSession();
+  const [batchRes, itemsRes] = await Promise.all([
+    supabase.from("qr_inventory_batches").select("*").eq("id", id).maybeSingle(),
+    supabase
+      .from("qr_inventory")
+      .select("*")
+      .eq("batch_id", id)
+      .order("created_at", { ascending: true }),
+  ]);
+  if (batchRes.error) throwAsAuthError(batchRes.error);
+  if (itemsRes.error) throwAsAuthError(itemsRes.error);
+  return {
+    batch: (batchRes.data as QRInventoryBatch | null) ?? null,
+    items: (itemsRes.data ?? []) as QRInventoryItem[],
+  };
+}
+
+export async function updateBatch(
+  id: string,
+  updates: Partial<Pick<QRInventoryBatch, "vendor_name" | "vendor_contact" | "vendor_notes" | "category">>,
+): Promise<void> {
+  const { error } = await supabase
+    .from("qr_inventory_batches")
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) throwAsAuthError(error);
+}
+
+export async function deleteBatch(id: string): Promise<void> {
+  // Block deletion if any linked item is already assigned.
+  const { count } = await supabase
+    .from("qr_inventory")
+    .select("id", { count: "exact", head: true })
+    .eq("batch_id", id)
+    .eq("status", "assigned");
+  if ((count ?? 0) > 0) {
+    throw new Error(`Cannot delete batch — ${count} item(s) already assigned to users.`);
+  }
+  const { error } = await supabase.from("qr_inventory_batches").delete().eq("id", id);
+  if (error) throwAsAuthError(error);
+}
+
+/* ─── Backend-wrapped operations ──────────────────────────────────────────── */
+
+export interface BulkGenerateArgs {
+  count: number;
+  type: string;
+  category?: string;
+  vendor_name?: string;
+  vendor_contact?: string;
+  vendor_notes?: string;
+}
+
+export async function bulkGenerateInventory(
+  args: BulkGenerateArgs,
+): Promise<{ batch_id: string; batch_number: string; count: number; item_ids: string[] }> {
+  const res = await authedFetch("/api/admin/inventory/bulk-generate", {
+    method: "POST",
+    body: JSON.stringify(args),
+  });
+  const body = (await res.json().catch(() => ({}))) as {
+    batch_id?: string;
+    batch_number?: string;
+    count?: number;
+    item_ids?: string[];
+    error?: string;
+  };
+  if (!res.ok) throw new Error(body.error ?? `Generate failed (${res.status})`);
+  return {
+    batch_id: body.batch_id ?? "",
+    batch_number: body.batch_number ?? "",
+    count: body.count ?? 0,
+    item_ids: body.item_ids ?? [],
+  };
+}
+
+export async function sendBatchToVendor(args: {
+  batchId: string;
+  vendorName?: string;
+  vendorContact?: string;
+  vendorNotes?: string;
+}): Promise<{ updated: number }> {
+  const res = await authedFetch("/api/admin/inventory/send-to-vendor", {
+    method: "POST",
+    body: JSON.stringify({
+      batch_id: args.batchId,
+      vendor_name: args.vendorName,
+      vendor_contact: args.vendorContact,
+      vendor_notes: args.vendorNotes,
+    }),
+  });
+  const body = (await res.json().catch(() => ({}))) as { updated?: number; error?: string };
+  if (!res.ok) throw new Error(body.error ?? `Send failed (${res.status})`);
+  return { updated: body.updated ?? 0 };
+}
+
+export async function markBatchReceived(batchId: string): Promise<{ updated: number }> {
+  const res = await authedFetch("/api/admin/inventory/mark-received", {
+    method: "POST",
+    body: JSON.stringify({ batch_id: batchId }),
+  });
+  const body = (await res.json().catch(() => ({}))) as { updated?: number; error?: string };
+  if (!res.ok) throw new Error(body.error ?? `Mark-received failed (${res.status})`);
+  return { updated: body.updated ?? 0 };
+}
+
+export async function bulkUpdateStatus(
+  ids: string[],
+  status: InventoryStatus,
+): Promise<{ updated: number }> {
+  const res = await authedFetch("/api/admin/inventory/bulk-status", {
+    method: "POST",
+    body: JSON.stringify({ ids, status }),
+  });
+  const body = (await res.json().catch(() => ({}))) as { updated?: number; error?: string };
+  if (!res.ok) throw new Error(body.error ?? `Status update failed (${res.status})`);
+  return { updated: body.updated ?? 0 };
+}
+
+/* ─── Category settings & low-stock alerts ───────────────────────────────── */
+
+export async function getInventorySettings(): Promise<InventoryCategorySetting[]> {
+  await ensureFreshSession();
+  const { data, error } = await supabase
+    .from("inventory_category_settings")
+    .select("*")
+    .order("category");
+  if (error) throwAsAuthError(error);
+  return (data ?? []) as InventoryCategorySetting[];
+}
+
+export async function updateInventorySetting(
+  category: string,
+  updates: Partial<Pick<InventoryCategorySetting, "low_stock_threshold" | "reorder_count" | "alert_email">>,
+): Promise<void> {
+  const { error } = await supabase
+    .from("inventory_category_settings")
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq("category", category);
+  if (error) throwAsAuthError(error);
+}
+
+export async function getOpenLowStockAlerts(): Promise<LowStockAlert[]> {
+  const { data, error } = await supabase
+    .from("inventory_low_stock_alerts")
+    .select("*")
+    .eq("status", "open")
+    .order("created_at", { ascending: false });
+  if (error) throwAsAuthError(error);
+  return (data ?? []) as LowStockAlert[];
+}
+
+export async function dismissLowStockAlert(id: string): Promise<void> {
+  const { error } = await supabase
+    .from("inventory_low_stock_alerts")
+    .update({ status: "dismissed", resolved_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) throwAsAuthError(error);
+}
+
+/* ─── Linked-user lookup (for the detail panel) ──────────────────────────── */
+
+export async function getInventoryAssignedUser(
+  linkedUserId: string,
+): Promise<{ id: string; name: string | null; email: string | null } | null> {
+  const { data } = await supabase
+    .from("user_profiles")
+    .select("id, first_name, last_name, email")
+    .eq("id", linkedUserId)
+    .maybeSingle();
+  if (!data) return null;
+  const row = data as { id: string; first_name: string | null; last_name: string | null; email: string | null };
+  const name = [row.first_name, row.last_name].filter(Boolean).join(" ").trim() || null;
+  return { id: row.id, name, email: row.email };
 }
 
 /* ═══════════════════════════════════════════════════

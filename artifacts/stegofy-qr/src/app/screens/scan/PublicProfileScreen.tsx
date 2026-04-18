@@ -3,7 +3,7 @@ import {
   ChevronLeft, Shield, AlertTriangle, AlertOctagon,
   Lightbulb, Truck, Wind, MapPin, HeartPulse, Navigation,
   HelpCircle, Phone, MessageCircle, X, Check, QrCode,
-  PenLine, Video,
+  PenLine, Video, Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
@@ -194,6 +194,40 @@ function ErrorState({ message }: { message: string }) {
       </div>
       <h2 className="text-lg font-bold text-slate-900 mb-2">{message}</h2>
       <p className="text-sm text-slate-400">This QR tag may have been removed or is unavailable.</p>
+    </div>
+  );
+}
+
+/* ─── Claim Splash (shown when the scanned id is an unclaimed inventory row) ─ */
+function ClaimSplash({ displayCode, type }: { displayCode: string; type: string | null }) {
+  const handleClaim = () => {
+    // Stash the code so the flow survives the login detour if the visitor
+    // isn't signed in yet — AppRouter picks this up after `step === "app"`.
+    sessionStorage.setItem("stegofy_pending_claim", JSON.stringify({ code: displayCode }));
+    window.location.href = `/app/claim?code=${encodeURIComponent(displayCode)}`;
+  };
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-slate-50 to-white px-6 text-center max-w-lg mx-auto">
+      <div className="w-20 h-20 bg-gradient-to-br from-primary to-violet-600 rounded-3xl flex items-center justify-center shadow-lg shadow-primary/30 mb-6">
+        <Sparkles className="w-10 h-10 text-white" />
+      </div>
+      <h1 className="text-2xl font-bold text-slate-900 mb-2">This Stegofy QR is ready to be activated</h1>
+      <p className="text-sm text-slate-500 mb-6">
+        Claim it now to turn this sticker into your personal {type ?? "Stegofy"} tag. You'll need the 4-digit PIN printed next to the code.
+      </p>
+      <div className="bg-white border border-slate-200 rounded-2xl px-4 py-3 mb-6 w-full max-w-xs">
+        <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Sticker code</p>
+        <p className="font-mono text-lg font-bold text-slate-800">{displayCode}</p>
+      </div>
+      <button
+        onClick={handleClaim}
+        className="w-full max-w-xs bg-gradient-to-r from-primary to-violet-600 text-white font-semibold py-3.5 rounded-2xl shadow-lg shadow-primary/30 active:scale-[0.98] transition-all"
+      >
+        Claim it now
+      </button>
+      <p className="text-[11px] text-slate-400 mt-4">
+        Already claimed? Refresh this page — the owner's public details will load.
+      </p>
     </div>
   );
 }
@@ -519,6 +553,7 @@ export function PublicProfileScreen() {
   const [qrData, setQrData] = useState<QRPublicData | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [claimable, setClaimable] = useState<{ displayCode: string; type: string | null } | null>(null);
   const [selectedIntent, setSelectedIntent] = useState<string | null>(null);
   const [customMessage, setCustomMessage] = useState("");
   const [showVerify, setShowVerify] = useState(false);
@@ -558,6 +593,23 @@ export function PublicProfileScreen() {
       if (attempt < SCAN_RETRY_DELAYS.length) {
         await new Promise<void>((r) => setTimeout(r, SCAN_RETRY_DELAYS[attempt]));
         return fetchQrData(attempt + 1);
+      }
+      // qr_codes lookup exhausted — fall back to qr_inventory so freshly-
+      // printed, unclaimed stickers show a "Claim this QR" splash instead of
+      // a generic "not found" error. We only offer claim for pre-assigned
+      // statuses; if the inventory row is already `assigned` the qr_codes
+      // lookup will succeed on a subsequent retry (or the user is looking at
+      // a very stale record — we fall through to not-found).
+      const { data: inv } = await supabase
+        .from("qr_inventory")
+        .select("id, status, type, display_code")
+        .eq("id", qrId)
+        .maybeSingle();
+      const invRow = inv as { id: string; status: string; type: string | null; display_code: string | null } | null;
+      if (invRow && invRow.status !== "assigned" && invRow.display_code) {
+        setClaimable({ displayCode: invRow.display_code, type: invRow.type });
+        setLoading(false);
+        return;
       }
       // All attempts failed — only mark not-found if no cached data exists
       if (!qrDataRef.current) setNotFound(true);
@@ -668,6 +720,7 @@ export function PublicProfileScreen() {
   };
 
   if (loading) return <LoadingState />;
+  if (claimable) return <ClaimSplash displayCode={claimable.displayCode} type={claimable.type} />;
   if (notFound) return <ErrorState message="QR tag not found" />;
   if (!qrData) return <ErrorState message="Something went wrong" />;
   if (!qrData.is_active) return <ErrorState message="This QR is inactive" />;
