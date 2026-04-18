@@ -214,12 +214,10 @@ export function ClaimQRScreen() {
     supabase.auth.getSession().then(({ data }) => {
       if (!data.session) {
         const pendingCode = readQueryParam("code");
-        if (pendingCode) {
-          sessionStorage.setItem(
-            "stegofy_pending_claim",
-            JSON.stringify({ code: pendingCode, params: window.location.search }),
-          );
-        }
+        sessionStorage.setItem(
+          "stegofy_pending_claim",
+          JSON.stringify({ code: pendingCode || undefined, params: window.location.search }),
+        );
         setStep("auth");
       }
       setAuthChecked(true);
