@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { X, Loader2, FileDown, Mail, ChevronRight, AlertTriangle, Paperclip, Bold, Italic, List } from "lucide-react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
@@ -7,10 +7,10 @@ import {
   getBatchById,
   sendVendorEmail,
   getEmailStatus,
+  updateBatch,
   type QRInventoryBatch,
 } from "@/services/adminService";
 import {
-  generateBatchStickerPdf,
   downloadBatchStickerPdf,
 } from "@/admin/utils/inventoryPdfGenerator";
 
@@ -58,6 +58,17 @@ export function SendToVendorModal({ batch, onClose, onDone }: Props) {
       .catch(() => setEmailConfigured(false));
   }, []);
 
+  // Pre-fill mailto: link when Resend is not configured
+  const mailtoHref = useMemo(() => {
+    const to = emailTo.trim();
+    const subject = encodeURIComponent(emailSubject.trim());
+    const body = encodeURIComponent(
+      `Hi ${vendorName || "Team"},\n\nPlease find the print-ready PDF for Batch ${batch.batch_number} (${batch.total_count} Stegofy QR stickers).\n\nPlease confirm receipt and let us know the expected dispatch date.\n\nThanks,\nStegofy Admin`,
+    );
+    return `mailto:${to}?subject=${subject}&body=${body}`;
+  }, [emailTo, emailSubject, vendorName, batch.batch_number, batch.total_count]);
+
+  // Step 1: Save vendor details only — no status change yet
   const handleNextStep = async () => {
     if (!vendorName.trim()) {
       setDetailsError("Vendor name is required.");
@@ -66,21 +77,21 @@ export function SendToVendorModal({ batch, onClose, onDone }: Props) {
     setDetailsError(null);
     setDetailsLoading(true);
     try {
-      await sendBatchToVendor({
-        batchId: batch.id,
-        vendorName: vendorName.trim(),
-        vendorContact: vendorContact.trim() || undefined,
-        vendorNotes: vendorNotes.trim() || undefined,
+      await updateBatch(batch.id, {
+        vendor_name: vendorName.trim(),
+        vendor_contact: vendorContact.trim() || undefined,
+        vendor_notes: vendorNotes.trim() || undefined,
       });
       if (vendorContact.trim()) setEmailTo(vendorContact.trim());
       setStep("email");
     } catch (err) {
-      setDetailsError(err instanceof Error ? err.message : "Failed to update vendor details.");
+      setDetailsError(err instanceof Error ? err.message : "Failed to save vendor details.");
     } finally {
       setDetailsLoading(false);
     }
   };
 
+  // Step 2: Send email — PDF is generated server-side; status flipped after successful send
   const handleSendEmail = async () => {
     if (!emailTo.trim()) { setEmailError("Recipient email is required."); return; }
     if (!emailSubject.trim()) { setEmailError("Subject is required."); return; }
@@ -88,41 +99,22 @@ export function SendToVendorModal({ batch, onClose, onDone }: Props) {
     setEmailLoading(true);
 
     try {
-      const { items } = await getBatchById(batch.id);
-
-      let pdfBase64: string | undefined;
-      if (attachPdf && items.length > 0) {
-        setPdfProgress({ done: 0, total: items.length });
-        const doc = await generateBatchStickerPdf(items, (done, total) =>
-          setPdfProgress({ done, total }),
-        );
-        pdfBase64 = doc.output("datauristring");
-        setPdfProgress(null);
-      }
-
       await sendVendorEmail({
         batchId: batch.id,
         to: emailTo.trim(),
         subject: emailSubject.trim(),
         html: editor?.getHTML() ?? "<p></p>",
         attachPdf,
-        pdfBase64,
-        pdfFilename: `${batch.batch_number}-stickers.pdf`,
       });
-
-      if (attachPdf && items.length > 0) {
-        await downloadBatchStickerPdf(items, batch.batch_number);
-      }
-
       onDone();
     } catch (err) {
       setEmailError(err instanceof Error ? err.message : "Failed to send email.");
     } finally {
       setEmailLoading(false);
-      setPdfProgress(null);
     }
   };
 
+  // Step 2: PDF-only — download locally, then mark batch as sent_to_vendor
   const handleSkipEmail = async () => {
     try {
       const { items } = await getBatchById(batch.id);
@@ -134,6 +126,17 @@ export function SendToVendorModal({ batch, onClose, onDone }: Props) {
       }
     } finally {
       setPdfProgress(null);
+    }
+    // Mark batch sent after successful PDF download (no email path)
+    try {
+      await sendBatchToVendor({
+        batchId: batch.id,
+        vendorName: vendorName.trim() || undefined,
+        vendorContact: vendorContact.trim() || undefined,
+        vendorNotes: vendorNotes.trim() || undefined,
+      });
+    } catch {
+      // Non-fatal; PDF is already downloaded
     }
     onDone();
   };
@@ -221,13 +224,28 @@ export function SendToVendorModal({ batch, onClose, onDone }: Props) {
           <>
             <div className="p-5 space-y-3 overflow-y-auto flex-1">
               {emailConfigured === false && (
-                <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 flex items-start gap-2 text-xs text-amber-800">
-                  <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                  <span>
-                    <strong>RESEND_API_KEY not configured.</strong> Email cannot be sent.
-                    Add it in Settings → API Keys, or{" "}
-                    <button onClick={handleSkipEmail} className="underline font-semibold">skip & download PDF</button> instead.
-                  </span>
+                <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 text-xs text-amber-800 space-y-1.5">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                    <span>
+                      <strong>RESEND_API_KEY not set.</strong> Email sending is disabled.
+                      Add it in Settings → API Keys, or use one of the options below.
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-2 pl-6">
+                    <a
+                      href={mailtoHref}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-100 hover:bg-amber-200 rounded-lg text-amber-900 font-semibold transition-colors"
+                    >
+                      <Mail className="w-3.5 h-3.5" /> Open in mail app
+                    </a>
+                    <button
+                      onClick={handleSkipEmail}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-100 hover:bg-amber-200 rounded-lg text-amber-900 font-semibold transition-colors"
+                    >
+                      <FileDown className="w-3.5 h-3.5" /> Download PDF only
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -253,7 +271,6 @@ export function SendToVendorModal({ batch, onClose, onDone }: Props) {
 
               <div>
                 <label className="text-xs font-semibold text-slate-500 mb-1 block">Message</label>
-                {/* Toolbar */}
                 <div className="flex items-center gap-1 px-2 py-1.5 border border-b-0 border-slate-200 rounded-t-xl bg-slate-50">
                   <button
                     type="button"
@@ -282,11 +299,10 @@ export function SendToVendorModal({ batch, onClose, onDone }: Props) {
                 </div>
                 <EditorContent
                   editor={editor}
-                  className="min-h-[140px] border border-slate-200 rounded-b-xl px-3 py-2 text-sm text-slate-800 outline-none focus-within:border-primary transition-colors [&_.ProseMirror]:outline-none [&_.ProseMirror]:min-h-[120px] [&_.ProseMirror_p]:mb-2 [&_.ProseMirror_ul]:list-disc [&_.ProseMirror_ul]:pl-5 [&_.ProseMirror_strong]:font-bold [&_.ProseMirror_em]:italic"
+                  className="min-h-[120px] border border-slate-200 rounded-b-xl px-3 py-2 text-sm text-slate-800 outline-none focus-within:border-primary transition-colors [&_.ProseMirror]:outline-none [&_.ProseMirror]:min-h-[100px] [&_.ProseMirror_p]:mb-2 [&_.ProseMirror_ul]:list-disc [&_.ProseMirror_ul]:pl-5 [&_.ProseMirror_strong]:font-bold [&_.ProseMirror_em]:italic"
                 />
               </div>
 
-              {/* Attach PDF */}
               <label className="flex items-center gap-2.5 cursor-pointer select-none">
                 <input
                   type="checkbox"
@@ -336,7 +352,7 @@ export function SendToVendorModal({ batch, onClose, onDone }: Props) {
               >
                 {emailLoading && <Loader2 className="w-4 h-4 animate-spin" />}
                 {emailLoading
-                  ? pdfProgress ? "Generating PDF…" : "Sending…"
+                  ? "Sending…"
                   : <><Mail className="w-4 h-4" /> Send Email</>}
               </button>
             </div>

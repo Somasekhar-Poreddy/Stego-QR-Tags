@@ -1080,8 +1080,6 @@ export async function sendVendorEmail(opts: {
   subject: string;
   html: string;
   attachPdf: boolean;
-  pdfBase64?: string;
-  pdfFilename?: string;
 }): Promise<void> {
   const res = await authedFetch("/api/admin/send-vendor-email", {
     method: "POST",

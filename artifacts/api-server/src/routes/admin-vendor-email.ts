@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import type { Request, Response } from "express";
 import { supabaseAdmin } from "../lib/supabaseAdmin.js";
 import { sendVendorEmail, isEmailConfigured } from "../services/emailService.js";
+import { generateBatchPdfBase64 } from "../utils/stickerPdfGenerator.js";
 
 const router: IRouter = Router();
 
@@ -62,14 +63,12 @@ router.post("/admin/send-vendor-email", async (req: Request, res: Response) => {
   const caller = await requireSuperAdmin(req, res);
   if (!caller) return;
 
-  const { batchId, to, subject, html, attachPdf, pdfBase64, pdfFilename } = req.body as {
+  const { batchId, to, subject, html, attachPdf } = req.body as {
     batchId?: string;
     to?: string;
     subject?: string;
     html?: string;
     attachPdf?: boolean;
-    pdfBase64?: string;
-    pdfFilename?: string;
   };
 
   if (!to?.trim() || !subject?.trim() || !html?.trim()) {
@@ -81,13 +80,58 @@ router.post("/admin/send-vendor-email", async (req: Request, res: Response) => {
     return;
   }
 
+  // Fetch batch and items (needed for PDF and metadata)
+  const { data: batchData, error: batchErr } = await supabaseAdmin
+    .from("qr_inventory_batches")
+    .select("batch_number")
+    .eq("id", batchId)
+    .maybeSingle();
+  if (batchErr || !batchData) {
+    res.status(404).json({ error: "Batch not found" });
+    return;
+  }
+
+  const { data: itemsData, error: itemsErr } = await supabaseAdmin
+    .from("qr_inventory")
+    .select("id, type, qr_code, qr_url, display_code, pin_code")
+    .eq("batch_id", batchId)
+    .order("created_at", { ascending: true });
+  if (itemsErr) {
+    res.status(500).json({ error: "Failed to fetch batch items" });
+    return;
+  }
+  const items = (itemsData ?? []) as Array<{
+    id: string;
+    type?: string | null;
+    qr_code?: string | null;
+    qr_url?: string | null;
+    display_code?: string | null;
+    pin_code?: string | null;
+  }>;
+
+  // Generate PDF server-side if requested
+  let pdfBase64: string | undefined;
+  let pdfFilename: string | undefined;
+  if (attachPdf && items.length > 0) {
+    try {
+      pdfBase64 = await generateBatchPdfBase64(items);
+      const batchNum = (batchData as { batch_number?: string }).batch_number ?? batchId;
+      pdfFilename = `${batchNum}-stickers.pdf`;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "PDF generation failed";
+      res.status(500).json({ error: msg });
+      return;
+    }
+  }
+
+  // Send email
   try {
     await sendVendorEmail({
       to: to.trim(),
       subject: subject.trim(),
       html,
-      pdfBase64: attachPdf && pdfBase64 ? pdfBase64 : undefined,
-      pdfFilename: attachPdf && pdfFilename ? pdfFilename : undefined,
+      pdfBase64,
+      pdfFilename,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to send email";
@@ -95,32 +139,25 @@ router.post("/admin/send-vendor-email", async (req: Request, res: Response) => {
     return;
   }
 
-  // Record event on each inventory item in the batch
+  // Record email_sent event per item and update batch status — only after successful send
   try {
-    const { data: items } = await supabaseAdmin
-      .from("qr_inventory")
-      .select("id")
-      .eq("batch_id", batchId);
-
-    if (items && items.length > 0) {
+    if (items.length > 0) {
       await supabaseAdmin.from("qr_inventory_events").insert(
-        (items as Array<{ id: string }>).map((item) => ({
+        items.map((item) => ({
           inventory_id: item.id,
-          event_type: "sent_to_vendor",
-          description: `Email sent to ${to.trim()}`,
-          metadata: { batch_id: batchId, email_subject: subject },
+          event_type: "email_sent",
+          description: `Vendor email sent to ${to.trim()}`,
+          metadata: { batch_id: batchId, email_subject: subject.trim() },
         })),
       );
     }
 
-    // Update batch status to sent_to_vendor if not already
     await supabaseAdmin
       .from("qr_inventory_batches")
-      .update({ status: "sent_to_vendor", sent_at: new Date().toISOString() })
-      .eq("id", batchId)
-      .neq("status", "sent_to_vendor");
+      .update({ status: "sent_to_vendor", sent_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+      .eq("id", batchId);
   } catch {
-    // Non-fatal: email was already sent; log failure is acceptable
+    // Non-fatal: email was already sent successfully
   }
 
   res.status(200).json({ success: true });
