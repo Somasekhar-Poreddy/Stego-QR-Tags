@@ -99,6 +99,209 @@ async function mapConcurrent<T, R>(
   return results;
 }
 
+// ─── Type-specific icon drawing ───────────────────────────────────────────────
+// Each icon function draws a simple line-art glyph at (cx, cy) with half-size s.
+// All use white stroke on the type-coloured right panel.
+
+function setupIcon(doc: jsPDF): void {
+  doc.setDrawColor(255, 255, 255);
+  doc.setFillColor(255, 255, 255);
+  doc.setLineWidth(0.35);
+}
+
+// Phone: rounded rectangle body
+function icoPhone(doc: jsPDF, cx: number, cy: number, s: number): void {
+  doc.roundedRect(cx - s * 0.38, cy - s * 0.62, s * 0.76, s * 1.24, s * 0.18, s * 0.18, "S");
+  doc.line(cx - s * 0.18, cy - s * 0.42, cx + s * 0.18, cy - s * 0.42);
+}
+
+// Heart: two circles top + V bottom
+function icoHeart(doc: jsPDF, cx: number, cy: number, s: number): void {
+  const r = s * 0.3;
+  doc.circle(cx - r, cy - r * 0.2, r, "S");
+  doc.circle(cx + r, cy - r * 0.2, r, "S");
+  doc.line(cx - s * 0.6, cy + r * 0.2, cx, cy + s * 0.7);
+  doc.line(cx + s * 0.6, cy + r * 0.2, cx, cy + s * 0.7);
+}
+
+// Warning triangle with exclamation mark
+function icoWarning(doc: jsPDF, cx: number, cy: number, s: number): void {
+  doc.line(cx, cy - s, cx + s * 0.87, cy + s * 0.5);
+  doc.line(cx + s * 0.87, cy + s * 0.5, cx - s * 0.87, cy + s * 0.5);
+  doc.line(cx - s * 0.87, cy + s * 0.5, cx, cy - s);
+  doc.line(cx, cy - s * 0.35, cx, cy + s * 0.15);
+  doc.circle(cx, cy + s * 0.32, s * 0.09, "F");
+}
+
+// Car: body rect + windshield roof + 2 wheel circles
+function icoCar(doc: jsPDF, cx: number, cy: number, s: number): void {
+  doc.rect(cx - s * 0.6, cy - s * 0.12, s * 1.2, s * 0.55, "S");
+  doc.line(cx - s * 0.3, cy - s * 0.12, cx - s * 0.5, cy - s * 0.52);
+  doc.line(cx - s * 0.5, cy - s * 0.52, cx + s * 0.5, cy - s * 0.52);
+  doc.line(cx + s * 0.5, cy - s * 0.52, cx + s * 0.3, cy - s * 0.12);
+  doc.circle(cx - s * 0.38, cy + s * 0.43, s * 0.18, "S");
+  doc.circle(cx + s * 0.38, cy + s * 0.43, s * 0.18, "S");
+}
+
+// Paw: large pad + 3 toe circles
+function icoPaw(doc: jsPDF, cx: number, cy: number, s: number): void {
+  doc.circle(cx, cy + s * 0.15, s * 0.4, "S");
+  doc.circle(cx - s * 0.42, cy - s * 0.3, s * 0.2, "S");
+  doc.circle(cx, cy - s * 0.6, s * 0.2, "S");
+  doc.circle(cx + s * 0.42, cy - s * 0.3, s * 0.2, "S");
+}
+
+// House: rectangle body + triangle roof
+function icoHouse(doc: jsPDF, cx: number, cy: number, s: number): void {
+  doc.rect(cx - s * 0.45, cy - s * 0.1, s * 0.9, s * 0.7, "S");
+  doc.line(cx - s * 0.6, cy - s * 0.1, cx, cy - s * 0.7);
+  doc.line(cx, cy - s * 0.7, cx + s * 0.6, cy - s * 0.1);
+}
+
+// Person: circle head + triangle body
+function icoPerson(doc: jsPDF, cx: number, cy: number, s: number): void {
+  doc.circle(cx, cy - s * 0.52, s * 0.26, "S");
+  doc.line(cx - s * 0.5, cy + s * 0.62, cx, cy - s * 0.2);
+  doc.line(cx + s * 0.5, cy + s * 0.62, cx, cy - s * 0.2);
+  doc.line(cx - s * 0.5, cy + s * 0.62, cx + s * 0.5, cy + s * 0.62);
+}
+
+// Medical cross (+)
+function icoCross(doc: jsPDF, cx: number, cy: number, s: number): void {
+  doc.line(cx, cy - s * 0.7, cx, cy + s * 0.7);
+  doc.line(cx - s * 0.7, cy, cx + s * 0.7, cy);
+}
+
+// Alert: circle with !
+function icoAlert(doc: jsPDF, cx: number, cy: number, s: number): void {
+  doc.circle(cx, cy, s * 0.65, "S");
+  doc.line(cx, cy - s * 0.35, cx, cy + s * 0.08);
+  doc.circle(cx, cy + s * 0.28, s * 0.1, "F");
+}
+
+// Location pin: circle on a pointed drop
+function icoPin(doc: jsPDF, cx: number, cy: number, s: number): void {
+  doc.circle(cx, cy - s * 0.2, s * 0.42, "S");
+  doc.line(cx - s * 0.42, cy - s * 0.2, cx, cy + s * 0.7);
+  doc.line(cx + s * 0.42, cy - s * 0.2, cx, cy + s * 0.7);
+}
+
+// Tag: rounded rectangle + small hole
+function icoTag(doc: jsPDF, cx: number, cy: number, s: number): void {
+  doc.roundedRect(cx - s * 0.5, cy - s * 0.65, s, s * 1.3, s * 0.2, s * 0.2, "S");
+  doc.circle(cx, cy - s * 0.38, s * 0.14, "S");
+}
+
+// Return arrow: vertical line + horizontal + arrowhead
+function icoReturn(doc: jsPDF, cx: number, cy: number, s: number): void {
+  doc.line(cx - s * 0.4, cy - s * 0.6, cx - s * 0.4, cy + s * 0.3);
+  doc.line(cx - s * 0.4, cy + s * 0.3, cx + s * 0.5, cy + s * 0.3);
+  doc.line(cx + s * 0.5, cy + s * 0.3, cx + s * 0.25, cy + s * 0.05);
+  doc.line(cx + s * 0.5, cy + s * 0.3, cx + s * 0.25, cy + s * 0.55);
+}
+
+// Suitcase: rectangle + handle arch + centre seam
+function icoSuitcase(doc: jsPDF, cx: number, cy: number, s: number): void {
+  doc.rect(cx - s * 0.6, cy - s * 0.25, s * 1.2, s * 0.9, "S");
+  doc.roundedRect(cx - s * 0.28, cy - s * 0.55, s * 0.56, s * 0.32, s * 0.1, s * 0.1, "S");
+  doc.line(cx - s * 0.6, cy + s * 0.15, cx + s * 0.6, cy + s * 0.15);
+}
+
+// Bell: dome + clapper dot
+function icoBell(doc: jsPDF, cx: number, cy: number, s: number): void {
+  doc.line(cx - s * 0.6, cy + s * 0.3, cx + s * 0.6, cy + s * 0.3);
+  doc.line(cx - s * 0.6, cy + s * 0.3, cx - s * 0.6, cy);
+  doc.line(cx + s * 0.6, cy + s * 0.3, cx + s * 0.6, cy);
+  doc.ellipse(cx, cy - s * 0.05, s * 0.6, s * 0.45, "S");
+  doc.circle(cx, cy + s * 0.52, s * 0.13, "S");
+}
+
+// Globe: circle + equator + meridian
+function icoGlobe(doc: jsPDF, cx: number, cy: number, s: number): void {
+  doc.circle(cx, cy, s * 0.6, "S");
+  doc.line(cx - s * 0.6, cy, cx + s * 0.6, cy);
+  doc.line(cx, cy - s * 0.6, cx, cy + s * 0.6);
+  doc.ellipse(cx, cy, s * 0.28, s * 0.6, "S");
+}
+
+// Briefcase: rectangle + arch handle + divider
+function icoBriefcase(doc: jsPDF, cx: number, cy: number, s: number): void {
+  doc.rect(cx - s * 0.6, cy - s * 0.2, s * 1.2, s * 0.85, "S");
+  doc.roundedRect(cx - s * 0.28, cy - s * 0.5, s * 0.56, s * 0.32, s * 0.1, s * 0.1, "S");
+  doc.line(cx - s * 0.6, cy + s * 0.15, cx + s * 0.6, cy + s * 0.15);
+}
+
+// Calendar: rectangle + header line + two pegs
+function icoCalendar(doc: jsPDF, cx: number, cy: number, s: number): void {
+  doc.rect(cx - s * 0.6, cy - s * 0.5, s * 1.2, s, "S");
+  doc.line(cx - s * 0.6, cy - s * 0.18, cx + s * 0.6, cy - s * 0.18);
+  doc.line(cx - s * 0.25, cy - s * 0.5, cx - s * 0.25, cy - s * 0.7);
+  doc.line(cx + s * 0.25, cy - s * 0.5, cx + s * 0.25, cy - s * 0.7);
+}
+
+// Star: 4-point diamond (simpler than 5-point, clear at 5mm)
+function icoStar(doc: jsPDF, cx: number, cy: number, s: number): void {
+  doc.line(cx, cy - s * 0.7, cx + s * 0.4, cy);
+  doc.line(cx + s * 0.4, cy, cx, cy + s * 0.7);
+  doc.line(cx, cy + s * 0.7, cx - s * 0.4, cy);
+  doc.line(cx - s * 0.4, cy, cx, cy - s * 0.7);
+  doc.line(cx - s * 0.7, cy, cx, cy - s * 0.35);
+  doc.line(cx, cy - s * 0.35, cx + s * 0.7, cy);
+  doc.line(cx + s * 0.7, cy, cx, cy + s * 0.35);
+  doc.line(cx, cy + s * 0.35, cx - s * 0.7, cy);
+}
+
+// Chain link
+function icoLink(doc: jsPDF, cx: number, cy: number, s: number): void {
+  doc.ellipse(cx - s * 0.22, cy, s * 0.44, s * 0.25, "S");
+  doc.ellipse(cx + s * 0.22, cy, s * 0.44, s * 0.25, "S");
+}
+
+// Simplified QR mark: 3 corner squares + dot cluster
+function icoQR(doc: jsPDF, cx: number, cy: number, s: number): void {
+  const sq = s * 0.35;
+  doc.rect(cx - s * 0.6, cy - s * 0.6, sq, sq, "S");
+  doc.rect(cx + s * 0.6 - sq, cy - s * 0.6, sq, sq, "S");
+  doc.rect(cx - s * 0.6, cy + s * 0.6 - sq, sq, sq, "S");
+  doc.rect(cx + s * 0.05, cy + s * 0.05, s * 0.45, s * 0.45, "S");
+}
+
+type IconFn = (doc: jsPDF, cx: number, cy: number, s: number) => void;
+
+const TYPE_ICONS: Record<string, [IconFn, IconFn, IconFn, IconFn]> = {
+  vehicle:    [icoCar,      icoWarning, icoPhone, icoAlert],
+  pet:        [icoPaw,      icoHouse,   icoPhone, icoHeart],
+  child:      [icoPerson,   icoHouse,   icoPhone, icoHeart],
+  medical:    [icoCross,    icoHeart,   icoPhone, icoAlert],
+  luggage:    [icoSuitcase, icoPin,     icoPhone, icoReturn],
+  wallet:     [icoTag,      icoPin,     icoPhone, icoReturn],
+  home:       [icoHouse,    icoBell,    icoPhone, icoAlert],
+  event:      [icoCalendar, icoStar,    icoPhone, icoQR],
+  business:   [icoBriefcase,icoGlobe,  icoPhone, icoLink],
+  belongings: [icoTag,      icoPin,     icoPhone, icoReturn],
+};
+
+function drawTypeIcons(
+  doc: jsPDF,
+  rightX: number,
+  y: number,
+  rightW: number,
+  H: number,
+  type: string | null | undefined,
+): void {
+  const icons = TYPE_ICONS[type ?? ""] ?? TYPE_ICONS.belongings;
+  const s = 2.2; // half-size; each icon fits in a ~4.4mm × 4.4mm box
+  const iconCy = y + H - 18; // center Y — between PIN text and type badge
+  // Distribute 4 icons evenly across rightW
+  const totalW = rightW - 4; // 2mm padding each side
+  const step = totalW / 4;
+  setupIcon(doc);
+  for (let i = 0; i < 4; i++) {
+    const cx = rightX + 2 + step * i + step / 2;
+    icons[i](doc, cx, iconCy, s);
+  }
+}
+
 // ─── Draw a single sticker at an arbitrary (x, y) offset on the current page ─
 function drawSticker(
   doc: jsPDF,
@@ -205,6 +408,13 @@ function drawSticker(
   doc.setFontSize(7);
   doc.setTextColor(255, 255, 255);
   doc.text(`PIN: ${item.pin_code ?? "----"}`, rightX + rightW / 2, y + 43, { align: "center" });
+
+  // Per-type icon row (above type badge).
+  drawTypeIcons(doc, rightX, y, rightW, H, item.type);
+
+  // Restore sticker draw colour state after icon drawing.
+  doc.setDrawColor(203, 213, 225);
+  doc.setLineWidth(0.2);
 
   // Type badge footer.
   const badge = (item.type ?? "tag").toUpperCase();
