@@ -43,6 +43,11 @@ export function throwAsAuthError(error: { message?: string; code?: string }): ne
   throw new Error(error.message ?? "An unexpected error occurred.");
 }
 
+// Singleton guard: when multiple callers hit ensureFreshSession at the same
+// time (e.g. InventoryTab firing paginated + counts + batches), they all share
+// one in-flight check instead of each racing for the auth token lock.
+let _inflightSession: Promise<void> | null = null;
+
 /**
  * Verifies the Supabase session is usable. Does NOT manually call
  * refreshSession — Supabase's autoRefreshToken already handles renewal, and
@@ -51,31 +56,37 @@ export function throwAsAuthError(error: { message?: string; code?: string }): ne
  * stole it"). Instead we just check the session's current expiry and give
  * the background refresher a moment to catch up if needed.
  *
+ * Concurrent callers are deduplicated: only the first caller runs the check,
+ * the rest piggyback on its promise.
+ *
  * Throws AuthExpiredError when there really is no usable session.
  */
 export async function ensureFreshSession(): Promise<void> {
+  if (_inflightSession) return _inflightSession;
+  _inflightSession = _ensureFreshSessionImpl();
+  try {
+    await _inflightSession;
+  } finally {
+    _inflightSession = null;
+  }
+}
+
+async function _ensureFreshSessionImpl(): Promise<void> {
   try {
     const { data: { session } } = await supabase.auth.getSession();
     if (session) {
       const secsUntilExpiry = (session.expires_at ?? 0) - Math.floor(Date.now() / 1000);
-      // Still valid — nothing to do. autoRefreshToken will rotate it before
-      // expiry without our help.
       if (secsUntilExpiry > 10) return;
     }
 
-    // Either no session in memory, or it's seconds from expiry. Give the
-    // background refresher (or a sibling tab) a brief window to complete.
     await new Promise((r) => setTimeout(r, 400));
     const { data: { session: retried } } = await supabase.auth.getSession();
     if (retried) return;
 
-    // Still no session — attempt one explicit refresh, tolerating lock
-    // contention as transient (a sibling tab is refreshing right now).
     try {
       const { data, error } = await supabase.auth.refreshSession();
       if (!error && data.session) return;
       if (error && isLockContentionError(error)) {
-        // Wait a beat and trust the sibling tab's refresh.
         await new Promise((r) => setTimeout(r, 500));
         const { data: { session: after } } = await supabase.auth.getSession();
         if (after) return;
@@ -92,11 +103,8 @@ export async function ensureFreshSession(): Promise<void> {
 
     throw new AuthExpiredError();
   } catch (e) {
-    // Swallow transient lock errors — they're cross-tab coordination noise.
     if (isLockContentionError(e)) return;
     if (e instanceof AuthExpiredError) throw e;
-    // Unknown errors: don't block the query, let it run. If it really is
-    // an auth problem the query itself will surface it.
     console.warn("[ensureFreshSession] non-auth error, proceeding:", e);
   }
 }
