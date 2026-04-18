@@ -59,6 +59,7 @@ export function SettingsScreen() {
   const [showIp2locationKey, setShowIp2locationKey] = useState(false);
   const [savingApiKey, setSavingApiKey] = useState(false);
   const [savedApiKey, setSavedApiKey] = useState(false);
+  const [apiKeyError, setApiKeyError] = useState<string | null>(null);
   const [encryptionKeySet, setEncryptionKeySet] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -78,10 +79,17 @@ export function SettingsScreen() {
 
   const handleSaveApiKey = async () => {
     setSavingApiKey(true);
-    await upsertSetting("ip2location_api_key", ip2locationKey);
-    setSavingApiKey(false);
-    setSavedApiKey(true);
-    setTimeout(() => setSavedApiKey(false), 2000);
+    setApiKeyError(null);
+    try {
+      const { error } = await upsertSetting("ip2location_api_key", ip2locationKey);
+      if (error) throw error;
+      setSavedApiKey(true);
+      setTimeout(() => setSavedApiKey(false), 2000);
+    } catch {
+      setApiKeyError("Failed to save — please try again.");
+    } finally {
+      setSavingApiKey(false);
+    }
   };
 
   const set = (key: string, val: string) => setValues((v) => ({ ...v, [key]: val }));
@@ -183,7 +191,7 @@ export function SettingsScreen() {
               <input
                 type={showIp2locationKey ? "text" : "password"}
                 value={ip2locationKey}
-                onChange={(e) => setIp2locationKey(e.target.value)}
+                onChange={(e) => { setIp2locationKey(e.target.value); setApiKeyError(null); }}
                 placeholder="Enter IP2Location API key…"
                 className="w-full px-3 py-2 pr-10 rounded-xl border border-slate-200 text-sm outline-none focus:border-primary transition-colors font-mono"
               />
@@ -204,6 +212,7 @@ export function SettingsScreen() {
               {savingApiKey ? "Saving…" : savedApiKey ? "Saved!" : "Save"}
             </button>
           </div>
+          {apiKeyError && <p className="text-xs text-red-500 mt-1.5">{apiKeyError}</p>}
         </div>
 
         {/* IP Encryption Key — read-only status */}

@@ -70,7 +70,7 @@ router.get("/admin/config-status", async (req: Request, res: Response) => {
   if (!caller) return;
 
   res.status(200).json({
-    ip_encryption_key_set: Boolean(process.env.IP_ENCRYPTION_KEY),
+    ip_encryption_key_set: Boolean((process.env.IP_ENCRYPTION_KEY ?? "").trim()),
   });
 });
 
