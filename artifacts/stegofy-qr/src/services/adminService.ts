@@ -1070,7 +1070,7 @@ export async function getConfigStatus(): Promise<{
 
 export async function getEmailStatus(): Promise<{ configured: boolean }> {
   const res = await authedFetch("/api/admin/email-status");
-  if (!res.ok) return { configured: false };
+  if (!res.ok) throw new Error(`Email status check failed (${res.status})`);
   return res.json() as Promise<{ configured: boolean }>;
 }
 

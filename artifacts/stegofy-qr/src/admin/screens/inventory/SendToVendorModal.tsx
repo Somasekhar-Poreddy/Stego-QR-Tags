@@ -48,6 +48,8 @@ export function SendToVendorModal({ batch, onClose, onDone }: Props) {
   const [emailError, setEmailError] = useState<string | null>(null);
   const [pdfProgress, setPdfProgress] = useState<{ done: number; total: number } | null>(null);
   const [emailConfigured, setEmailConfigured] = useState<boolean | null>(null);
+  const [emailStatusError, setEmailStatusError] = useState<string | null>(null);
+  const [skipError, setSkipError] = useState<string | null>(null);
 
   const editor = useEditor({
     extensions: [StarterKit],
@@ -57,7 +59,10 @@ export function SendToVendorModal({ batch, onClose, onDone }: Props) {
   useEffect(() => {
     getEmailStatus()
       .then((d) => setEmailConfigured(d.configured))
-      .catch(() => setEmailConfigured(false));
+      .catch((err) => {
+        setEmailStatusError(err instanceof Error ? err.message : "Could not check email service status.");
+        setEmailConfigured(false);
+      });
   }, []);
 
   // Pre-fill mailto: link when Resend is not configured
@@ -119,6 +124,7 @@ export function SendToVendorModal({ batch, onClose, onDone }: Props) {
 
   // Step 2: PDF-only — download locally, then mark batch as sent_to_vendor
   const handleSkipEmail = async () => {
+    setSkipError(null);
     try {
       const { items } = await getBatchById(batch.id);
       if (items.length > 0) {
@@ -127,10 +133,14 @@ export function SendToVendorModal({ batch, onClose, onDone }: Props) {
           setPdfProgress({ done, total }),
         );
       }
+    } catch (err) {
+      setPdfProgress(null);
+      setSkipError(err instanceof Error ? err.message : "Failed to generate PDF.");
+      return;
     } finally {
       setPdfProgress(null);
     }
-    // Mark batch sent after successful PDF download (no email path)
+    // Mark batch sent after successful PDF download
     try {
       await sendBatchToVendor({
         batchId: batch.id,
@@ -138,8 +148,9 @@ export function SendToVendorModal({ batch, onClose, onDone }: Props) {
         vendorContact: vendorContact.trim() || undefined,
         vendorNotes: vendorNotes.trim() || undefined,
       });
-    } catch {
-      // Non-fatal; PDF is already downloaded
+    } catch (err) {
+      setSkipError(err instanceof Error ? err.message : "PDF downloaded but failed to update batch status.");
+      return;
     }
     onDone();
   };
@@ -226,7 +237,13 @@ export function SendToVendorModal({ batch, onClose, onDone }: Props) {
         {step === "email" && (
           <>
             <div className="p-5 space-y-3 overflow-y-auto flex-1">
-              {emailConfigured === false && (
+              {emailStatusError && (
+                <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-xs text-red-700 flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                  <span><strong>Could not check email service:</strong> {emailStatusError}</span>
+                </div>
+              )}
+              {!emailStatusError && emailConfigured === false && (
                 <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 text-xs text-amber-800 space-y-1.5">
                   <div className="flex items-start gap-2">
                     <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
@@ -338,15 +355,21 @@ export function SendToVendorModal({ batch, onClose, onDone }: Props) {
                   {emailError}
                 </div>
               )}
+              {skipError && (
+                <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-xs text-red-700">
+                  {skipError}
+                </div>
+              )}
             </div>
 
             <div className="px-5 py-4 border-t border-slate-100 flex gap-3">
               <button
                 onClick={handleSkipEmail}
-                disabled={emailLoading}
+                disabled={emailLoading || !!pdfProgress}
                 className="flex items-center gap-1.5 px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-50 whitespace-nowrap"
               >
-                <FileDown className="w-4 h-4" /> PDF only
+                {pdfProgress ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
+                {pdfProgress ? "Generating…" : "PDF only"}
               </button>
               <button
                 onClick={handleSendEmail}
