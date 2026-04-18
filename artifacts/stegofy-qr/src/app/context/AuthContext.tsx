@@ -53,6 +53,34 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+// App-level caches that must be wiped whenever the Supabase session is
+// torn down. Leaving them behind causes the "admin → user switch is slow
+// and shows blank until cache clear" bug: the next user mounts with the
+// previous account's QR list and admin-info still in localStorage, which
+// then fights with the fresh fetch.
+const APP_CACHE_KEYS = [
+  "stegofy_qr_profiles_v1",
+  "stegofy_admin_login_at",
+];
+const APP_CACHE_PREFIXES = [
+  "stegofy_admin_info_v1:",
+];
+
+function clearAppCaches() {
+  try {
+    for (const k of APP_CACHE_KEYS) localStorage.removeItem(k);
+    // Prefix-match scan (short list, cheap).
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i);
+      if (key && APP_CACHE_PREFIXES.some((p) => key.startsWith(p))) {
+        localStorage.removeItem(key);
+      }
+    }
+  } catch {
+    // quota / privacy mode — ignore
+  }
+}
+
 let _recoveryPending = false;
 let _codeParamPending = false;
 let _urlError: string | null = null;
@@ -265,6 +293,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           });
           prevUserIdRef.current = null;
         }
+        // Wipe per-account caches so the next user who signs in doesn't
+        // inherit the previous account's profile list / admin info. Without
+        // this, a user logging in right after an admin logs out sees the
+        // admin's old data until they manually clear cookies.
+        clearAppCaches();
         setUser(null);
         setStep("login");
         setLoading(false);
@@ -285,11 +318,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signInWithEmail = async (email: string, password: string) => {
     setAuthError(null);
     try {
+      // Scrub any residual caches from a previous account in this browser
+      // BEFORE the new session is written. Otherwise QRContext / AdminRouter
+      // can briefly seed the UI from the previous user's localStorage.
+      clearAppCaches();
+
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
+      // Claim this user id BEFORE the SIGNED_IN event fires so the listener's
+      // short-circuit path sees prevUserIdRef === session.user.id and skips
+      // the duplicate fetchAndBuildUser + setLoading(true) flash.
+      prevUserIdRef.current = data.user.id;
       const built = await fetchAndBuildUser(data.user);
       setUser(built);
       setStep("app");
+      setLoading(false);
     } catch (err: any) {
       setAuthError(err.message || "Sign in failed. Please try again.");
     }
@@ -442,6 +485,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (e) {
       console.warn("Sign out error:", e);
     }
+    clearAppCaches();
+    prevUserIdRef.current = null;
     setUser(null);
     setStep("login");
   };
