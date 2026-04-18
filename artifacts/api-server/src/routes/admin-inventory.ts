@@ -691,8 +691,10 @@ router.get("/qr/info/:id", async (req: Request, res: Response) => {
     return;
   }
 
+  const CLAIMABLE_STATUSES = ["unassigned", "sent_to_vendor", "in_stock"] as const;
   const row = data as { id: string; status: string; type: string | null; display_code: string | null };
-  if (row.status === "assigned") {
+
+  if (!CLAIMABLE_STATUSES.includes(row.status as typeof CLAIMABLE_STATUSES[number])) {
     res.json({ claimable: false });
     return;
   }
