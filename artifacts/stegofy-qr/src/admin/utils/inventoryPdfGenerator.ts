@@ -289,7 +289,7 @@ const TYPE_ICONS: Record<string, [IconFn, IconFn, IconFn, IconFn]> = {
   medical:    [icoCross,     icoHeart,    icoPhone, icoAlert],
   luggage:    [icoSuitcase,  icoPin,      icoPhone, icoReturn],
   wallet:     [icoWallet,    icoPin,      icoPhone, icoReturn],
-  home:       [icoDoor,      icoBell,     icoPhone, icoAlert],
+  home:       [icoHouse,     icoDoor,     icoPhone, icoBell],
   event:      [icoCalendar,  icoStar,     icoPhone, icoQR],
   business:   [icoBriefcase, icoGlobe,   icoPhone, icoLink],
   belongings: [icoTag,       icoPin,      icoPhone, icoReturn],
