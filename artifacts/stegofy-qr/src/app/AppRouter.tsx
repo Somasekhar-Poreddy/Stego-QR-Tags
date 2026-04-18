@@ -104,19 +104,28 @@ export function AppRouter() {
     }
   }, [step, user?.id, loadUserProfiles]);
 
-  // Create QR and Success flows are accessible without authentication
-  // so users can generate a QR immediately before being asked to sign up
-  if (location === "/app/qr/create" || location === "/app/qr/success") {
+  // These flows are accessible without authentication — either to let users
+  // generate a QR before signing up, or to let them enter the claim wizard
+  // which has its own built-in auth gate.
+  if (
+    location === "/app/qr/create" ||
+    location === "/app/qr/success" ||
+    location === "/app/claim"
+  ) {
     if (step === "app") {
       return (
         <AppLayout>
-          {location === "/app/qr/create" ? <CreateQRScreen /> : <QRSuccessScreen />}
+          {location === "/app/qr/create" ? <CreateQRScreen />
+            : location === "/app/qr/success" ? <QRSuccessScreen />
+            : <ClaimQRScreen />}
         </AppLayout>
       );
     }
     return (
       <PlainLayout>
-        {location === "/app/qr/create" ? <CreateQRScreen /> : <QRSuccessScreen />}
+        {location === "/app/qr/create" ? <CreateQRScreen />
+          : location === "/app/qr/success" ? <QRSuccessScreen />
+          : <ClaimQRScreen />}
       </PlainLayout>
     );
   }
