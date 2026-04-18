@@ -1059,10 +1059,38 @@ export async function resolveTicket(id: string) {
 /* ═══════════════════════════════════════════════════
    CONFIG STATUS
    ═══════════════════════════════════════════════════ */
-export async function getConfigStatus(): Promise<{ ip_encryption_key_set: boolean }> {
+export async function getConfigStatus(): Promise<{
+  ip_encryption_key_set: boolean;
+  resend_api_key_set: boolean;
+}> {
   const res = await authedFetch("/api/admin/config-status");
   if (!res.ok) throw new Error("Failed to fetch config status");
-  return res.json() as Promise<{ ip_encryption_key_set: boolean }>;
+  return res.json() as Promise<{ ip_encryption_key_set: boolean; resend_api_key_set: boolean }>;
+}
+
+export async function getEmailStatus(): Promise<{ configured: boolean }> {
+  const res = await authedFetch("/api/admin/email-status");
+  if (!res.ok) return { configured: false };
+  return res.json() as Promise<{ configured: boolean }>;
+}
+
+export async function sendVendorEmail(opts: {
+  batchId: string;
+  to: string;
+  subject: string;
+  html: string;
+  attachPdf: boolean;
+  pdfBase64?: string;
+  pdfFilename?: string;
+}): Promise<void> {
+  const res = await authedFetch("/api/admin/send-vendor-email", {
+    method: "POST",
+    body: JSON.stringify(opts),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({})) as { error?: string };
+    throw new Error(body.error ?? `Email send failed (${res.status})`);
+  }
 }
 
 /* ═══════════════════════════════════════════════════

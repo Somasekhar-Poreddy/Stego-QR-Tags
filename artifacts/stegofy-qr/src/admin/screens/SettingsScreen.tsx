@@ -61,6 +61,7 @@ export function SettingsScreen() {
   const [savedApiKey, setSavedApiKey] = useState(false);
   const [apiKeyError, setApiKeyError] = useState<string | null>(null);
   const [encryptionKeySet, setEncryptionKeySet] = useState<boolean | null>(null);
+  const [resendKeySet, setResendKeySet] = useState<boolean | null>(null);
 
   useEffect(() => {
     getSettings().then((settings) => {
@@ -73,8 +74,14 @@ export function SettingsScreen() {
       setLoading(false);
     });
     getConfigStatus()
-      .then((status) => setEncryptionKeySet(status.ip_encryption_key_set))
-      .catch(() => setEncryptionKeySet(false));
+      .then((status) => {
+        setEncryptionKeySet(status.ip_encryption_key_set);
+        setResendKeySet(status.resend_api_key_set);
+      })
+      .catch(() => {
+        setEncryptionKeySet(false);
+        setResendKeySet(false);
+      });
   }, []);
 
   const handleSaveApiKey = async () => {
@@ -216,7 +223,7 @@ export function SettingsScreen() {
         </div>
 
         {/* IP Encryption Key — read-only status */}
-        <div className="py-3">
+        <div className="py-3 border-b border-slate-50">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-semibold text-slate-800">IP Encryption Key</p>
@@ -225,6 +232,29 @@ export function SettingsScreen() {
             {encryptionKeySet === null ? (
               <span className="text-xs text-slate-400 font-medium">Checking…</span>
             ) : encryptionKeySet ? (
+              <span className="flex items-center gap-1 px-2.5 py-1 bg-green-50 text-green-700 rounded-lg text-xs font-semibold">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />
+                Configured
+              </span>
+            ) : (
+              <span className="flex items-center gap-1 px-2.5 py-1 bg-amber-50 text-amber-700 rounded-lg text-xs font-semibold">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block" />
+                Not set
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Resend API Key — read-only status */}
+        <div className="py-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-slate-800">Email Service (Resend)</p>
+              <p className="text-xs text-slate-400 mt-0.5">Must be set as a secret (RESEND_API_KEY). Used to send vendor emails directly from the dashboard.</p>
+            </div>
+            {resendKeySet === null ? (
+              <span className="text-xs text-slate-400 font-medium">Checking…</span>
+            ) : resendKeySet ? (
               <span className="flex items-center gap-1 px-2.5 py-1 bg-green-50 text-green-700 rounded-lg text-xs font-semibold">
                 <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />
                 Configured

@@ -71,6 +71,7 @@ router.get("/admin/config-status", async (req: Request, res: Response) => {
 
   res.status(200).json({
     ip_encryption_key_set: Boolean((process.env.IP_ENCRYPTION_KEY ?? "").trim()),
+    resend_api_key_set: Boolean((process.env.RESEND_API_KEY ?? "").trim()),
   });
 });
 
