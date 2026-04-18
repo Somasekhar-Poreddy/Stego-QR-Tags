@@ -119,7 +119,7 @@ const ABSOLUTE_CAP_MS = 12 * 60 * 60 * 1000;
 
 export function AdminRouter() {
   const [location, navigate] = useLocation();
-  const { user, loading: authLoading, recovering } = useAuth();
+  const { user, loading: authLoading, recovering, logout } = useAuth();
   const { sessionOk, reconnecting } = useSessionKeepalive();
 
   // Cache lookup precedence: module-level (same tab, instant) → localStorage
@@ -149,10 +149,16 @@ export function AdminRouter() {
   const forceSignOut = useCallback(
     async (reason: "idle" | "absolute" | "manual" = "idle") => {
       const signedOutUserId = user?.id ?? _cachedUserId;
+      // Go through AuthContext.logout so explicitLogoutRef is set. Without
+      // that flag the user-side SIGNED_OUT handler tries to refreshSession
+      // for ~1–3s before giving up, which makes a subsequent user login
+      // appear to hang.
       try {
-        await supabase.auth.signOut();
+        await logout();
       } catch {
-        // ignore — we're navigating away anyway
+        // Fallback: if logout() threw for any reason, at least kill the
+        // session so the admin isn't left signed-in on the login screen.
+        try { await supabase.auth.signOut(); } catch {}
       }
       // Clear admin info cache so the next login re-bootstraps cleanly.
       _cachedAdminInfo = null;
@@ -160,7 +166,7 @@ export function AdminRouter() {
       clearAdminInfoFromStorage(signedOutUserId ?? null);
       navigate(`/admin/login?reason=${reason}`);
     },
-    [navigate, user?.id],
+    [navigate, user?.id, logout],
   );
 
   // Tier 1.1 — idle logout. Only enabled once we've actually got an admin
@@ -297,8 +303,10 @@ export function AdminRouter() {
 
       if (!hasAcceptableCredentials) {
         try {
-          await supabase.auth.signOut();
-        } catch {}
+          await logout();
+        } catch {
+          try { await supabase.auth.signOut(); } catch {}
+        }
         _cachedAdminInfo = null;
         _cachedUserId = null;
         clearAdminInfoFromStorage(currentUser.id ?? null);

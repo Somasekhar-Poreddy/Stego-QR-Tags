@@ -98,6 +98,31 @@ export function QRProvider({ children }: { children: ReactNode }) {
     } catch {}
   }, [profiles]);
 
+  // Reset profile state whenever the auth session changes to a different
+  // user (or no user). Without this, signing out of one account and into
+  // another in the same browser shows the previous account's QR list until
+  // the fresh fetch lands — which in turn can be slowed by lock contention,
+  // making the "home screen never loads" bug visible.
+  useEffect(() => {
+    let lastUserId: string | null = null;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_OUT") {
+        lastUserId = null;
+        setProfiles([]);
+        try { localStorage.removeItem(STORAGE_KEY); } catch {}
+        return;
+      }
+      if ((event === "SIGNED_IN" || event === "TOKEN_REFRESHED") && session?.user) {
+        if (lastUserId && lastUserId !== session.user.id) {
+          setProfiles([]);
+          try { localStorage.removeItem(STORAGE_KEY); } catch {}
+        }
+        lastUserId = session.user.id;
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
   const loadUserProfiles = useCallback(async (userId: string): Promise<boolean> => {
     try {
       // Guard 1: no session ⇒ RLS will silently return [] and we'd wipe state.
