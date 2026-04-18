@@ -257,6 +257,20 @@ function icoLink(doc: jsPDF, cx: number, cy: number, s: number): void {
   doc.ellipse(cx + s * 0.22, cy, s * 0.44, s * 0.25, "S");
 }
 
+// Wallet: rectangle body + fold flap on top
+function icoWallet(doc: jsPDF, cx: number, cy: number, s: number): void {
+  doc.roundedRect(cx - s * 0.65, cy - s * 0.3, s * 1.3, s * 0.8, s * 0.15, s * 0.15, "S");
+  doc.line(cx - s * 0.65, cy - s * 0.05, cx + s * 0.65, cy - s * 0.05);
+  doc.circle(cx + s * 0.35, cy + s * 0.22, s * 0.14, "S");
+}
+
+// Door: outer frame + inner door panel + knob
+function icoDoor(doc: jsPDF, cx: number, cy: number, s: number): void {
+  doc.roundedRect(cx - s * 0.42, cy - s * 0.68, s * 0.84, s * 1.36, s * 0.08, s * 0.08, "S");
+  doc.roundedRect(cx - s * 0.3, cy - s * 0.56, s * 0.6, s * 1.12, s * 0.06, s * 0.06, "S");
+  doc.circle(cx + s * 0.18, cy + s * 0.1, s * 0.1, "F");
+}
+
 // Simplified QR mark: 3 corner squares + dot cluster
 function icoQR(doc: jsPDF, cx: number, cy: number, s: number): void {
   const sq = s * 0.35;
@@ -269,16 +283,16 @@ function icoQR(doc: jsPDF, cx: number, cy: number, s: number): void {
 type IconFn = (doc: jsPDF, cx: number, cy: number, s: number) => void;
 
 const TYPE_ICONS: Record<string, [IconFn, IconFn, IconFn, IconFn]> = {
-  vehicle:    [icoCar,      icoWarning, icoPhone, icoAlert],
-  pet:        [icoPaw,      icoHouse,   icoPhone, icoHeart],
-  child:      [icoPerson,   icoHouse,   icoPhone, icoHeart],
-  medical:    [icoCross,    icoHeart,   icoPhone, icoAlert],
-  luggage:    [icoSuitcase, icoPin,     icoPhone, icoReturn],
-  wallet:     [icoTag,      icoPin,     icoPhone, icoReturn],
-  home:       [icoHouse,    icoBell,    icoPhone, icoAlert],
-  event:      [icoCalendar, icoStar,    icoPhone, icoQR],
-  business:   [icoBriefcase,icoGlobe,  icoPhone, icoLink],
-  belongings: [icoTag,      icoPin,     icoPhone, icoReturn],
+  vehicle:    [icoCar,       icoWarning,  icoPhone, icoAlert],
+  pet:        [icoPaw,       icoHouse,    icoPhone, icoHeart],
+  child:      [icoPerson,    icoHouse,    icoPhone, icoHeart],
+  medical:    [icoCross,     icoHeart,    icoPhone, icoAlert],
+  luggage:    [icoSuitcase,  icoPin,      icoPhone, icoReturn],
+  wallet:     [icoWallet,    icoPin,      icoPhone, icoReturn],
+  home:       [icoDoor,      icoBell,     icoPhone, icoAlert],
+  event:      [icoCalendar,  icoStar,     icoPhone, icoQR],
+  business:   [icoBriefcase, icoGlobe,   icoPhone, icoLink],
+  belongings: [icoTag,       icoPin,      icoPhone, icoReturn],
 };
 
 function drawTypeIcons(
@@ -290,7 +304,7 @@ function drawTypeIcons(
   type: string | null | undefined,
 ): void {
   const icons = TYPE_ICONS[type ?? ""] ?? TYPE_ICONS.belongings;
-  const s = 2.2; // half-size; each icon fits in a ~4.4mm × 4.4mm box
+  const s = 3.5; // half-size; each icon fits in a ~7mm × 7mm box
   const iconCy = y + H - 18; // center Y — between PIN text and type badge
   // Distribute 4 icons evenly across rightW
   const totalW = rightW - 4; // 2mm padding each side

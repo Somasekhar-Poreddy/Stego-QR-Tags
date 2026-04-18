@@ -51,6 +51,7 @@ export function InventoryTab({ initialBatchId, initialFocus }: Props) {
   const [showBulkStatus, setShowBulkStatus] = useState(false);
   const [bulkPdfProgress, setBulkPdfProgress] = useState<{ done: number; total: number } | null>(null);
   const [detailId, setDetailId] = useState<string | null>(initialFocus ?? null);
+  const [openToEdit, setOpenToEdit] = useState(false);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -248,7 +249,7 @@ export function InventoryTab({ initialBatchId, initialFocus }: Props) {
                 {items.length === 0 ? (
                   <tr><td colSpan={8} className="px-4 py-10 text-center text-slate-400">No inventory matches these filters.</td></tr>
                 ) : items.map((item) => (
-                  <tr key={item.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => setDetailId(item.id)}>
+                  <tr key={item.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => { setOpenToEdit(false); setDetailId(item.id); }}>
                     <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
                       <input type="checkbox" checked={selected.has(item.id)} onChange={() => toggleOne(item.id)} className="accent-primary" />
                     </td>
@@ -268,14 +269,14 @@ export function InventoryTab({ initialBatchId, initialFocus }: Props) {
                       <div className="flex items-center justify-end gap-1">
                         <button
                           title="View details"
-                          onClick={() => setDetailId(item.id)}
+                          onClick={(e) => { e.stopPropagation(); setOpenToEdit(false); setDetailId(item.id); }}
                           className="p-1.5 rounded-lg text-slate-400 hover:text-primary hover:bg-primary/10 transition-colors"
                         >
                           <Eye className="w-4 h-4" />
                         </button>
                         <button
                           title="Edit"
-                          onClick={() => setDetailId(item.id)}
+                          onClick={(e) => { e.stopPropagation(); setOpenToEdit(true); setDetailId(item.id); }}
                           className="p-1.5 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-colors"
                         >
                           <Pencil className="w-4 h-4" />
@@ -331,8 +332,9 @@ export function InventoryTab({ initialBatchId, initialFocus }: Props) {
       {detailId && (
         <InventoryDetailSlideOver
           itemId={detailId}
-          onClose={() => setDetailId(null)}
+          onClose={() => { setDetailId(null); setOpenToEdit(false); }}
           onChanged={reload}
+          openToEdit={openToEdit}
         />
       )}
     </div>
