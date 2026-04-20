@@ -1076,6 +1076,84 @@ export async function getConfigStatus(): Promise<ConfigStatus> {
   return res.json() as Promise<ConfigStatus>;
 }
 
+/* ═══════════════════════════════════════════════════
+   COMMUNICATIONS (Zavu + Exotel)
+   ═══════════════════════════════════════════════════ */
+export interface CommsHealth {
+  zavu_configured: boolean;
+  exotel_configured: boolean;
+  whatsapp_enabled: boolean;
+  calls_enabled: boolean;
+  messages_enabled: boolean;
+  routing: {
+    whatsapp: string;
+    sms: string;
+    call: string;
+    otp_channel: string;
+  };
+  cost: {
+    today_paise: number;
+    today_inr: number;
+    cap_inr: number;
+    warn_inr: number;
+    over_cap: boolean;
+    over_warn: boolean;
+  };
+  provider_24h: Record<string, { total: number; failed: number; failureRate: number }>;
+}
+
+export async function getCommsHealth(): Promise<CommsHealth> {
+  const res = await authedFetch("/api/admin/comms/health");
+  if (!res.ok) throw new Error(`Failed to fetch comms health (${res.status})`);
+  return res.json() as Promise<CommsHealth>;
+}
+
+export interface CommsTestResult {
+  ok: boolean;
+  status: number;
+  error: string | null;
+}
+
+export async function testCommsProvider(provider: "zavu" | "exotel"): Promise<CommsTestResult> {
+  const res = await authedFetch(`/api/admin/comms/test/${provider}`, { method: "POST" });
+  const body = await res.json().catch(() => ({})) as Partial<CommsTestResult>;
+  return {
+    ok: Boolean(body.ok),
+    status: typeof body.status === "number" ? body.status : res.status,
+    error: body.error ?? (res.ok ? null : `HTTP ${res.status}`),
+  };
+}
+
+export async function invalidateCommsCache(): Promise<void> {
+  await authedFetch("/api/admin/comms/cache/invalidate", { method: "POST" });
+}
+
+export interface CommsAnalytics {
+  range_days: number;
+  messages_daily: Array<{ day: string; sent: number; delivered: number; failed: number; cost_paise: number; }>;
+  calls_daily: Array<{ day: string; total: number; completed: number; failed: number; cost_paise: number; }>;
+  messages_by_provider: Array<{ provider: string; total: number; failed: number; fallback_used: number; cost_paise: number; }>;
+  messages_by_status: Array<{ status: string; count: number }>;
+  calls_by_status: Array<{ status: string; count: number }>;
+}
+
+export async function getCommsAnalytics(days = 7): Promise<CommsAnalytics> {
+  const res = await authedFetch(`/api/admin/comms/analytics?days=${days}`);
+  if (!res.ok) throw new Error(`Failed to fetch comms analytics (${res.status})`);
+  return res.json() as Promise<CommsAnalytics>;
+}
+
+export interface CommsTrail {
+  messages: Array<Record<string, unknown>>;
+  calls: Array<Record<string, unknown>>;
+}
+
+export async function getContactRequestTrail(id: string): Promise<CommsTrail> {
+  const res = await authedFetch(`/api/admin/comms/contact-request/${encodeURIComponent(id)}`);
+  if (!res.ok) throw new Error(`Failed to load comms trail (${res.status})`);
+  return res.json() as Promise<CommsTrail>;
+}
+
 export async function getEmailStatus(): Promise<{ configured: boolean }> {
   const res = await authedFetch("/api/admin/email-status");
   if (!res.ok) throw new Error(`Email status check failed (${res.status})`);

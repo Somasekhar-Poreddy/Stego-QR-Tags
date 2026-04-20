@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { Save, RotateCcw, Settings, Plus, Trash2, ChevronDown, ChevronUp, Eye, EyeOff, Key, Info, Send } from "lucide-react";
-import { getSettings, upsertSetting, getConfigStatus, sendTestEmail } from "@/services/adminService";
+import { Save, RotateCcw, Settings, Plus, Trash2, ChevronDown, ChevronUp, Eye, EyeOff, Key, Info, Send, Radio, Zap, DollarSign, CheckCircle2, AlertTriangle } from "lucide-react";
+import { getSettings, upsertSetting, getConfigStatus, sendTestEmail, testCommsProvider, invalidateCommsCache } from "@/services/adminService";
 
 interface ApiKeyRowDef {
   key: string;
@@ -40,10 +40,96 @@ const API_KEY_ROWS: ApiKeyRowDef[] = [
     hint: "Used for payment processing. Use a sk_test_ key while testing.",
     placeholder: "sk_test_… or sk_live_…",
   },
+  // ── Zavu (primary WhatsApp + OTP) ─────────────────────────────────────
+  {
+    key: "zavu_api_key",
+    label: "Zavu API Key",
+    hint: "Primary provider for WhatsApp messaging and OTP delivery.",
+    placeholder: "Enter Zavu API key…",
+  },
+  {
+    key: "zavu_account_id",
+    label: "Zavu Account ID",
+    hint: "Your Zavu account / business identifier.",
+    placeholder: "zav_xxxxxxxx",
+  },
+  {
+    key: "zavu_phone_number_id",
+    label: "Zavu Phone Number ID",
+    hint: "ID of the registered WhatsApp Business sender number in Zavu.",
+    placeholder: "phn_xxxxxxxx",
+  },
+  {
+    key: "zavu_otp_template_name",
+    label: "Zavu OTP Template Name",
+    hint: "Approved WhatsApp template used to deliver one-time codes.",
+    placeholder: "stegofy_otp",
+  },
+  {
+    key: "zavu_otp_template_lang",
+    label: "Zavu OTP Template Language",
+    hint: "Template language code (e.g. en, en_US, hi).",
+    placeholder: "en",
+  },
+  {
+    key: "zavu_webhook_secret",
+    label: "Zavu Webhook Secret",
+    hint: "Shared secret used to verify status webhook signatures.",
+    placeholder: "Enter Zavu webhook secret…",
+  },
+  // ── Exotel (SMS + masked calls + WhatsApp fallback) ───────────────────
+  {
+    key: "exotel_api_key",
+    label: "Exotel API Key",
+    hint: "Used for SMS delivery, masked-call bridges, and WhatsApp fallback when Zavu is unavailable.",
+    placeholder: "Enter Exotel API key…",
+  },
+  {
+    key: "exotel_api_token",
+    label: "Exotel API Token",
+    hint: "Paired with the Exotel API key above.",
+    placeholder: "Enter Exotel API token…",
+  },
+  {
+    key: "exotel_sid",
+    label: "Exotel Account SID",
+    hint: "Public identifier for your Exotel account.",
+    placeholder: "exotel_sid…",
+  },
+  {
+    key: "exotel_subdomain",
+    label: "Exotel Subdomain",
+    hint: "e.g. api.exotel.com or your regional Exotel cluster.",
+    placeholder: "api.exotel.com",
+  },
+  {
+    key: "exotel_caller_id",
+    label: "Exotel Caller ID",
+    hint: "ExoPhone number used as the masked caller ID for outbound bridges.",
+    placeholder: "+91XXXXXXXXXX",
+  },
+  {
+    key: "exotel_webhook_secret",
+    label: "Exotel Webhook Secret",
+    hint: "Shared secret used to verify status webhook signatures.",
+    placeholder: "Enter Exotel webhook secret…",
+  },
 ];
 
 const FEATURE_KEYS = ["allow_free_qr", "masked_call_enabled", "whatsapp_enabled", "video_call_enabled"];
 const CONFIG_KEYS = ["max_qr_per_user", "emergency_notify_email", "support_email", "app_version"];
+
+// Communications platform — feature flags, routing preferences, cost control.
+// Key names below MUST match the keys read by the API server in
+// commsCredentials.ts / commsRouter.ts. Renaming here without updating the
+// backend silently disconnects the UI from runtime behaviour.
+const COMMS_FLAG_KEYS = [
+  "feature_otp_required",
+  "feature_calls_enabled",
+  "feature_messages_enabled",
+  "feature_whatsapp_enabled",
+];
+const COMMS_COST_KEYS = ["comms_cost_cap_inr_per_day", "comms_cost_warn_threshold_inr_per_day"];
 
 const DEFAULT_VALUES: Record<string, string> = {
   allow_free_qr: "true",
@@ -54,6 +140,18 @@ const DEFAULT_VALUES: Record<string, string> = {
   emergency_notify_email: "",
   support_email: "",
   app_version: "1.0.0",
+  // Comms defaults — tuned for "reliability first": Zavu primary for WhatsApp,
+  // Exotel for SMS, OTP required, daily spend cap of ₹500.
+  feature_otp_required: "true",
+  feature_calls_enabled: "true",
+  feature_messages_enabled: "true",
+  feature_whatsapp_enabled: "true",
+  comms_routing_whatsapp: "zavu_first",
+  comms_routing_sms: "exotel",
+  comms_routing_call: "exotel",
+  comms_cost_cap_inr_per_day: "500",
+  comms_cost_warn_threshold_inr_per_day: "350",
+  zavu_otp_template_lang: "en",
 };
 
 function labelOf(key: string): string {
@@ -136,6 +234,62 @@ function ApiKeyRow({ def, initialValue, isLast }: { def: ApiKeyRowDef; initialVa
         </button>
       </div>
       {error && <p className="text-xs text-red-500 mt-1.5">{error}</p>}
+    </div>
+  );
+}
+
+/**
+ * Hits the admin "test connection" endpoint for a single comms provider and
+ * shows the result inline. Always invalidates the server-side credential cache
+ * first so we test the freshest stored credentials, not the cached ones.
+ */
+function TestProviderButton({ provider }: { provider: "zavu" | "exotel" }) {
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<{ ok: boolean; detail: string } | null>(null);
+
+  const label = provider === "zavu" ? "Zavu" : "Exotel";
+
+  const run = async () => {
+    setBusy(true);
+    setResult(null);
+    try {
+      // Drop the 30s credential cache so we test what was just saved.
+      try { await invalidateCommsCache(); } catch { /* non-fatal */ }
+      const res = await testCommsProvider(provider);
+      setResult({
+        ok: Boolean(res.ok),
+        detail: res.ok
+          ? "Connection successful."
+          : (res.error ?? `Connection failed (HTTP ${res.status}).`),
+      });
+    } catch (err) {
+      setResult({ ok: false, detail: err instanceof Error ? err.message : "Test failed." });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="rounded-xl border border-slate-200 p-3 bg-slate-50/50">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm font-semibold text-slate-800">Test {label}</p>
+        <button
+          onClick={run}
+          disabled={busy}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-white hover:bg-primary/90 transition-colors disabled:opacity-60"
+        >
+          <Send className="w-3 h-3" />
+          {busy ? "Testing…" : "Test connection"}
+        </button>
+      </div>
+      {result && (
+        <div className={`mt-2 flex items-start gap-1.5 text-xs ${result.ok ? "text-green-600" : "text-red-500"}`}>
+          {result.ok
+            ? <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+            : <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />}
+          <span>{result.detail}</span>
+        </div>
+      )}
     </div>
   );
 }
@@ -252,6 +406,88 @@ export function SettingsScreen() {
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
         <p className="font-bold text-slate-900 mb-4">Configuration</p>
         {CONFIG_KEYS.map((k) => (
+          <TextSetting key={k} label={labelOf(k)} value={values[k] ?? ""} onChange={(v) => set(k, v)} />
+        ))}
+      </div>
+
+      {/* ── Communications: Routing ─────────────────────────────────── */}
+      <div id="comms-routing" className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 scroll-mt-20">
+        <div className="flex items-center gap-2 mb-1">
+          <Radio className="w-4 h-4 text-primary" />
+          <p className="font-bold text-slate-900">Communication Settings</p>
+        </div>
+        <p className="text-xs text-slate-400 mb-4">
+          Choose which provider is the primary for each channel. The system always falls back to the other provider if the primary fails — Zavu and Exotel are the two supported providers.
+        </p>
+
+        <div className="space-y-3">
+          <div>
+            <label className="text-sm font-semibold text-slate-800 block mb-1.5">WhatsApp routing</label>
+            <select
+              value={values.comms_routing_whatsapp ?? "zavu_first"}
+              onChange={(e) => set("comms_routing_whatsapp", e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm outline-none focus:border-primary transition-colors bg-white"
+            >
+              <option value="zavu_first">Zavu first, fall back to Exotel (recommended)</option>
+              <option value="exotel_first">Exotel first, fall back to Zavu</option>
+              <option value="off">Disabled — do not send WhatsApp messages</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-sm font-semibold text-slate-800 block mb-1.5">SMS routing</label>
+            <select
+              value={values.comms_routing_sms ?? "exotel"}
+              onChange={(e) => set("comms_routing_sms", e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm outline-none focus:border-primary transition-colors bg-white"
+            >
+              <option value="exotel">Exotel (recommended)</option>
+              <option value="zavu">Zavu</option>
+              <option value="off">Disabled — do not send SMS</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-sm font-semibold text-slate-800 block mb-1.5">Masked-call routing</label>
+            <select
+              value={values.comms_routing_call ?? "exotel"}
+              onChange={(e) => set("comms_routing_call", e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm outline-none focus:border-primary transition-colors bg-white"
+            >
+              <option value="exotel">Exotel (recommended)</option>
+              <option value="off">Disabled — do not place masked calls</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-5">
+          <TestProviderButton provider="zavu" />
+          <TestProviderButton provider="exotel" />
+        </div>
+      </div>
+
+      {/* ── Communications: Feature Flags ───────────────────────────── */}
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+        <div className="flex items-center gap-2 mb-1">
+          <Zap className="w-4 h-4 text-primary" />
+          <p className="font-bold text-slate-900">Feature Flags</p>
+        </div>
+        <p className="text-xs text-slate-400 mb-3">
+          Master switches for each part of the contact flow. Disable a flag to immediately stop that channel without redeploying.
+        </p>
+        {COMMS_FLAG_KEYS.map((k) => (
+          <ToggleSetting key={k} label={labelOf(k.replace(/^feature_/, ""))} value={values[k] ?? "false"} onChange={(v) => set(k, v)} />
+        ))}
+      </div>
+
+      {/* ── Communications: Cost Control ────────────────────────────── */}
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+        <div className="flex items-center gap-2 mb-1">
+          <DollarSign className="w-4 h-4 text-primary" />
+          <p className="font-bold text-slate-900">Cost Control</p>
+        </div>
+        <p className="text-xs text-slate-400 mb-3">
+          All values are whole rupees per day. When the daily cap is hit, the platform pauses paid messaging for the rest of the day. The warn threshold raises the amber banner on the dashboard.
+        </p>
+        {COMMS_COST_KEYS.map((k) => (
           <TextSetting key={k} label={labelOf(k)} value={values[k] ?? ""} onChange={(v) => set(k, v)} />
         ))}
       </div>
