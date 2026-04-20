@@ -659,11 +659,11 @@ export function ManageQRScreen({ profileId }: { profileId: string }) {
       {showEdit && (
         <EditQRModal
           profile={profile}
-          onSave={(updates) => updateProfile(profile.id, updates)}
-          onClose={() => {
-            setShowEdit(false);
+          onSave={(updates) => {
+            updateProfile(profile.id, updates);
             showToast("Profile updated");
           }}
+          onClose={() => setShowEdit(false)}
         />
       )}
     </div>
