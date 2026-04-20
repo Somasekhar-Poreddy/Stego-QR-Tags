@@ -93,6 +93,7 @@ const ROUTE_PERMISSIONS: { path: string; permissionKey?: string }[] = [
   { path: "/admin/inventory", permissionKey: "manage_inventory" },
   { path: "/admin/analytics", permissionKey: "view_analytics" },
   { path: "/admin/communications", permissionKey: "view_analytics" },
+  { path: "/admin/analytics/comms", permissionKey: "view_analytics" },
   { path: "/admin/visitor-log", permissionKey: "view_analytics" },
   { path: "/admin/team", permissionKey: "manage_team" },
   { path: "/admin/notifications", permissionKey: "send_notifications" },
@@ -461,6 +462,7 @@ export function AdminRouter() {
           <Route path="/admin/inventory" component={InventoryScreen} />
           <Route path="/admin/analytics" component={AnalyticsScreen} />
           <Route path="/admin/communications" component={CommunicationsScreen} />
+          <Route path="/admin/analytics/comms" component={CommunicationsScreen} />
           <Route path="/admin/team" component={TeamScreen} />
           <Route path="/admin/notifications" component={NotificationsScreen} />
           <Route path="/admin/support" component={SupportScreen} />

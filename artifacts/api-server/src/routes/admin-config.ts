@@ -3,6 +3,10 @@ import type { Request, Response } from "express";
 import { supabaseAdmin } from "../lib/supabaseAdmin.js";
 import { getIp2LocationKeyStatus } from "../services/geoService.js";
 import { getFromEmail, isCustomFromDomain, sendVendorEmail, isEmailConfigured } from "../services/emailService.js";
+import { isZavuConfigured } from "../services/zavuService.js";
+import { isExotelConfigured } from "../services/exotelService.js";
+import { getMonthCostPaise, monthlyBudgetState } from "../services/commsRouter.js";
+import { getCommsSettings } from "../services/commsCredentials.js";
 
 const router: IRouter = Router();
 
@@ -144,6 +148,34 @@ router.get("/admin/config-status", async (req: Request, res: Response) => {
   const ip2locationKeySet = Boolean(dbIp2LocationKey || envIp2LocationKey);
   const ip2locationKeyStatus = ip2locationKeySet ? getIp2LocationKeyStatus() : "unknown";
 
+  // Comms platform config snapshot — used by the dashboard to surface
+  // misconfiguration warnings ("Zavu not configured", "over monthly budget"…)
+  // without forcing every screen to call the heavier /admin/comms/health.
+  let zavuConfigured = false;
+  let exotelConfigured = false;
+  let monthSpendPaise = 0;
+  let monthlyBudgetPaise = 0;
+  let overBudgetBehavior = "calls_only";
+  let overBudget = false;
+  try {
+    const [zc, ec, ms, bs, settings] = await Promise.all([
+      isZavuConfigured(),
+      isExotelConfigured(),
+      getMonthCostPaise(),
+      monthlyBudgetState(),
+      getCommsSettings(),
+    ]);
+    zavuConfigured = zc;
+    exotelConfigured = ec;
+    monthSpendPaise = ms;
+    monthlyBudgetPaise = Number(settings.monthly_budget_paise) || 0;
+    overBudgetBehavior = settings.over_budget_behavior ?? "calls_only";
+    overBudget = bs !== "ok";
+  } catch {
+    // Comms DB may be down independently of the API. Degrade gracefully —
+    // the dashboard treats missing fields as "unknown" rather than failing.
+  }
+
   res.status(200).json({
     ip_encryption_key_set: Boolean((process.env.IP_ENCRYPTION_KEY ?? "").trim()),
     resend_api_key_set: Boolean((process.env.RESEND_API_KEY ?? "").trim()),
@@ -151,6 +183,12 @@ router.get("/admin/config-status", async (req: Request, res: Response) => {
     resend_custom_domain: isCustomFromDomain(),
     ip2location_api_key_set: ip2locationKeySet,
     ip2location_api_key_status: ip2locationKeyStatus,
+    zavu_configured: zavuConfigured,
+    exotel_configured: exotelConfigured,
+    current_month_spend_paise: monthSpendPaise,
+    monthly_budget_paise: monthlyBudgetPaise,
+    over_budget: overBudget,
+    over_budget_behavior: overBudgetBehavior,
   });
 });
 

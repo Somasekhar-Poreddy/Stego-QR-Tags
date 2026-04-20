@@ -8,7 +8,7 @@ import {
   schedulePendingDisconnect,
   consumeRateBucket,
 } from "../services/commsRouter.js";
-import { getCommsSettings, isFlagOn } from "../services/commsCredentials.js";
+import { getCommsSettings, isFlagOn, flagOn } from "../services/commsCredentials.js";
 import { isValidIndianMobile, normalizePhone, hashPhone } from "../services/phoneHash.js";
 
 const router: IRouter = Router();
@@ -258,7 +258,7 @@ router.post("/qr/:qrId/contact/call", async (req: Request, res: Response) => {
   if (!ctx) return;
 
   const settings = await getCommsSettings();
-  if (!isFlagOn(settings.feature_calls_enabled ?? "true")) {
+  if (!flagOn(settings, "masked_call_enabled", "feature_calls_enabled")) {
     res.status(503).json({ error: "Masked calls are temporarily unavailable. Please try messaging instead." });
     return;
   }
@@ -301,12 +301,13 @@ router.post("/qr/:qrId/contact/call", async (req: Request, res: Response) => {
     return;
   }
 
-  // Auto-disconnect at 3 minutes (defense-in-depth alongside Exotel TimeLimit).
+  // Defense-in-depth disconnect: schedule a hangup ~10s after Exotel's
+  // own TimeLimit so transient delays don't let calls run past the cap.
   if (result.providerCallId) {
     await schedulePendingDisconnect({
       provider: "exotel",
       providerCallId: result.providerCallId,
-      delaySeconds: 200,
+      delaySeconds: result.maxDurationSec + 10,
     }).catch(() => null);
   }
 
@@ -322,7 +323,8 @@ router.post("/qr/:qrId/contact/message", async (req: Request, res: Response) => 
   const ctx = await validateRequester(req, res);
   if (!ctx) return;
   const settings = await getCommsSettings();
-  if (!isFlagOn(settings.feature_messages_enabled ?? "true")) {
+  if (!flagOn(settings, "sms_enabled", "feature_messages_enabled")
+      && !flagOn(settings, "whatsapp_enabled", "feature_whatsapp_enabled")) {
     res.status(503).json({ error: "Messaging is temporarily unavailable. Please try a masked call instead." });
     return;
   }

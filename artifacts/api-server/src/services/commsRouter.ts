@@ -1,6 +1,6 @@
 import { getCommsPool } from "../lib/migrations.js";
 import { logger } from "../lib/logger.js";
-import { getCommsSettings, isFlagOn } from "./commsCredentials.js";
+import { getCommsSettings, flagOn } from "./commsCredentials.js";
 import { hashPhone } from "./phoneHash.js";
 import { sendWhatsAppViaZavu } from "./zavuService.js";
 import {
@@ -37,6 +37,35 @@ async function isOverDailyCap(): Promise<boolean> {
   if (!cap) return false;
   const todayPaise = await getTodayCostPaise();
   return todayPaise >= cap * 100;
+}
+
+/** Total comms spend for the current calendar month, in paise. */
+export async function getMonthCostPaise(): Promise<number> {
+  const pool = getCommsPool();
+  const { rows } = await pool.query<{ total: string | null }>(
+    `SELECT
+       COALESCE((SELECT SUM(cost_paise) FROM message_logs
+                  WHERE date_trunc('month', created_at) = date_trunc('month', now())), 0) +
+       COALESCE((SELECT SUM(cost_paise) FROM call_logs
+                  WHERE date_trunc('month', created_at) = date_trunc('month', now())), 0)
+       AS total`,
+  );
+  return Number(rows[0]?.total ?? 0);
+}
+
+/**
+ * Per-spec monthly budget gate. Returns:
+ *   - "ok"        — spend below budget (or budget = 0 = unlimited)
+ *   - "calls_only" — over budget; only masked calls should be blocked
+ *   - "all_comms" — over budget; block every channel
+ */
+export async function monthlyBudgetState(): Promise<"ok" | "calls_only" | "all_comms"> {
+  const s = await getCommsSettings();
+  const budget = Number(s.monthly_budget_paise) || 0;
+  if (!budget) return "ok";
+  const spent = await getMonthCostPaise();
+  if (spent < budget) return "ok";
+  return s.over_budget_behavior === "all_comms" ? "all_comms" : "calls_only";
 }
 
 /* ─────────────────────── Logging helpers ─────────────────────── */
@@ -154,11 +183,14 @@ interface SmartSendArgs {
  */
 export async function sendWhatsAppSmart(args: SmartSendArgs): Promise<SendResult> {
   const s = await getCommsSettings();
-  if (!isFlagOn(s.feature_whatsapp_enabled ?? "true")) {
+  if (!flagOn(s, "whatsapp_enabled", "feature_whatsapp_enabled")) {
     return failed("whatsapp", "WHATSAPP_DISABLED", "WhatsApp is disabled in settings.");
   }
   if (await isOverDailyCap()) {
     return failed("whatsapp", "COST_CAP", "Daily comms cost cap reached.");
+  }
+  if ((await monthlyBudgetState()) === "all_comms") {
+    return failed("whatsapp", "BUDGET_EXCEEDED", "Monthly communications budget reached.");
   }
   const route = (s.comms_routing_whatsapp ?? "zavu_first").toLowerCase();
   const order: Array<"zavu" | "exotel"> =
@@ -234,7 +266,7 @@ export async function sendWhatsAppSmart(args: SmartSendArgs): Promise<SendResult
 
 export async function sendSmsSmart(args: SmartSendArgs): Promise<SendResult> {
   const s = await getCommsSettings();
-  if (!isFlagOn(s.feature_messages_enabled ?? "true")) {
+  if (!flagOn(s, "sms_enabled", "feature_messages_enabled")) {
     return failed("sms", "SMS_DISABLED", "Messaging is disabled in settings.");
   }
   if ((s.comms_routing_sms ?? "exotel") === "off") {
@@ -242,6 +274,9 @@ export async function sendSmsSmart(args: SmartSendArgs): Promise<SendResult> {
   }
   if (await isOverDailyCap()) {
     return failed("sms", "COST_CAP", "Daily comms cost cap reached.");
+  }
+  if ((await monthlyBudgetState()) === "all_comms") {
+    return failed("sms", "BUDGET_EXCEEDED", "Monthly communications budget reached.");
   }
   const tariff = await tariffPaise("sms");
   const r = await sendSmsViaExotel({ to: args.to, body: args.body });
@@ -279,7 +314,7 @@ export async function sendSmsSmart(args: SmartSendArgs): Promise<SendResult> {
  */
 export async function sendMessageSmart(args: SmartSendArgs): Promise<SendResult> {
   const s = await getCommsSettings();
-  const wa = isFlagOn(s.feature_whatsapp_enabled ?? "true")
+  const wa = flagOn(s, "whatsapp_enabled", "feature_whatsapp_enabled")
     && (s.comms_routing_whatsapp ?? "zavu_first") !== "off";
   if (wa) {
     const r = await sendWhatsAppSmart(args);
@@ -301,18 +336,64 @@ export async function placeMaskedCall(args: {
   providerCallId: string | null;
   errorCode: string | null;
   errorMessage: string | null;
+  /** Hard cap, in seconds, the call will be allowed to last. */
+  maxDurationSec: number;
 }> {
   const s = await getCommsSettings();
-  if (!isFlagOn(s.feature_calls_enabled ?? "true")) {
-    return { ok: false, callLogId: null, providerCallId: null, errorCode: "CALLS_DISABLED", errorMessage: "Masked calls are disabled." };
+  const maxDurationSec = Math.max(15, Math.min(Number(s.call_max_duration_sec) || 60, 600));
+  if (!flagOn(s, "masked_call_enabled", "feature_calls_enabled")) {
+    return { ok: false, callLogId: null, providerCallId: null, errorCode: "CALLS_DISABLED", errorMessage: "Masked calls are disabled.", maxDurationSec };
   }
   if ((s.comms_routing_call ?? "exotel") === "off") {
-    return { ok: false, callLogId: null, providerCallId: null, errorCode: "CALLS_DISABLED", errorMessage: "Call routing is off." };
+    return { ok: false, callLogId: null, providerCallId: null, errorCode: "CALLS_DISABLED", errorMessage: "Call routing is off.", maxDurationSec };
   }
   if (await isOverDailyCap()) {
-    return { ok: false, callLogId: null, providerCallId: null, errorCode: "COST_CAP", errorMessage: "Daily comms cost cap reached." };
+    return { ok: false, callLogId: null, providerCallId: null, errorCode: "COST_CAP", errorMessage: "Daily comms cost cap reached.", maxDurationSec };
   }
-  const r = await connectCallViaExotel({ fromPhone: args.callerPhone, toPhone: args.calleePhone });
+  const monthState = await monthlyBudgetState();
+  if (monthState !== "ok") {
+    return { ok: false, callLogId: null, providerCallId: null, errorCode: "BUDGET_EXCEEDED", errorMessage: "Monthly communications budget reached.", maxDurationSec };
+  }
+
+  // Per-QR rate limit (spec: max calls per QR per hour, default 2) and
+  // cooldown between calls on the same QR (default 60s). Persisted in
+  // Postgres so the limits survive restarts.
+  if (args.qrId) {
+    const perHour = Math.max(1, Number(s.calls_per_qr_per_hour) || 2);
+    const hourly = await consumeRateBucket({
+      key: `qr_call_hourly:${args.qrId}`,
+      limit: perHour,
+      windowSeconds: 3600,
+    });
+    if (!hourly.allowed) {
+      return {
+        ok: false, callLogId: null, providerCallId: null,
+        errorCode: "RATE_LIMIT_QR_HOURLY",
+        errorMessage: `Too many calls for this tag (max ${perHour}/hour).`,
+        maxDurationSec,
+      };
+    }
+    const cooldownSec = Math.max(5, Number(s.call_cooldown_sec) || 60);
+    const cooldown = await consumeRateBucket({
+      key: `qr_call_cooldown:${args.qrId}`,
+      limit: 1,
+      windowSeconds: cooldownSec,
+    });
+    if (!cooldown.allowed) {
+      return {
+        ok: false, callLogId: null, providerCallId: null,
+        errorCode: "RATE_LIMIT_QR_COOLDOWN",
+        errorMessage: `Please wait ${cooldownSec}s before calling this tag again.`,
+        maxDurationSec,
+      };
+    }
+  }
+
+  const r = await connectCallViaExotel({
+    fromPhone: args.callerPhone,
+    toPhone: args.calleePhone,
+    maxDurationSec,
+  });
   // Initial cost = 1 minute estimate; webhook will update with actual duration.
   const tariff = await tariffPaise("call");
   const logId = await insertCallLog({
@@ -333,6 +414,7 @@ export async function placeMaskedCall(args: {
     providerCallId: r.providerCallId,
     errorCode: r.errorCode,
     errorMessage: r.errorMessage,
+    maxDurationSec,
   };
 }
 

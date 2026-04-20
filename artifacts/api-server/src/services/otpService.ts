@@ -3,6 +3,7 @@ import { getCommsPool } from "../lib/migrations.js";
 import { hashPhone } from "./phoneHash.js";
 import { getCommsSettings } from "./commsCredentials.js";
 import { sendWhatsAppSmart, sendSmsSmart } from "./commsRouter.js";
+import { consumeRateBucket } from "./rateLimitDb.js";
 
 const OTP_TTL_SECONDS = 600;        // 10 minutes
 const MAX_VERIFY_ATTEMPTS = 5;
@@ -35,6 +36,25 @@ export async function requestOtp(opts: {
   const pool = getCommsPool();
   const settings = await getCommsSettings();
   const phoneHash = hashPhone(opts.phone);
+
+  // Spec: throttle OTP resends to 1 every 60 seconds per phone. Persisted
+  // in the same Postgres-backed bucket table the rest of the comms
+  // platform uses, so the limit survives restarts and replicas.
+  const resend = await consumeRateBucket({
+    key: `otp_resend:${phoneHash}`,
+    limit: 1,
+    windowSeconds: 60,
+  });
+  if (!resend.allowed) {
+    const waitSec = Math.max(1, Math.ceil((resend.resetAt.getTime() - Date.now()) / 1000));
+    return {
+      ok: false,
+      channelUsed: null,
+      errorCode: "OTP_RESEND_COOLDOWN",
+      errorMessage: `Please wait ${waitSec}s before requesting a new code.`,
+    };
+  }
+
   const code = generateCode();
   const codeHash = hashCode(code);
   const expires = new Date(Date.now() + OTP_TTL_SECONDS * 1000);

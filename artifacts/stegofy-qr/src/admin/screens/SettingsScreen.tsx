@@ -123,26 +123,40 @@ const CONFIG_KEYS = ["max_qr_per_user", "emergency_notify_email", "support_email
 // Key names below MUST match the keys read by the API server in
 // commsCredentials.ts / commsRouter.ts. Renaming here without updating the
 // backend silently disconnects the UI from runtime behaviour.
+// Canonical spec keys live unprefixed; the legacy `feature_*` aliases are
+// kept in DEFAULT_VALUES for backward compatibility with older deployments.
 const COMMS_FLAG_KEYS = [
   "feature_otp_required",
-  "feature_calls_enabled",
-  "feature_messages_enabled",
-  "feature_whatsapp_enabled",
+  "masked_call_enabled",
+  "whatsapp_enabled",
+  "sms_enabled",
+];
+const COMMS_SETTINGS_KEYS = [
+  "wa_delivery_timeout_sec",
+  "comms_retry_attempts",
+  "call_max_duration_sec",
+  "call_cooldown_sec",
+  "calls_per_qr_per_hour",
 ];
 const COMMS_COST_KEYS = ["comms_cost_cap_inr_per_day", "comms_cost_warn_threshold_inr_per_day"];
 
 const DEFAULT_VALUES: Record<string, string> = {
   allow_free_qr: "true",
-  masked_call_enabled: "true",
-  whatsapp_enabled: "true",
   video_call_enabled: "true",
   max_qr_per_user: "3",
   emergency_notify_email: "",
   support_email: "",
   app_version: "1.0.0",
   // Comms defaults — tuned for "reliability first": Zavu primary for WhatsApp,
-  // Exotel for SMS, OTP required, daily spend cap of ₹500.
+  // Exotel for SMS, OTP required, daily spend cap of ₹500. The canonical
+  // spec keys are unprefixed (`masked_call_enabled` etc.); the legacy
+  // `feature_*_enabled` aliases are written alongside so older readers
+  // continue to see consistent values.
   feature_otp_required: "true",
+  masked_call_enabled: "true",
+  whatsapp_enabled: "true",
+  sms_enabled: "true",
+  // Legacy aliases — written so older API code paths continue to see "on".
   feature_calls_enabled: "true",
   feature_messages_enabled: "true",
   feature_whatsapp_enabled: "true",
@@ -151,6 +165,15 @@ const DEFAULT_VALUES: Record<string, string> = {
   comms_routing_call: "exotel",
   comms_cost_cap_inr_per_day: "500",
   comms_cost_warn_threshold_inr_per_day: "350",
+  // Communication Settings (spec).
+  wa_delivery_timeout_sec: "10",
+  comms_retry_attempts: "1",
+  call_max_duration_sec: "60",
+  call_cooldown_sec: "60",
+  calls_per_qr_per_hour: "2",
+  // Cost Control — monthly budget stored in paise; UI shows ₹.
+  monthly_budget_paise: "0",
+  over_budget_behavior: "calls_only",
   zavu_otp_template_lang: "en",
 };
 
@@ -474,7 +497,33 @@ export function SettingsScreen() {
           Master switches for each part of the contact flow. Disable a flag to immediately stop that channel without redeploying.
         </p>
         {COMMS_FLAG_KEYS.map((k) => (
-          <ToggleSetting key={k} label={labelOf(k.replace(/^feature_/, ""))} value={values[k] ?? "false"} onChange={(v) => set(k, v)} />
+          <ToggleSetting
+            key={k}
+            label={labelOf(k.replace(/^feature_/, ""))}
+            value={values[k] ?? "false"}
+            onChange={(v) => {
+              set(k, v);
+              // Keep the legacy aliases in lock-step so the API server's
+              // historical readers stay consistent with the new keys.
+              if (k === "masked_call_enabled") set("feature_calls_enabled", v);
+              if (k === "sms_enabled") set("feature_messages_enabled", v);
+              if (k === "whatsapp_enabled") set("feature_whatsapp_enabled", v);
+            }}
+          />
+        ))}
+      </div>
+
+      {/* ── Communication Settings ─────────────────────────────────── */}
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+        <div className="flex items-center gap-2 mb-1">
+          <Zap className="w-4 h-4 text-primary" />
+          <p className="font-bold text-slate-900">Communication Settings</p>
+        </div>
+        <p className="text-xs text-slate-400 mb-3">
+          Reliability knobs for the messaging and call platform. Values are seconds (or attempts) — defaults are tuned for the spec (60s call cap, 60s cooldown, 2 calls per QR per hour).
+        </p>
+        {COMMS_SETTINGS_KEYS.map((k) => (
+          <TextSetting key={k} label={labelOf(k)} value={values[k] ?? ""} onChange={(v) => set(k, v)} />
         ))}
       </div>
 
@@ -485,8 +534,27 @@ export function SettingsScreen() {
           <p className="font-bold text-slate-900">Cost Control</p>
         </div>
         <p className="text-xs text-slate-400 mb-3">
-          All values are whole rupees per day. When the daily cap is hit, the platform pauses paid messaging for the rest of the day. The warn threshold raises the amber banner on the dashboard.
+          Set a monthly communications budget in rupees. When the budget is reached, the platform either blocks just masked calls (cheapest mitigation) or all paid comms, depending on the over-budget behavior. The daily cap and warn threshold below remain available as a secondary safety net.
         </p>
+        <TextSetting
+          label="Monthly Budget (₹)"
+          value={String(Math.round((Number(values.monthly_budget_paise) || 0) / 100))}
+          onChange={(v) => {
+            const inr = Math.max(0, Math.floor(Number(v) || 0));
+            set("monthly_budget_paise", String(inr * 100));
+          }}
+        />
+        <div className="flex items-center justify-between py-2.5 border-b border-slate-100 last:border-b-0">
+          <span className="text-sm text-slate-700">Over Budget Behavior</span>
+          <select
+            value={values.over_budget_behavior ?? "calls_only"}
+            onChange={(e) => set("over_budget_behavior", e.target.value)}
+            className="px-3 py-1.5 rounded-lg border border-slate-200 text-sm outline-none focus:border-primary"
+          >
+            <option value="calls_only">Block masked calls only</option>
+            <option value="all_comms">Block all paid comms</option>
+          </select>
+        </div>
         {COMMS_COST_KEYS.map((k) => (
           <TextSetting key={k} label={labelOf(k)} value={values[k] ?? ""} onChange={(v) => set(k, v)} />
         ))}

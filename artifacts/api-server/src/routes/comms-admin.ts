@@ -1,10 +1,10 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { supabaseAdmin } from "../lib/supabaseAdmin.js";
 import { getCommsPool } from "../lib/migrations.js";
-import { getCommsSettings, invalidateCommsCache, isFlagOn } from "../services/commsCredentials.js";
+import { getCommsSettings, invalidateCommsCache, flagOn } from "../services/commsCredentials.js";
 import { probeZavuCredentials, isZavuConfigured } from "../services/zavuService.js";
 import { probeExotelCredentials, isExotelConfigured } from "../services/exotelService.js";
-import { getTodayCostPaise } from "../services/commsRouter.js";
+import { getTodayCostPaise, getMonthCostPaise, monthlyBudgetState } from "../services/commsRouter.js";
 
 const router: IRouter = Router();
 
@@ -103,16 +103,22 @@ router.get("/admin/comms/health", async (req: Request, res: Response) => {
     };
   }
 
-  const todayCostPaise = await getTodayCostPaise();
+  const [todayCostPaise, monthCostPaise, budgetState] = await Promise.all([
+    getTodayCostPaise(), getMonthCostPaise(), monthlyBudgetState(),
+  ]);
   const capInr = Number(settings.comms_cost_cap_inr_per_day) || 0;
   const warnInr = Number(settings.comms_cost_warn_threshold_inr_per_day) || 0;
+  const monthlyBudgetPaise = Number(settings.monthly_budget_paise) || 0;
 
   res.status(200).json({
     zavu_configured: zavuConfigured,
     exotel_configured: exotelConfigured,
-    whatsapp_enabled: isFlagOn(settings.feature_whatsapp_enabled ?? "true"),
-    calls_enabled: isFlagOn(settings.feature_calls_enabled ?? "true"),
-    messages_enabled: isFlagOn(settings.feature_messages_enabled ?? "true"),
+    masked_call_enabled: flagOn(settings, "masked_call_enabled", "feature_calls_enabled"),
+    whatsapp_enabled: flagOn(settings, "whatsapp_enabled", "feature_whatsapp_enabled"),
+    sms_enabled: flagOn(settings, "sms_enabled", "feature_messages_enabled"),
+    // Legacy aliases — kept so the existing dashboard keeps working.
+    calls_enabled: flagOn(settings, "masked_call_enabled", "feature_calls_enabled"),
+    messages_enabled: flagOn(settings, "sms_enabled", "feature_messages_enabled"),
     routing: {
       whatsapp: settings.comms_routing_whatsapp ?? "zavu_first",
       sms: settings.comms_routing_sms ?? "exotel",
@@ -126,6 +132,12 @@ router.get("/admin/comms/health", async (req: Request, res: Response) => {
       warn_inr: warnInr,
       over_cap: capInr > 0 && todayCostPaise >= capInr * 100,
       over_warn: warnInr > 0 && todayCostPaise >= warnInr * 100,
+      month_paise: monthCostPaise,
+      month_inr: Math.round(monthCostPaise / 100 * 100) / 100,
+      monthly_budget_paise: monthlyBudgetPaise,
+      monthly_budget_inr: Math.round(monthlyBudgetPaise / 100 * 100) / 100,
+      over_budget: budgetState !== "ok",
+      over_budget_behavior: settings.over_budget_behavior ?? "calls_only",
     },
     provider_24h: providerHealth,
   });

@@ -168,6 +168,8 @@ export async function sendWhatsAppViaExotel(args: { to: string; body: string }):
 export async function connectCallViaExotel(args: {
   fromPhone: string; // requester
   toPhone: string;   // owner
+  /** Hard duration cap in seconds (Exotel TimeLimit). Defaults to 60. */
+  maxDurationSec?: number;
 }): Promise<ExotelCallResult> {
   const s = await getCommsSettings();
   if (!s.exotel_api_key || !s.exotel_api_token || !s.exotel_sid || !s.exotel_caller_id) {
@@ -187,7 +189,7 @@ export async function connectCallViaExotel(args: {
   form.set("To", args.toPhone);
   form.set("CallerId", s.exotel_caller_id);
   form.set("CallType", "trans");
-  form.set("TimeLimit", "180");
+  form.set("TimeLimit", String(Math.max(15, Math.min(args.maxDurationSec ?? 60, 600))));
   form.set("Record", "false");
 
   try {
