@@ -32,9 +32,12 @@ app.use(cors());
 // HMAC signatures over the exact bytes the provider signed. Without this, the
 // global JSON parser would consume the body before route-level express.raw()
 // could see it, leaving signature verification with no payload to hash.
-declare module "express-serve-static-core" {
-  interface Request {
-    rawBody?: Buffer;
+declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
+  namespace Express {
+    interface Request {
+      rawBody?: Buffer;
+    }
   }
 }
 const captureRawBody = (req: express.Request, _res: express.Response, buf: Buffer): void => {

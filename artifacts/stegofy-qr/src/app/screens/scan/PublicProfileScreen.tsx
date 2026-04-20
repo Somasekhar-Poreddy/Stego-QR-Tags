@@ -712,6 +712,18 @@ const SCAN_RETRY_DELAYS = [600, 1200, 2000];
 /* ─── Main Public Contact Page ────────────────────────────────────────────────── */
 export function PublicProfileScreen() {
   const [qrData, setQrData] = useState<QRPublicData | null>(null);
+  // Public comms-flag snapshot. Used to hide CTAs for channels the admin
+  // has globally turned off; the server still rejects, this is just UX.
+  const [commsFlags, setCommsFlags] = useState<{
+    masked_call_enabled: boolean;
+    message_enabled: boolean;
+  } | null>(null);
+  useEffect(() => {
+    fetch("/api/comms/public-flags")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => { if (j) setCommsFlags(j); })
+      .catch(() => { /* leave defaults — buttons stay visible */ });
+  }, []);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [claimable, setClaimable] = useState<{ displayCode: string; type: string | null } | null>(null);
@@ -906,6 +918,12 @@ export function PublicProfileScreen() {
   const vehicleHint = vehicleNumber ? `${vehicleNumber.slice(0, 4).toUpperCase()}####` : "";
   const contactAllowed = qrData.allow_contact;
   const videoCallEnabled = qrData.privacy?.videoCall === true;
+  // Comms feature flags fetched from /api/comms/public-flags. The server
+  // also rejects disabled channels at the API layer, but hiding the buttons
+  // up front keeps the public scan UX consistent with admin's Settings →
+  // Communication Settings switches.
+  const callEnabled = commsFlags?.masked_call_enabled ?? true;
+  const messageEnabled = commsFlags?.message_enabled ?? true;
 
   return (
     <div className="min-h-screen bg-white flex flex-col max-w-lg mx-auto">
@@ -1015,25 +1033,33 @@ export function PublicProfileScreen() {
             {!qrData.strict_mode && (
               <p className="text-sm text-slate-600 mb-3">Would you like to call or text the owner?</p>
             )}
-            <div className={cn("grid gap-3", videoCallEnabled ? "grid-cols-3" : "grid-cols-2")}>
-              {/* Masked Call — always enabled, no message selection required */}
-              <button
-                onClick={() => handleCTA("contact")}
-                className="flex flex-col items-center gap-2 py-4 rounded-2xl border-2 border-amber-400 text-amber-600 font-semibold text-sm active:scale-[0.97] transition-all hover:bg-amber-50"
-              >
-                <Phone className="w-6 h-6" />
-                Masked Call
-              </button>
+            <div className={cn(
+              "grid gap-3",
+              [callEnabled, messageEnabled, videoCallEnabled].filter(Boolean).length === 3 ? "grid-cols-3" :
+              [callEnabled, messageEnabled, videoCallEnabled].filter(Boolean).length === 2 ? "grid-cols-2" : "grid-cols-1",
+            )}>
+              {/* Masked Call — hidden if globally disabled in Communication Settings. */}
+              {callEnabled && (
+                <button
+                  onClick={() => handleCTA("contact")}
+                  className="flex flex-col items-center gap-2 py-4 rounded-2xl border-2 border-amber-400 text-amber-600 font-semibold text-sm active:scale-[0.97] transition-all hover:bg-amber-50"
+                >
+                  <Phone className="w-6 h-6" />
+                  Masked Call
+                </button>
+              )}
 
-              {/* Message — requires intent selection */}
-              <button
-                onClick={() => handleCTA("message")}
-                disabled={!selectedIntent && intents.length > 0}
-                className="flex flex-col items-center gap-2 py-4 rounded-2xl border-2 border-blue-400 text-blue-600 font-semibold text-sm disabled:opacity-40 active:scale-[0.97] transition-all hover:bg-blue-50"
-              >
-                <MessageCircle className="w-6 h-6" />
-                Message
-              </button>
+              {/* Message — requires intent selection; hidden if both WA + SMS off. */}
+              {messageEnabled && (
+                <button
+                  onClick={() => handleCTA("message")}
+                  disabled={!selectedIntent && intents.length > 0}
+                  className="flex flex-col items-center gap-2 py-4 rounded-2xl border-2 border-blue-400 text-blue-600 font-semibold text-sm disabled:opacity-40 active:scale-[0.97] transition-all hover:bg-blue-50"
+                >
+                  <MessageCircle className="w-6 h-6" />
+                  Message
+                </button>
+              )}
 
               {/* Video Call — only shown if owner enabled it */}
               {videoCallEnabled && (

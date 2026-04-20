@@ -21,6 +21,24 @@ function getClientIp(req: Request): string | null {
   return req.ip ?? null;
 }
 
+/* GET /api/comms/public-flags — minimal flag snapshot for the public scan
+ * UI. We only expose booleans so the client can hide CTAs that the server
+ * would reject anyway; this keeps the public surface from leaking provider
+ * names or routing details. */
+router.get("/comms/public-flags", async (_req: Request, res: Response) => {
+  const s = await getCommsSettings();
+  const wa = flagOn(s, "whatsapp_enabled", "feature_whatsapp_enabled")
+    && (s.comms_routing_whatsapp ?? "zavu_first") !== "off";
+  const sms = flagOn(s, "sms_enabled", "feature_messages_enabled")
+    && (s.comms_routing_sms ?? "exotel") !== "off";
+  res.json({
+    masked_call_enabled: flagOn(s, "masked_call_enabled", "feature_calls_enabled"),
+    message_enabled: wa || sms,
+    whatsapp_enabled: wa,
+    sms_enabled: sms,
+  });
+});
+
 /* ─────────────────────────── OTP ─────────────────────────── */
 
 router.post("/otp/request", async (req: Request, res: Response) => {
