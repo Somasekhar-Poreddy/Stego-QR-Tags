@@ -1,5 +1,26 @@
 import { supabase } from "@/lib/supabase";
-import { ensureFreshSession, throwAsAuthError } from "@/lib/adminAuth";
+import { ensureFreshSession, throwAsAuthError, isLockContentionError } from "@/lib/adminAuth";
+
+/**
+ * Retry wrapper for cross-tab auth lock contention. Supabase's client uses a
+ * browser-wide lock to coordinate token refresh; when two tabs compete, the
+ * loser gets a transient "Lock was released" error. This helper retries the
+ * given async function up to `retries` times with an escalating delay.
+ */
+async function withLockRetry<T>(fn: () => Promise<T>, retries = 2): Promise<T> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (e) {
+      if (attempt < retries && isLockContentionError(e)) {
+        await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
+        continue;
+      }
+      throw e;
+    }
+  }
+  throw new Error("withLockRetry: unreachable");
+}
 
 /* ─── Re-exported types shared with other modules ─── */
 export type { UserProfile } from "@/services/userService";
@@ -488,6 +509,7 @@ export async function adminRejectContactRequest(id: string) {
    DASHBOARD
    ═══════════════════════════════════════════════════ */
 export async function getDashboardStats() {
+  return withLockRetry(async () => {
   await ensureFreshSession();
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const todayISO = today.toISOString();
@@ -510,44 +532,49 @@ export async function getDashboardStats() {
     emergencyRequests: emergencyReqs.count ?? 0,
     totalOrders: orders.count ?? 0,
   };
+  });
 }
 
 export async function getScansPerDay(from: Date, to: Date): Promise<{ date: string; scans: number }[]> {
-  const { data, error } = await supabase
-    .from("qr_scans")
-    .select("created_at")
-    .gte("created_at", from.toISOString())
-    .lte("created_at", to.toISOString());
-  if (error) throwAsAuthError(error);
+  return withLockRetry(async () => {
+    const { data, error } = await supabase
+      .from("qr_scans")
+      .select("created_at")
+      .gte("created_at", from.toISOString())
+      .lte("created_at", to.toISOString());
+    if (error) throwAsAuthError(error);
 
-  const counts: Record<string, number> = {};
-  const cur = new Date(from);
-  while (cur <= to) {
-    counts[cur.toISOString().slice(0, 10)] = 0;
-    cur.setDate(cur.getDate() + 1);
-  }
-  (data ?? []).forEach((row) => {
-    const key = (row.created_at as string).slice(0, 10);
-    if (key in counts) counts[key]++;
+    const counts: Record<string, number> = {};
+    const cur = new Date(from);
+    while (cur <= to) {
+      counts[cur.toISOString().slice(0, 10)] = 0;
+      cur.setDate(cur.getDate() + 1);
+    }
+    (data ?? []).forEach((row) => {
+      const key = (row.created_at as string).slice(0, 10);
+      if (key in counts) counts[key]++;
+    });
+    return Object.entries(counts).map(([date, scans]) => ({ date: date.slice(5), scans }));
   });
-  return Object.entries(counts).map(([date, scans]) => ({ date: date.slice(5), scans }));
 }
 
 export async function getRequestsByType(from?: Date, to?: Date): Promise<{ name: string; value: number }[]> {
-  let q = supabase.from("contact_requests").select("intent");
-  if (from) q = q.gte("created_at", from.toISOString());
-  if (to) q = q.lte("created_at", to.toISOString());
-  const { data, error } = await q;
-  if (error) throwAsAuthError(error);
-  const counts: Record<string, number> = {};
-  (data ?? []).forEach((row) => {
-    const key = (row.intent as string) || "unknown";
-    counts[key] = (counts[key] ?? 0) + 1;
+  return withLockRetry(async () => {
+    let q = supabase.from("contact_requests").select("intent");
+    if (from) q = q.gte("created_at", from.toISOString());
+    if (to) q = q.lte("created_at", to.toISOString());
+    const { data, error } = await q;
+    if (error) throwAsAuthError(error);
+    const counts: Record<string, number> = {};
+    (data ?? []).forEach((row) => {
+      const key = (row.intent as string) || "unknown";
+      counts[key] = (counts[key] ?? 0) + 1;
+    });
+    return Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 6)
+      .map(([name, value]) => ({ name, value }));
   });
-  return Object.entries(counts)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 6)
-    .map(([name, value]) => ({ name, value }));
 }
 
 export async function getTopQRCategories(from?: Date, to?: Date): Promise<{ category: string; count: number }[]> {
@@ -605,19 +632,19 @@ export {
    ═══════════════════════════════════════════════════ */
 
 async function authedFetch(path: string, init: RequestInit = {}): Promise<Response> {
-  await ensureFreshSession();
-  // Session is now guaranteed fresh — grab the token once (no second
-  // getSession call, which would race for the auth lock again).
-  const { data } = await supabase.auth.getSession();
-  const token = data.session?.access_token;
-  return fetch(path, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      "x-app-origin": typeof window !== "undefined" ? window.location.origin : "",
-      ...(init.headers ?? {}),
-    },
+  return withLockRetry(async () => {
+    await ensureFreshSession();
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    return fetch(path, {
+      ...init,
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        "x-app-origin": typeof window !== "undefined" ? window.location.origin : "",
+        ...(init.headers ?? {}),
+      },
+    });
   });
 }
 
@@ -644,46 +671,49 @@ export interface InventoryFilters {
 export async function getInventoryPaginated(
   filters: InventoryFilters = {},
 ): Promise<{ items: QRInventoryItem[]; total: number }> {
-  await ensureFreshSession();
-  const page = filters.page ?? 1;
-  const pageSize = filters.pageSize ?? 25;
-  const from = (page - 1) * pageSize;
-  const to = from + pageSize - 1;
+  return withLockRetry(async () => {
+    await ensureFreshSession();
+    const page = filters.page ?? 1;
+    const pageSize = filters.pageSize ?? 25;
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
 
-  let q = supabase.from("qr_inventory").select("*", { count: "exact" });
-  if (filters.status && filters.status !== "all") q = q.eq("status", filters.status);
-  if (filters.type && filters.type !== "all") q = q.eq("type", filters.type);
-  if (filters.batchId && filters.batchId !== "all") q = q.eq("batch_id", filters.batchId);
-  if (filters.search) {
-    const s = filters.search.trim();
-    // qr_code, display_code, or qr_url (case-insensitive partial match)
-    q = q.or(`qr_code.ilike.%${s}%,display_code.ilike.%${s}%,qr_url.ilike.%${s}%`);
-  }
-  q = q.order("created_at", { ascending: false }).range(from, to);
+    let q = supabase.from("qr_inventory").select("*", { count: "exact" });
+    if (filters.status && filters.status !== "all") q = q.eq("status", filters.status);
+    if (filters.type && filters.type !== "all") q = q.eq("type", filters.type);
+    if (filters.batchId && filters.batchId !== "all") q = q.eq("batch_id", filters.batchId);
+    if (filters.search) {
+      const s = filters.search.trim();
+      q = q.or(`qr_code.ilike.%${s}%,display_code.ilike.%${s}%,qr_url.ilike.%${s}%`);
+    }
+    q = q.order("created_at", { ascending: false }).range(from, to);
 
-  const { data, error, count } = await q;
-  if (error) throwAsAuthError(error);
-  return { items: (data ?? []) as QRInventoryItem[], total: count ?? 0 };
+    const { data, error, count } = await q;
+    if (error) throwAsAuthError(error);
+    return { items: (data ?? []) as QRInventoryItem[], total: count ?? 0 };
+  });
 }
 
 export async function getInventoryCounts(): Promise<Record<InventoryStatus | "all", number>> {
-  await ensureFreshSession();
-  const statuses: InventoryStatus[] = ["unassigned", "sent_to_vendor", "in_stock", "assigned"];
-  const results = await Promise.all([
-    supabase.from("qr_inventory").select("id", { count: "exact", head: true }),
-    ...statuses.map((s) =>
-      supabase.from("qr_inventory").select("id", { count: "exact", head: true }).eq("status", s),
-    ),
-  ]);
-  const firstError = results.find((r) => r.error)?.error;
-  if (firstError) throwAsAuthError(firstError);
-  return {
-    all: results[0].count ?? 0,
-    unassigned: results[1].count ?? 0,
-    sent_to_vendor: results[2].count ?? 0,
-    in_stock: results[3].count ?? 0,
-    assigned: results[4].count ?? 0,
-  };
+  return withLockRetry(async () => {
+    await ensureFreshSession();
+    const statuses: InventoryStatus[] = ["unassigned", "sent_to_vendor", "in_stock", "assigned"];
+    const results = await Promise.all([
+      supabase.from("qr_inventory").select("id", { count: "exact", head: true }),
+      ...statuses.map((s) =>
+        supabase.from("qr_inventory").select("id", { count: "exact", head: true }).eq("status", s),
+      ),
+    ]);
+    const firstError = results.find((r) => r.error)?.error;
+    if (firstError) throwAsAuthError(firstError);
+    return {
+      all: results[0].count ?? 0,
+      unassigned: results[1].count ?? 0,
+      sent_to_vendor: results[2].count ?? 0,
+      in_stock: results[3].count ?? 0,
+      assigned: results[4].count ?? 0,
+    };
+  });
 }
 
 export async function getInventoryById(
@@ -765,17 +795,19 @@ export interface BatchFilters {
 export async function getBatches(
   filters: BatchFilters = {},
 ): Promise<{ batches: QRInventoryBatch[]; total: number }> {
-  await ensureFreshSession();
-  const page = filters.page ?? 1;
-  const pageSize = filters.pageSize ?? 25;
-  const from = (page - 1) * pageSize;
-  const to = from + pageSize - 1;
-  let q = supabase.from("qr_inventory_batches").select("*", { count: "exact" });
-  if (filters.status && filters.status !== "all") q = q.eq("status", filters.status);
-  q = q.order("created_at", { ascending: false }).range(from, to);
-  const { data, error, count } = await q;
-  if (error) throwAsAuthError(error);
-  return { batches: (data ?? []) as QRInventoryBatch[], total: count ?? 0 };
+  return withLockRetry(async () => {
+    await ensureFreshSession();
+    const page = filters.page ?? 1;
+    const pageSize = filters.pageSize ?? 25;
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+    let q = supabase.from("qr_inventory_batches").select("*", { count: "exact" });
+    if (filters.status && filters.status !== "all") q = q.eq("status", filters.status);
+    q = q.order("created_at", { ascending: false }).range(from, to);
+    const { data, error, count } = await q;
+    if (error) throwAsAuthError(error);
+    return { batches: (data ?? []) as QRInventoryBatch[], total: count ?? 0 };
+  });
 }
 
 export async function getBatchById(
@@ -903,13 +935,15 @@ export async function bulkUpdateStatus(
 /* ─── Category settings & low-stock alerts ───────────────────────────────── */
 
 export async function getInventorySettings(): Promise<InventoryCategorySetting[]> {
-  await ensureFreshSession();
-  const { data, error } = await supabase
-    .from("inventory_category_settings")
-    .select("*")
-    .order("category");
-  if (error) throwAsAuthError(error);
-  return (data ?? []) as InventoryCategorySetting[];
+  return withLockRetry(async () => {
+    await ensureFreshSession();
+    const { data, error } = await supabase
+      .from("inventory_category_settings")
+      .select("*")
+      .order("category");
+    if (error) throwAsAuthError(error);
+    return (data ?? []) as InventoryCategorySetting[];
+  });
 }
 
 export async function updateInventorySetting(
@@ -924,13 +958,15 @@ export async function updateInventorySetting(
 }
 
 export async function getOpenLowStockAlerts(): Promise<LowStockAlert[]> {
-  const { data, error } = await supabase
-    .from("inventory_low_stock_alerts")
-    .select("*")
-    .eq("status", "open")
-    .order("created_at", { ascending: false });
-  if (error) throwAsAuthError(error);
-  return (data ?? []) as LowStockAlert[];
+  return withLockRetry(async () => {
+    const { data, error } = await supabase
+      .from("inventory_low_stock_alerts")
+      .select("*")
+      .eq("status", "open")
+      .order("created_at", { ascending: false });
+    if (error) throwAsAuthError(error);
+    return (data ?? []) as LowStockAlert[];
+  });
 }
 
 export async function dismissLowStockAlert(id: string): Promise<void> {
