@@ -1059,13 +1059,19 @@ export async function resolveTicket(id: string) {
 /* ═══════════════════════════════════════════════════
    CONFIG STATUS
    ═══════════════════════════════════════════════════ */
-export async function getConfigStatus(): Promise<{
+export type Ip2LocationKeyStatus = "ok" | "invalid_key" | "unknown";
+
+export interface ConfigStatus {
   ip_encryption_key_set: boolean;
   resend_api_key_set: boolean;
-}> {
+  ip2location_api_key_set: boolean;
+  ip2location_api_key_status: Ip2LocationKeyStatus;
+}
+
+export async function getConfigStatus(): Promise<ConfigStatus> {
   const res = await authedFetch("/api/admin/config-status");
   if (!res.ok) throw new Error("Failed to fetch config status");
-  return res.json() as Promise<{ ip_encryption_key_set: boolean; resend_api_key_set: boolean }>;
+  return res.json() as Promise<ConfigStatus>;
 }
 
 export async function getEmailStatus(): Promise<{ configured: boolean }> {

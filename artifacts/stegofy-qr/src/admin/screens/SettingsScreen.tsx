@@ -183,7 +183,7 @@ export function SettingsScreen() {
       </div>
 
       {/* API Keys & Integrations */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+      <div id="api-keys" className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 scroll-mt-20">
         <div className="flex items-center gap-2 mb-4">
           <Key className="w-4 h-4 text-primary" />
           <p className="font-bold text-slate-900">API Keys &amp; Integrations</p>

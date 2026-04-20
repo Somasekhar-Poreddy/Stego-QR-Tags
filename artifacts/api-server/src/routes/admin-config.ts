@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import type { Request, Response } from "express";
 import { supabaseAdmin } from "../lib/supabaseAdmin.js";
+import { getIp2LocationKeyStatus } from "../services/geoService.js";
 
 const router: IRouter = Router();
 
@@ -69,9 +70,27 @@ router.get("/admin/config-status", async (req: Request, res: Response) => {
   const caller = await requireSuperAdmin(req, res);
   if (!caller) return;
 
+  let dbIp2LocationKey = "";
+  try {
+    const { data } = await supabaseAdmin
+      .from("settings")
+      .select("value")
+      .eq("key", "ip2location_api_key")
+      .maybeSingle();
+    dbIp2LocationKey = ((data as { value?: string } | null)?.value ?? "").trim();
+  } catch {
+    dbIp2LocationKey = "";
+  }
+  const envIp2LocationKey = (process.env.IP2LOCATION_API_KEY ?? "").trim();
+
+  const ip2locationKeySet = Boolean(dbIp2LocationKey || envIp2LocationKey);
+  const ip2locationKeyStatus = ip2locationKeySet ? getIp2LocationKeyStatus() : "unknown";
+
   res.status(200).json({
     ip_encryption_key_set: Boolean((process.env.IP_ENCRYPTION_KEY ?? "").trim()),
     resend_api_key_set: Boolean((process.env.RESEND_API_KEY ?? "").trim()),
+    ip2location_api_key_set: ip2locationKeySet,
+    ip2location_api_key_status: ip2locationKeyStatus,
   });
 });
 
