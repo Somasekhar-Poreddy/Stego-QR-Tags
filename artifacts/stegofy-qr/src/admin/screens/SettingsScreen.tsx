@@ -81,6 +81,10 @@ function ToggleSetting({ label, value, onChange }: { label: string; value: strin
 function ApiKeyRow({ def, initialValue, isLast }: { def: ApiKeyRowDef; initialValue: string; isLast: boolean }) {
   const [value, setValue] = useState(initialValue);
   const [show, setShow] = useState(false);
+
+  useEffect(() => {
+    setValue(initialValue);
+  }, [initialValue]);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -180,7 +184,15 @@ export function SettingsScreen() {
   const handleSave = async () => {
     setSaving(true);
     const allValues = { ...values, faq_list: JSON.stringify(faqs) };
-    await Promise.all(Object.entries(allValues).map(([k, v]) => upsertSetting(k, v)));
+    // API key rows own their own state and have per-row Save buttons.
+    // Excluding them here prevents the global Save from clobbering a key
+    // that the admin edited in a row but hasn't yet saved.
+    const apiKeyKeys = new Set(API_KEY_ROWS.map((r) => r.key));
+    await Promise.all(
+      Object.entries(allValues)
+        .filter(([k]) => !apiKeyKeys.has(k))
+        .map(([k, v]) => upsertSetting(k, v)),
+    );
     setSaving(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
@@ -270,12 +282,12 @@ export function SettingsScreen() {
           Keys that must live in environment variables are listed below as read-only status indicators.
         </p>
 
-        {API_KEY_ROWS.map((def) => (
+        {API_KEY_ROWS.map((def, idx) => (
           <ApiKeyRow
             key={def.key}
             def={def}
             initialValue={values[def.key] ?? ""}
-            isLast={false}
+            isLast={idx === API_KEY_ROWS.length - 1}
           />
         ))}
 
