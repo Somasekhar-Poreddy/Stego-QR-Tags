@@ -1082,6 +1082,15 @@ export async function getEmailStatus(): Promise<{ configured: boolean }> {
   return res.json() as Promise<{ configured: boolean }>;
 }
 
+export async function sendTestEmail(): Promise<{ sent_to: string; from: string }> {
+  const res = await authedFetch("/api/admin/send-test-email", { method: "POST" });
+  const body = await res.json().catch(() => ({})) as { error?: string; sent_to?: string; from?: string };
+  if (!res.ok) {
+    throw new Error(body.error ?? `Test email failed (${res.status})`);
+  }
+  return { sent_to: body.sent_to ?? "", from: body.from ?? "" };
+}
+
 export async function sendVendorEmail(opts: {
   batchId: string;
   to: string;

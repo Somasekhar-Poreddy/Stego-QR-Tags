@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { Save, RotateCcw, Settings, Plus, Trash2, ChevronDown, ChevronUp, Eye, EyeOff, Key, Info } from "lucide-react";
-import { getSettings, upsertSetting, getConfigStatus } from "@/services/adminService";
+import { Save, RotateCcw, Settings, Plus, Trash2, ChevronDown, ChevronUp, Eye, EyeOff, Key, Info, Send } from "lucide-react";
+import { getSettings, upsertSetting, getConfigStatus, sendTestEmail } from "@/services/adminService";
 
 interface ApiKeyRowDef {
   key: string;
@@ -161,6 +161,27 @@ export function SettingsScreen() {
   const [resendKeySet, setResendKeySet] = useState<boolean | null>(null);
   const [resendFromEmail, setResendFromEmail] = useState<string>("");
   const [resendCustomDomain, setResendCustomDomain] = useState<boolean>(false);
+
+  const [testEmailSending, setTestEmailSending] = useState(false);
+  const [testEmailResult, setTestEmailResult] = useState<
+    { ok: true; sentTo: string } | { ok: false; error: string } | null
+  >(null);
+
+  const handleSendTestEmail = async () => {
+    setTestEmailSending(true);
+    setTestEmailResult(null);
+    try {
+      const { sent_to } = await sendTestEmail();
+      setTestEmailResult({ ok: true, sentTo: sent_to });
+    } catch (err) {
+      setTestEmailResult({
+        ok: false,
+        error: err instanceof Error ? err.message : "Failed to send test email",
+      });
+    } finally {
+      setTestEmailSending(false);
+    }
+  };
 
   useEffect(() => {
     getSettings().then((settings) => {
@@ -360,22 +381,44 @@ export function SettingsScreen() {
                 {resendFromEmail || "—"}
               </p>
             </div>
-            {resendFromEmail ? (
-              resendCustomDomain ? (
-                <span className="flex items-center gap-1 px-2.5 py-1 bg-green-50 text-green-700 rounded-lg text-xs font-semibold whitespace-nowrap">
-                  <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />
-                  Custom domain
-                </span>
+            <div className="flex items-center gap-2 whitespace-nowrap">
+              {resendKeySet && (
+                <button
+                  onClick={handleSendTestEmail}
+                  disabled={testEmailSending}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-primary/10 text-primary hover:bg-primary/20 transition-colors disabled:opacity-60"
+                >
+                  <Send className="w-3 h-3" />
+                  {testEmailSending ? "Sending…" : "Send test email"}
+                </button>
+              )}
+              {resendFromEmail ? (
+                resendCustomDomain ? (
+                  <span className="flex items-center gap-1 px-2.5 py-1 bg-green-50 text-green-700 rounded-lg text-xs font-semibold">
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />
+                    Custom domain
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1 px-2.5 py-1 bg-amber-50 text-amber-700 rounded-lg text-xs font-semibold">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block" />
+                    Resend default
+                  </span>
+                )
               ) : (
-                <span className="flex items-center gap-1 px-2.5 py-1 bg-amber-50 text-amber-700 rounded-lg text-xs font-semibold whitespace-nowrap">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block" />
-                  Resend default
-                </span>
-              )
-            ) : (
-              <span className="text-xs text-slate-400 font-medium">Checking…</span>
-            )}
+                <span className="text-xs text-slate-400 font-medium">Checking…</span>
+              )}
+            </div>
           </div>
+
+          {testEmailResult && (
+            testEmailResult.ok ? (
+              <p className="mt-2 text-xs text-green-600">
+                Test email sent to <span className="font-mono">{testEmailResult.sentTo}</span>. Check your inbox (and spam folder).
+              </p>
+            ) : (
+              <p className="mt-2 text-xs text-red-500">{testEmailResult.error}</p>
+            )
+          )}
         </div>
       </div>
 
