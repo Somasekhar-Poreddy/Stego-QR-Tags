@@ -3,6 +3,7 @@ import { encryptIP, decryptIP } from "../utils/encryption.js";
 import { getMaskedIP, getHashedIP } from "../services/ipService.js";
 import { getGeoData } from "../services/geoService.js";
 import { supabaseAdmin } from "../lib/supabaseAdmin.js";
+import { publicScanLimiter } from "../middlewares/rate-limit.js";
 
 const router = Router();
 
@@ -42,7 +43,7 @@ function parseUserAgent(ua: string): { device: string; browser: string; os: stri
   return { device, browser, os };
 }
 
-router.post("/track-scan", async (req: Request, res: Response) => {
+router.post("/track-scan", publicScanLimiter, async (req: Request, res: Response) => {
   const { qr_id, session_id, referrer, user_id } = req.body as {
     qr_id?: string;
     session_id?: string;

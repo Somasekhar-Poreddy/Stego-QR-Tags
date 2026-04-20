@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import type { Request, Response } from "express";
 import { randomBytes, randomUUID } from "node:crypto";
 import { supabaseAdmin } from "../lib/supabaseAdmin.js";
+import { publicScanLimiter } from "../middlewares/rate-limit.js";
 
 const router: IRouter = Router();
 
@@ -669,7 +670,7 @@ router.post("/admin/inventory/claim/finalize", async (req: Request, res: Respons
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-router.get("/qr/info/:id", async (req: Request, res: Response) => {
+router.get("/qr/info/:id", publicScanLimiter, async (req: Request, res: Response) => {
   const { id } = req.params;
   if (!id || !UUID_RE.test(id)) {
     res.status(404).json({ error: "QR not found" });
