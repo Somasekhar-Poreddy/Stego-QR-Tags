@@ -1194,6 +1194,24 @@ export async function getCommsAnalytics(days = 7): Promise<CommsAnalytics> {
   return res.json() as Promise<CommsAnalytics>;
 }
 
+export interface CommsDashboardMetrics {
+  range_days: number;
+  total_messages: number;
+  /** 0..1 ratio of WhatsApp messages that reached queued/sent/delivered; null when no WhatsApp was attempted. */
+  whatsapp_success_rate: number | null;
+  /** 0..1 ratio of messages that fell back from the primary provider. */
+  fallback_rate: number;
+  total_calls: number;
+  minutes_used: number;
+  cost_paise: number;
+}
+
+export async function getCommsDashboardMetrics(days = 30): Promise<CommsDashboardMetrics> {
+  const res = await authedFetch(`/api/admin/comms/dashboard-metrics?days=${days}`);
+  if (!res.ok) throw new Error(`Failed to load comms metrics (${res.status})`);
+  return res.json() as Promise<CommsDashboardMetrics>;
+}
+
 export interface CommsTrail {
   messages: Array<Record<string, unknown>>;
   calls: Array<Record<string, unknown>>;

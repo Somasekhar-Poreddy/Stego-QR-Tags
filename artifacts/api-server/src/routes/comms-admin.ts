@@ -271,6 +271,80 @@ router.get("/admin/comms/analytics", async (req: Request, res: Response) => {
   });
 });
 
+/* ─────────────────────── Dashboard metrics (scalar summary) ─────────────────────── */
+
+/**
+ * Scalar dashboard widgets over a rolling window (default 30 days):
+ *   - total_messages
+ *   - whatsapp_success_rate  (delivered or queued / attempted, 0..1)
+ *   - fallback_rate          (messages where fallback_from IS NOT NULL / total, 0..1)
+ *   - total_calls
+ *   - minutes_used           (SUM(duration_seconds) / 60, rounded)
+ *   - cost_paise             (message_logs + call_logs cost_paise, over the same window)
+ *
+ * Separate from `/admin/comms/analytics` which returns chart-friendly time-series.
+ */
+router.get("/admin/comms/dashboard-metrics", async (req: Request, res: Response) => {
+  if (!(await requireSuperAdmin(req, res))) return;
+
+  const days = Math.min(Math.max(Number(req.query.days) || 30, 1), 365);
+  const pool = getCommsPool();
+
+  const [{ rows: msgRows }, { rows: callRows }] = await Promise.all([
+    pool.query<{
+      total: string;
+      whatsapp_attempts: string;
+      whatsapp_success: string;
+      fallback_used: string;
+      cost_paise: string;
+    }>(
+      `SELECT
+         COUNT(*)::text AS total,
+         COUNT(*) FILTER (WHERE channel = 'whatsapp')::text AS whatsapp_attempts,
+         COUNT(*) FILTER (WHERE channel = 'whatsapp' AND status IN ('queued','sent','delivered'))::text AS whatsapp_success,
+         COUNT(*) FILTER (WHERE fallback_from IS NOT NULL)::text AS fallback_used,
+         COALESCE(SUM(cost_paise),0)::text AS cost_paise
+         FROM message_logs
+        WHERE created_at > now() - ($1 || ' days')::interval`,
+      [days],
+    ),
+    pool.query<{
+      total: string;
+      duration_seconds: string;
+      cost_paise: string;
+    }>(
+      `SELECT
+         COUNT(*)::text AS total,
+         COALESCE(SUM(duration_seconds),0)::text AS duration_seconds,
+         COALESCE(SUM(cost_paise),0)::text AS cost_paise
+         FROM call_logs
+        WHERE created_at > now() - ($1 || ' days')::interval`,
+      [days],
+    ),
+  ]);
+
+  const m = msgRows[0];
+  const c = callRows[0];
+  const totalMessages = Number(m?.total ?? 0);
+  const whatsappAttempts = Number(m?.whatsapp_attempts ?? 0);
+  const whatsappSuccess = Number(m?.whatsapp_success ?? 0);
+  const fallbackUsed = Number(m?.fallback_used ?? 0);
+  const msgCostPaise = Number(m?.cost_paise ?? 0);
+  const totalCalls = Number(c?.total ?? 0);
+  const durationSeconds = Number(c?.duration_seconds ?? 0);
+  const callCostPaise = Number(c?.cost_paise ?? 0);
+
+  res.status(200).json({
+    range_days: days,
+    total_messages: totalMessages,
+    whatsapp_success_rate: whatsappAttempts > 0 ? whatsappSuccess / whatsappAttempts : null,
+    fallback_rate: totalMessages > 0 ? fallbackUsed / totalMessages : 0,
+    total_calls: totalCalls,
+    minutes_used: Math.round(durationSeconds / 60),
+    cost_paise: msgCostPaise + callCostPaise,
+  });
+});
+
 /* ─────────────────────── Per contact-request trail ─────────────────────── */
 
 router.get("/admin/comms/contact-request/:id", async (req: Request, res: Response) => {

@@ -21,8 +21,14 @@ async function main() {
   // Run idempotent comms-platform migrations before opening the port. We
   // intentionally do NOT block on this failing — the existing app routes
   // should keep working even if comms tables can't be created (e.g. perms).
+  // Set COMMS_MIGRATIONS=off in production where schema is managed by the
+  // versioned supabase-comms-migration.sql file (applied via Supabase SQL
+  // editor or `supabase db push`). Defaults to "auto" for local dev.
+  const migrationsMode = (process.env.COMMS_MIGRATIONS ?? "auto").toLowerCase();
   try {
-    await ensureCommsSchema();
+    if (migrationsMode !== "off") {
+      await ensureCommsSchema();
+    }
     startPendingDisconnectFlusher();
   } catch (err) {
     logger.error({ err }, "Comms schema bootstrap failed; comms features disabled");
