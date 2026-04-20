@@ -1,6 +1,46 @@
 import { useEffect, useState } from "react";
 import { Save, RotateCcw, Settings, Plus, Trash2, ChevronDown, ChevronUp, Eye, EyeOff, Key } from "lucide-react";
-import { getSettings, upsertSetting, getConfigStatus, type Setting } from "@/services/adminService";
+import { getSettings, upsertSetting, getConfigStatus } from "@/services/adminService";
+
+interface ApiKeyRowDef {
+  key: string;
+  label: string;
+  hint: string;
+  placeholder?: string;
+}
+
+const API_KEY_ROWS: ApiKeyRowDef[] = [
+  {
+    key: "ip2location_api_key",
+    label: "IP2Location API Key",
+    hint: "Used as fallback for geo-lookup on QR scans.",
+    placeholder: "Enter IP2Location API key…",
+  },
+  {
+    key: "twilio_auth_token",
+    label: "Twilio Auth Token",
+    hint: "For SMS / masked-call features. Pair with the Twilio Account SID below.",
+    placeholder: "Enter Twilio auth token…",
+  },
+  {
+    key: "twilio_account_sid",
+    label: "Twilio Account SID",
+    hint: "Public identifier for your Twilio account. Stored alongside the auth token.",
+    placeholder: "ACxxxxxxxxxxxxxxxx",
+  },
+  {
+    key: "sendgrid_api_key",
+    label: "SendGrid API Key",
+    hint: "Optional alternative to Resend for transactional email.",
+    placeholder: "SG.xxxxxxxx",
+  },
+  {
+    key: "stripe_secret_key",
+    label: "Stripe Secret Key",
+    hint: "Used for payment processing. Use a sk_test_ key while testing.",
+    placeholder: "sk_test_… or sk_live_…",
+  },
+];
 
 const FEATURE_KEYS = ["allow_free_qr", "masked_call_enabled", "whatsapp_enabled", "video_call_enabled"];
 const CONFIG_KEYS = ["max_qr_per_user", "emergency_notify_email", "support_email", "app_version"];
@@ -38,6 +78,64 @@ function ToggleSetting({ label, value, onChange }: { label: string; value: strin
   );
 }
 
+function ApiKeyRow({ def, initialValue, isLast }: { def: ApiKeyRowDef; initialValue: string; isLast: boolean }) {
+  const [value, setValue] = useState(initialValue);
+  const [show, setShow] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      const { error: err } = await upsertSetting(def.key, value);
+      if (err) throw err;
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch {
+      setError("Failed to save — please try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className={`py-3 ${isLast ? "" : "border-b border-slate-50"}`}>
+      <label className="text-sm font-semibold text-slate-800 block mb-1">{def.label}</label>
+      <p className="text-xs text-slate-400 mb-2">{def.hint}</p>
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <input
+            type={show ? "text" : "password"}
+            value={value}
+            onChange={(e) => { setValue(e.target.value); setError(null); }}
+            placeholder={def.placeholder ?? "Enter API key…"}
+            className="w-full px-3 py-2 pr-10 rounded-xl border border-slate-200 text-sm outline-none focus:border-primary transition-colors font-mono"
+          />
+          <button
+            type="button"
+            onClick={() => setShow((v) => !v)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+            aria-label={show ? "Hide key" : "Show key"}
+          >
+            {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
+        </div>
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-all whitespace-nowrap ${saved ? "bg-green-500 text-white" : "bg-primary text-white hover:bg-primary/90"} disabled:opacity-60`}
+        >
+          <Save className="w-3.5 h-3.5" />
+          {saving ? "Saving…" : saved ? "Saved!" : "Save"}
+        </button>
+      </div>
+      {error && <p className="text-xs text-red-500 mt-1.5">{error}</p>}
+    </div>
+  );
+}
+
 function TextSetting({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   return (
     <div className="py-3 border-b border-slate-50 last:border-0">
@@ -55,11 +153,6 @@ export function SettingsScreen() {
   const [saved, setSaved] = useState(false);
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
 
-  const [ip2locationKey, setIp2locationKey] = useState("");
-  const [showIp2locationKey, setShowIp2locationKey] = useState(false);
-  const [savingApiKey, setSavingApiKey] = useState(false);
-  const [savedApiKey, setSavedApiKey] = useState(false);
-  const [apiKeyError, setApiKeyError] = useState<string | null>(null);
   const [encryptionKeySet, setEncryptionKeySet] = useState<boolean | null>(null);
   const [resendKeySet, setResendKeySet] = useState<boolean | null>(null);
 
@@ -69,8 +162,6 @@ export function SettingsScreen() {
       settings.forEach((s) => { map[s.key] = s.value ?? ""; });
       setValues(map);
       setFaqs(parseFaqs(map["faq_list"] ?? "[]"));
-      const stored = settings.find((s) => s.key === "ip2location_api_key");
-      if (stored?.value) setIp2locationKey(stored.value);
       setLoading(false);
     });
     getConfigStatus()
@@ -83,21 +174,6 @@ export function SettingsScreen() {
         setResendKeySet(false);
       });
   }, []);
-
-  const handleSaveApiKey = async () => {
-    setSavingApiKey(true);
-    setApiKeyError(null);
-    try {
-      const { error } = await upsertSetting("ip2location_api_key", ip2locationKey);
-      if (error) throw error;
-      setSavedApiKey(true);
-      setTimeout(() => setSavedApiKey(false), 2000);
-    } catch {
-      setApiKeyError("Failed to save — please try again.");
-    } finally {
-      setSavingApiKey(false);
-    }
-  };
 
   const set = (key: string, val: string) => setValues((v) => ({ ...v, [key]: val }));
 
@@ -189,38 +265,19 @@ export function SettingsScreen() {
           <p className="font-bold text-slate-900">API Keys &amp; Integrations</p>
         </div>
 
-        {/* IP2Location API Key */}
-        <div className="py-3 border-b border-slate-50">
-          <label className="text-sm font-semibold text-slate-800 block mb-1">IP2Location API Key</label>
-          <p className="text-xs text-slate-400 mb-2">Used as fallback for geo-lookup on QR scans. Saved to the database.</p>
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <input
-                type={showIp2locationKey ? "text" : "password"}
-                value={ip2locationKey}
-                onChange={(e) => { setIp2locationKey(e.target.value); setApiKeyError(null); }}
-                placeholder="Enter IP2Location API key…"
-                className="w-full px-3 py-2 pr-10 rounded-xl border border-slate-200 text-sm outline-none focus:border-primary transition-colors font-mono"
-              />
-              <button
-                type="button"
-                onClick={() => setShowIp2locationKey((v) => !v)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
-              >
-                {showIp2locationKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-            </div>
-            <button
-              onClick={handleSaveApiKey}
-              disabled={savingApiKey}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-all whitespace-nowrap ${savedApiKey ? "bg-green-500 text-white" : "bg-primary text-white hover:bg-primary/90"} disabled:opacity-60`}
-            >
-              <Save className="w-3.5 h-3.5" />
-              {savingApiKey ? "Saving…" : savedApiKey ? "Saved!" : "Save"}
-            </button>
-          </div>
-          {apiKeyError && <p className="text-xs text-red-500 mt-1.5">{apiKeyError}</p>}
-        </div>
+        <p className="text-xs text-slate-400 mb-2 -mt-2">
+          These keys are stored in the <span className="font-mono">settings</span> table and read by the API server at request time.
+          Keys that must live in environment variables are listed below as read-only status indicators.
+        </p>
+
+        {API_KEY_ROWS.map((def) => (
+          <ApiKeyRow
+            key={def.key}
+            def={def}
+            initialValue={values[def.key] ?? ""}
+            isLast={false}
+          />
+        ))}
 
         {/* IP Encryption Key — read-only status */}
         <div className="py-3 border-b border-slate-50">
