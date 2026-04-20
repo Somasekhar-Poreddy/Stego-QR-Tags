@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Save, RotateCcw, Settings, Plus, Trash2, ChevronDown, ChevronUp, Eye, EyeOff, Key } from "lucide-react";
+import { Save, RotateCcw, Settings, Plus, Trash2, ChevronDown, ChevronUp, Eye, EyeOff, Key, Info } from "lucide-react";
 import { getSettings, upsertSetting, getConfigStatus } from "@/services/adminService";
 
 interface ApiKeyRowDef {
@@ -159,6 +159,8 @@ export function SettingsScreen() {
 
   const [encryptionKeySet, setEncryptionKeySet] = useState<boolean | null>(null);
   const [resendKeySet, setResendKeySet] = useState<boolean | null>(null);
+  const [resendFromEmail, setResendFromEmail] = useState<string>("");
+  const [resendCustomDomain, setResendCustomDomain] = useState<boolean>(false);
 
   useEffect(() => {
     getSettings().then((settings) => {
@@ -172,6 +174,8 @@ export function SettingsScreen() {
       .then((status) => {
         setEncryptionKeySet(status.ip_encryption_key_set);
         setResendKeySet(status.resend_api_key_set);
+        setResendFromEmail(status.resend_from_email ?? "");
+        setResendCustomDomain(Boolean(status.resend_custom_domain));
       })
       .catch(() => {
         setEncryptionKeySet(false);
@@ -333,6 +337,43 @@ export function SettingsScreen() {
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block" />
                 Not set
               </span>
+            )}
+          </div>
+
+          {/* From address row */}
+          <div className="mt-3 pt-3 border-t border-slate-50 flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <p className="text-sm font-semibold text-slate-800">Sending Address</p>
+                <span className="group relative inline-flex">
+                  <Info className="w-3.5 h-3.5 text-slate-400 cursor-help" />
+                  <span className="absolute left-1/2 -translate-x-1/2 top-full mt-2 w-72 p-3 bg-slate-900 text-white text-xs rounded-lg shadow-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-10 leading-relaxed">
+                    <span className="font-semibold block mb-1">Use your own domain:</span>
+                    1. In Resend, go to Domains → Add Domain (e.g. stegofy.com).<br />
+                    2. Add the DNS records (SPF, DKIM, DMARC) shown by Resend to your DNS provider.<br />
+                    3. Wait for verification, then set the <code className="font-mono">RESEND_FROM_EMAIL</code> secret to e.g. <code className="font-mono">admin@stegofy.com</code>.<br />
+                    4. Restart the API server.
+                  </span>
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5 truncate font-mono">
+                {resendFromEmail || "—"}
+              </p>
+            </div>
+            {resendFromEmail ? (
+              resendCustomDomain ? (
+                <span className="flex items-center gap-1 px-2.5 py-1 bg-green-50 text-green-700 rounded-lg text-xs font-semibold whitespace-nowrap">
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />
+                  Custom domain
+                </span>
+              ) : (
+                <span className="flex items-center gap-1 px-2.5 py-1 bg-amber-50 text-amber-700 rounded-lg text-xs font-semibold whitespace-nowrap">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block" />
+                  Resend default
+                </span>
+              )
+            ) : (
+              <span className="text-xs text-slate-400 font-medium">Checking…</span>
             )}
           </div>
         </div>

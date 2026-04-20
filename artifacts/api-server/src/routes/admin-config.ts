@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import type { Request, Response } from "express";
 import { supabaseAdmin } from "../lib/supabaseAdmin.js";
 import { getIp2LocationKeyStatus } from "../services/geoService.js";
+import { getFromEmail, isCustomFromDomain } from "../services/emailService.js";
 
 const router: IRouter = Router();
 
@@ -89,6 +90,8 @@ router.get("/admin/config-status", async (req: Request, res: Response) => {
   res.status(200).json({
     ip_encryption_key_set: Boolean((process.env.IP_ENCRYPTION_KEY ?? "").trim()),
     resend_api_key_set: Boolean((process.env.RESEND_API_KEY ?? "").trim()),
+    resend_from_email: getFromEmail(),
+    resend_custom_domain: isCustomFromDomain(),
     ip2location_api_key_set: ip2locationKeySet,
     ip2location_api_key_status: ip2locationKeyStatus,
   });

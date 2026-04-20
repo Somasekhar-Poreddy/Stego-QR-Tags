@@ -1064,6 +1064,8 @@ export type Ip2LocationKeyStatus = "ok" | "invalid_key" | "unknown";
 export interface ConfigStatus {
   ip_encryption_key_set: boolean;
   resend_api_key_set: boolean;
+  resend_from_email: string;
+  resend_custom_domain: boolean;
   ip2location_api_key_set: boolean;
   ip2location_api_key_status: Ip2LocationKeyStatus;
 }

@@ -13,6 +13,18 @@ export function isEmailConfigured(): boolean {
   return Boolean((process.env.RESEND_API_KEY ?? "").trim());
 }
 
+const DEFAULT_FROM_EMAIL = "onboarding@resend.dev";
+const DEFAULT_FROM_NAME = "Stegofy Admin";
+
+export function getFromEmail(): string {
+  const configured = (process.env.RESEND_FROM_EMAIL ?? "").trim();
+  return configured || DEFAULT_FROM_EMAIL;
+}
+
+export function isCustomFromDomain(): boolean {
+  return getFromEmail().toLowerCase() !== DEFAULT_FROM_EMAIL;
+}
+
 export interface SendVendorEmailOptions {
   to: string;
   subject: string;
@@ -28,9 +40,9 @@ export async function sendVendorEmail(opts: SendVendorEmailOptions): Promise<voi
     throw new Error("RESEND_API_KEY is not configured. Add it as a Replit Secret.");
   }
 
-  const from = opts.fromName
-    ? `${opts.fromName} <onboarding@resend.dev>`
-    : "Stegofy Admin <onboarding@resend.dev>";
+  const fromEmail = getFromEmail();
+  const fromName = opts.fromName ?? DEFAULT_FROM_NAME;
+  const from = `${fromName} <${fromEmail}>`;
 
   const attachments: Array<{ filename: string; content: string }> = [];
   if (opts.pdfBase64 && opts.pdfFilename) {
