@@ -666,7 +666,7 @@ router.post("/admin/inventory/claim/finalize", async (req: Request, res: Respons
     qrType: profile.type ?? invRow.type ?? "belongings",
     inventoryItem: {
       id: invRow.id,
-      type: invRow.type,
+      type: profile.type ?? invRow.type,
       qr_url: invRow.qr_url,
       display_code: display_code.trim().toUpperCase(),
       pin_code: invRow.pin_code,
@@ -708,6 +708,7 @@ async function sendClaimWelcomeEmail(opts: ClaimWelcomeEmailOptions): Promise<vo
   const safeName = escapeHtml(opts.profileName);
   const safeType = escapeHtml(opts.qrType);
   const safeCodeHtml = escapeHtml(opts.inventoryItem.display_code);
+  const subjectName = opts.profileName.replace(/[\r\n\t\u0000-\u001F\u007F]/g, " ").trim() || "there";
 
   const html = `
     <div style="font-family: -apple-system, Segoe UI, Roboto, sans-serif; color: #0f172a; max-width: 560px;">
@@ -732,7 +733,7 @@ async function sendClaimWelcomeEmail(opts: ClaimWelcomeEmailOptions): Promise<vo
 
   await sendVendorEmail({
     to: opts.to,
-    subject: `Your Stegofy QR is active — welcome, ${opts.profileName}!`,
+    subject: `Your Stegofy QR is active — welcome, ${subjectName}!`,
     html,
     pdfBase64,
     pdfFilename,
