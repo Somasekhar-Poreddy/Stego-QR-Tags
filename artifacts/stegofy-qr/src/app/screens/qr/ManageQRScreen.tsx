@@ -8,6 +8,7 @@ import {
 import { useLocation } from "wouter";
 import { useQR, QRProfile } from "@/app/context/QRContext";
 import { QRCardDesign, QRCardDesignHandle } from "@/app/components/QRCardDesign";
+import { EditQRModal } from "@/app/components/EditQRModal";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 
@@ -314,8 +315,8 @@ export function ManageQRScreen({ profileId }: { profileId: string }) {
     showToast("Replacement email opened!");
   };
 
-  // Navigate to My QR and auto-open the EditModal for this profile via query param
-  const handleEditTag = () => navigate(`/app/qr?edit=${profile?.id ?? ""}`);
+  const [showEdit, setShowEdit] = useState(false);
+  const handleEditProfile = () => setShowEdit(true);
 
   if (!profile) {
     return (
@@ -593,15 +594,14 @@ export function ManageQRScreen({ profileId }: { profileId: string }) {
                 iconColor="text-slate-600"
               />
 
-              {/* 8. Edit and Rewrite Tag */}
+              {/* 8. Edit Profile Details */}
               <ArrowCard
                 icon={<Pencil className="w-4 h-4" />}
-                label="Edit and Rewrite Tag"
-                hint="Change the information stored on this tag"
-                onClick={handleEditTag}
-                iconBg="bg-red-50"
-                iconColor="text-red-500"
-                danger
+                label="Edit profile details"
+                hint="Update what finders see when they scan your QR"
+                onClick={handleEditProfile}
+                iconBg="bg-blue-50"
+                iconColor="text-blue-600"
               />
 
               {/* 9. Delete QR */}
@@ -654,6 +654,16 @@ export function ManageQRScreen({ profileId }: { profileId: string }) {
           name={profile.name}
           onConfirm={handleDelete}
           onCancel={() => setShowDelete(false)}
+        />
+      )}
+      {showEdit && (
+        <EditQRModal
+          profile={profile}
+          onSave={(updates) => updateProfile(profile.id, updates)}
+          onClose={() => {
+            setShowEdit(false);
+            showToast("Profile updated");
+          }}
         />
       )}
     </div>
