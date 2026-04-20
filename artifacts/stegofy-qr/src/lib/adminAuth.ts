@@ -25,7 +25,7 @@ const AUTH_ERROR_MESSAGES = [
  * one tab's lock gets "stolen" by the other. It's transient and safe to
  * retry — the other tab will have successfully refreshed the token by then.
  */
-function isLockContentionError(error: { message?: string } | unknown): boolean {
+export function isLockContentionError(error: { message?: string } | unknown): boolean {
   const msg = (error as { message?: string })?.message?.toLowerCase?.() ?? "";
   return msg.includes("lock") && (msg.includes("stole") || msg.includes("released"));
 }
