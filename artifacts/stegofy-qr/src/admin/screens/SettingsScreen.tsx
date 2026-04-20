@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Save, RotateCcw, Settings, Plus, Trash2, ChevronDown, ChevronUp, Eye, EyeOff, Key, Info, Send, Radio, Zap, DollarSign, CheckCircle2, AlertTriangle } from "lucide-react";
 import { getSettings, upsertSetting, getConfigStatus, sendTestEmail, testCommsProvider, invalidateCommsCache } from "@/services/adminService";
 
@@ -382,6 +382,37 @@ export function SettingsScreen() {
   }, []);
 
   const set = (key: string, val: string) => setValues((v) => ({ ...v, [key]: val }));
+
+  // Auto-save for comms-related settings: spec calls for changes to take
+  // effect immediately so an admin reacting to an outage doesn't have to
+  // remember to click "Save". A short debounce coalesces rapid edits
+  // (e.g. typing into a number field) into a single upsert per key.
+  const AUTO_SAVE_KEYS = new Set<string>([
+    ...COMMS_FLAG_KEYS,
+    ...COMMS_SETTINGS_KEYS,
+    ...COMMS_COST_KEYS,
+    "comms_routing_whatsapp",
+    "comms_routing_sms",
+    "comms_routing_call",
+    "monthly_budget_paise",
+    "over_budget_behavior",
+  ]);
+  const autoSaveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  useEffect(() => {
+    if (loading) return;
+    const timers = autoSaveTimers.current;
+    for (const k of AUTO_SAVE_KEYS) {
+      const v = values[k];
+      if (v === undefined) continue;
+      if (timers[k]) clearTimeout(timers[k]);
+      timers[k] = setTimeout(() => { upsertSetting(k, v).catch(() => null); }, 600);
+    }
+    return () => { /* timers cleared on next effect run */ };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    ...[...AUTO_SAVE_KEYS].map((k) => values[k]),
+    loading,
+  ]);
 
   const handleSave = async () => {
     setSaving(true);

@@ -1100,6 +1100,21 @@ export interface CommsHealth {
     over_warn: boolean;
   };
   provider_24h: Record<string, { total: number; failed: number; failureRate: number }>;
+  last_provider_health?: Record<string, { total: number; failed: number; failureRate: number }>;
+  zavu_test_status?: { ok: boolean; status: number; error: string | null; at: string } | null;
+  exotel_test_status?: { ok: boolean; status: number; error: string | null; at: string } | null;
+  recent?: Array<{
+    id: string;
+    kind: "message" | "call";
+    channel: string;
+    provider: string;
+    status: string;
+    error_code: string | null;
+    cost_paise: number;
+    fallback_from: string | null;
+    duration_seconds: number | null;
+    created_at: string;
+  }>;
 }
 
 export async function getCommsHealth(): Promise<CommsHealth> {

@@ -197,6 +197,45 @@ export function CommunicationsScreen() {
         </div>
       )}
 
+      {/* Recent activity feed: last 50 message + call attempts. Helps spot
+          a misconfiguration or sudden burst of failures without paging
+          through analytics. */}
+      {health?.recent && health.recent.length > 0 && (
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+          <p className="font-bold text-slate-900 mb-3">Recent activity (last 50)</p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead className="text-slate-500 uppercase tracking-wide">
+                <tr>
+                  <th className="px-2 py-1.5 text-left">When</th>
+                  <th className="px-2 py-1.5 text-left">Kind</th>
+                  <th className="px-2 py-1.5 text-left">Channel</th>
+                  <th className="px-2 py-1.5 text-left">Provider</th>
+                  <th className="px-2 py-1.5 text-left">Status</th>
+                  <th className="px-2 py-1.5 text-left">Fallback</th>
+                  <th className="px-2 py-1.5 text-right">Cost</th>
+                  <th className="px-2 py-1.5 text-left">Error</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {health.recent.map((r) => (
+                  <tr key={`${r.kind}-${r.id}`}>
+                    <td className="px-2 py-1.5 text-slate-500 font-mono">{r.created_at.slice(11, 19)}</td>
+                    <td className="px-2 py-1.5">{r.kind}</td>
+                    <td className="px-2 py-1.5">{r.channel}</td>
+                    <td className="px-2 py-1.5 capitalize">{r.provider}</td>
+                    <td className={`px-2 py-1.5 font-semibold ${r.status === "failed" ? "text-red-600" : r.status === "delivered" || r.status === "completed" ? "text-green-700" : "text-slate-700"}`}>{r.status}</td>
+                    <td className="px-2 py-1.5 text-slate-500">{r.fallback_from ?? "—"}</td>
+                    <td className="px-2 py-1.5 text-right">{inr(r.cost_paise)}</td>
+                    <td className="px-2 py-1.5 text-red-600">{r.error_code ?? ""}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {loading && <div className="py-12 text-center text-sm text-slate-400">Loading…</div>}
     </div>
   );

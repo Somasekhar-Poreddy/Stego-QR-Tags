@@ -301,6 +301,17 @@ router.post("/qr/:qrId/contact/call", async (req: Request, res: Response) => {
     return;
   }
 
+  // Link the call_logs row back to the contact_request so the admin trail
+  // endpoint can show full delivery history (provider, fallback, cost, etc.)
+  // without scanning by phone number.
+  if (contactRequestId && result.callLogId) {
+    await supabaseAdmin
+      .from("contact_requests")
+      .update({ provider_metadata: { channel: "call", callLogId: result.callLogId, providerCallId: result.providerCallId } })
+      .eq("id", contactRequestId)
+      .then(() => null, () => null);
+  }
+
   // Defense-in-depth disconnect: schedule a hangup ~10s after Exotel's
   // own TimeLimit so transient delays don't let calls run past the cap.
   if (result.providerCallId) {
@@ -372,6 +383,19 @@ router.post("/qr/:qrId/contact/message", async (req: Request, res: Response) => 
       code: result.errorCode,
     });
     return;
+  }
+
+  if (contactRequestId && result.logId) {
+    await supabaseAdmin
+      .from("contact_requests")
+      .update({ provider_metadata: {
+        channel: "message",
+        messageLogId: result.logId,
+        provider: result.provider,
+        channelUsed: result.channelUsed,
+      } })
+      .eq("id", contactRequestId)
+      .then(() => null, () => null);
   }
 
   res.status(200).json({

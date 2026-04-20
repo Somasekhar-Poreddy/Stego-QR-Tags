@@ -51,10 +51,20 @@ async function requireSuperAdmin(req: Request, res: Response): Promise<string | 
   return userId;
 }
 
+// In-memory record of the last credential probe per provider, so the health
+// endpoint can show "test status" without re-running the probe on every poll.
+const lastTestStatus: Record<string, { ok: boolean; status: number; error: string | null; at: string } | null> = {
+  zavu: null, exotel: null,
+};
+function getLastTestStatus(provider: "zavu" | "exotel") {
+  return lastTestStatus[provider];
+}
+
 router.post("/admin/comms/test/zavu", async (req: Request, res: Response) => {
   if (!(await requireSuperAdmin(req, res))) return;
   invalidateCommsCache();
   const result = await probeZavuCredentials();
+  lastTestStatus.zavu = { ...result, at: new Date().toISOString() };
   res.status(result.ok ? 200 : 400).json(result);
 });
 
@@ -62,6 +72,7 @@ router.post("/admin/comms/test/exotel", async (req: Request, res: Response) => {
   if (!(await requireSuperAdmin(req, res))) return;
   invalidateCommsCache();
   const result = await probeExotelCredentials();
+  lastTestStatus.exotel = { ...result, at: new Date().toISOString() };
   res.status(result.ok ? 200 : 400).json(result);
 });
 
@@ -106,6 +117,31 @@ router.get("/admin/comms/health", async (req: Request, res: Response) => {
   const [todayCostPaise, monthCostPaise, budgetState] = await Promise.all([
     getTodayCostPaise(), getMonthCostPaise(), monthlyBudgetState(),
   ]);
+
+  // Recent log feed — the last 50 message + call attempts, interleaved by
+  // creation time. Used by the Communications screen so admins can spot
+  // anomalies without paging through analytics.
+  const { rows: recentMsgs } = await pool.query<{
+    id: string; kind: "message"; channel: string; provider: string;
+    status: string; error_code: string | null; cost_paise: number;
+    fallback_from: string | null; created_at: string;
+  }>(
+    `SELECT id, 'message'::text AS kind, channel, provider, status,
+            error_code, cost_paise, fallback_from, created_at
+       FROM message_logs ORDER BY created_at DESC LIMIT 50`,
+  );
+  const { rows: recentCalls } = await pool.query<{
+    id: string; kind: "call"; provider: string; status: string;
+    error_code: string | null; cost_paise: number; duration_seconds: number | null;
+    created_at: string;
+  }>(
+    `SELECT id, 'call'::text AS kind, provider, status,
+            error_code, cost_paise, duration_seconds, created_at
+       FROM call_logs ORDER BY created_at DESC LIMIT 50`,
+  );
+  const recent = [...recentMsgs, ...recentCalls]
+    .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
+    .slice(0, 50);
   const capInr = Number(settings.comms_cost_cap_inr_per_day) || 0;
   const warnInr = Number(settings.comms_cost_warn_threshold_inr_per_day) || 0;
   const monthlyBudgetPaise = Number(settings.monthly_budget_paise) || 0;
@@ -140,6 +176,21 @@ router.get("/admin/comms/health", async (req: Request, res: Response) => {
       over_budget_behavior: settings.over_budget_behavior ?? "calls_only",
     },
     provider_24h: providerHealth,
+    last_provider_health: providerHealth,
+    zavu_test_status: getLastTestStatus("zavu"),
+    exotel_test_status: getLastTestStatus("exotel"),
+    recent: recent.map((r) => ({
+      id: r.id,
+      kind: r.kind,
+      channel: (r as { channel?: string }).channel ?? "call",
+      provider: r.provider,
+      status: r.status,
+      error_code: r.error_code,
+      cost_paise: r.cost_paise,
+      fallback_from: (r as { fallback_from?: string | null }).fallback_from ?? null,
+      duration_seconds: (r as { duration_seconds?: number | null }).duration_seconds ?? null,
+      created_at: r.created_at,
+    })),
   });
 });
 

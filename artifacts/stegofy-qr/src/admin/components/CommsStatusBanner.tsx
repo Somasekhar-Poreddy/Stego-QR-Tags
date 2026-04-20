@@ -4,7 +4,9 @@ import { AlertTriangle, X } from "lucide-react";
 import { getCommsHealth, type CommsHealth } from "@/services/adminService";
 
 const DISMISS_KEY = "admin.commsStatusBanner.dismissedAt";
-const DISMISS_TTL_MS = 60 * 60 * 1000; // re-show every hour even if dismissed
+// Spec: dismissed banner stays hidden for 24h; we re-prompt after that so a
+// real outage isn't silenced indefinitely by a single click.
+const DISMISS_TTL_MS = 24 * 60 * 60 * 1000;
 
 function isDismissed(): boolean {
   try {
@@ -26,24 +28,24 @@ function deriveIssues(h: CommsHealth): Issue[] {
   if (!h.zavu_configured && h.whatsapp_enabled) {
     issues.push({
       message: "WhatsApp delivery is enabled but Zavu credentials are missing — fallback only.",
-      cta: { label: "Add Zavu credentials", section: "comms-providers" },
+      cta: { label: "Add Zavu credentials", section: "api-keys" },
     });
   }
   if (!h.exotel_configured) {
     issues.push({
       message: "Exotel credentials are missing — masked calls and SMS fallback are unavailable.",
-      cta: { label: "Add Exotel credentials", section: "comms-providers" },
+      cta: { label: "Add Exotel credentials", section: "api-keys" },
     });
   }
   if (h.cost.over_cap) {
     issues.push({
       message: `Daily comms spend cap reached (₹${h.cost.cap_inr}). New sends are blocked until tomorrow.`,
-      cta: { label: "Adjust cost cap", section: "comms-cost" },
+      cta: { label: "Adjust cost cap", section: "comms-routing" },
     });
   } else if (h.cost.over_warn && h.cost.warn_inr > 0) {
     issues.push({
       message: `Daily spend (₹${h.cost.today_inr}) crossed the warn threshold (₹${h.cost.warn_inr}).`,
-      cta: { label: "Review cost settings", section: "comms-cost" },
+      cta: { label: "Review cost settings", section: "comms-routing" },
     });
   }
   for (const [provider, stats] of Object.entries(h.provider_24h)) {
