@@ -10,6 +10,8 @@ import {
 import { ensureFreshSession } from "@/lib/adminAuth";
 import { DateRangeBar, useDateRange, RANGE_LABELS } from "@/admin/components/DateRangeBar";
 import { LowStockBanner } from "@/admin/components/LowStockBanner";
+import { GeoApiKeyBanner } from "@/admin/components/GeoApiKeyBanner";
+import { CommsStatusBanner } from "@/admin/components/CommsStatusBanner";
 
 interface Stats {
   totalUsers: number;
@@ -213,6 +215,8 @@ export function DashboardScreen() {
       </div>
 
       <LowStockBanner />
+      <GeoApiKeyBanner />
+      <CommsStatusBanner />
 
       <DateRangeBar state={dateRange} label="Filter charts:" />
 

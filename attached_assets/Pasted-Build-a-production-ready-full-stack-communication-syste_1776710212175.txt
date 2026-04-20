@@ -1,0 +1,245 @@
+Build a production-ready full-stack communication system for a QR-based contact platform (Stegofy).
+
+STACK:
+- Frontend: React (modern UI, Tailwind)
+- Backend: Node.js (Express)
+- Database: Supabase
+- Providers:
+  - Zavu (Primary WhatsApp)
+  - Exotel (Calls + SMS + WhatsApp fallback)
+
+--------------------------------------------------
+
+CORE ARCHITECTURE:
+
+Create a "Communication Router Service" in backend that handles all outbound communication.
+
+Routing priority:
+1. Zavu WhatsApp (primary)
+2. Exotel WhatsApp (fallback)
+3. Exotel SMS (final fallback)
+4. Exotel Calls (only when triggered)
+
+--------------------------------------------------
+
+FEATURE 1: OTP SYSTEM (WHATSAPP FIRST + FALLBACK)
+
+Flow:
+1. User enters phone number
+2. Backend generates OTP (store in Supabase with expiry)
+3. Send OTP via Zavu WhatsApp
+4. Start 10–15 second timer
+5. If:
+   - delivery failed OR timeout:
+        → send via Exotel WhatsApp
+6. If still failed:
+        → send SMS via Exotel
+7. User submits OTP → verify from DB
+
+UI:
+- Show "Sending via WhatsApp..."
+- Timer (15 sec)
+- Button: "Send via SMS"
+
+--------------------------------------------------
+
+FEATURE 2: CONTACT REQUEST FLOW
+
+1. User scans QR
+2. Select intent
+3. Send message via WhatsApp (Zavu)
+4. If fails → Exotel WhatsApp → SMS fallback
+
+NO approval system required.
+
+--------------------------------------------------
+
+FEATURE 3: DIRECT CALL SYSTEM (EXOTEL)
+
+Flow:
+1. User enters phone + PIN
+2. Click "Call Owner"
+3. Trigger Exotel call immediately
+
+Constraints:
+- Max call duration: configurable (default 60 sec)
+- Auto disconnect after limit
+- Rate limit:
+    - Max 2 calls per QR per hour
+    - Cooldown: 60 seconds
+
+Server-side enforcement REQUIRED even if UI hides button.
+
+--------------------------------------------------
+
+FEATURE 4: MULTI-PROVIDER FAILOVER
+
+Implement robust failover:
+
+Function: sendMessageSmart()
+
+Logic:
+- Try Zavu
+- If failed OR timeout → Exotel WhatsApp
+- If failed → SMS
+
+Use webhook-based delivery tracking:
+- Zavu webhook
+- Exotel webhook
+
+Store message status in DB.
+
+--------------------------------------------------
+
+FEATURE 5: ADMIN DASHBOARD
+
+Create /admin panel with sections:
+
+--------------------------------------------------
+A. API Keys & Integrations
+
+Add Exotel section:
+- Account SID (masked input)
+- API Key (masked)
+- API Token (masked)
+- Subdomain (default: api.exotel.com)
+- ExoPhone (caller ID)
+- WhatsApp number
+
+Each row:
+- Inline "Save" button
+
+Add Zavu section:
+- API Key
+- Base URL
+
+--------------------------------------------------
+B. Test Connection Button
+
+- Button: "Test Exotel Connection"
+- Calls Exotel account endpoint
+- Show:
+   - ✅ Success
+   - ❌ Error message inline
+
+--------------------------------------------------
+C. Feature Flags
+
+- masked_call_enabled (toggle)
+- whatsapp_enabled (toggle)
+- sms_enabled (toggle)
+
+If disabled:
+- Hide UI buttons
+- ALSO block server-side
+
+--------------------------------------------------
+D. Communication Settings
+
+- WhatsApp timeout (5–15 sec)
+- Max call duration (seconds)
+- Call cooldown time
+- Retry attempts
+
+--------------------------------------------------
+E. Cost Control
+
+- Monthly usage limit
+- Disable calls if exceeded
+
+--------------------------------------------------
+
+FEATURE 6: WARNING BANNER SYSTEM
+
+If:
+- masked_call_enabled OR whatsapp_enabled = true
+AND
+- Exotel credentials missing OR test fails
+
+Show amber banner:
+
+"Exotel is not configured correctly. Please update API keys."
+
+Link:
+→ /admin/settings#api-keys
+
+--------------------------------------------------
+
+FEATURE 7: ANALYTICS & TRACKING
+
+Store in Supabase:
+
+Messages table:
+- provider (zavu / exotel)
+- type (whatsapp / sms)
+- status
+- fallback_used
+- cost_estimate
+
+Calls table:
+- duration
+- cost
+- user_id
+- qr_id
+
+Dashboard metrics:
+- Total messages
+- WhatsApp success rate
+- Fallback %
+- Total calls
+- Minutes used
+- Cost estimate
+
+--------------------------------------------------
+
+FEATURE 8: SECURITY
+
+- Never expose API keys to frontend
+- Use environment variables
+- Encrypt sensitive data
+- Validate all inputs
+
+--------------------------------------------------
+
+FEATURE 9: UI/UX
+
+OTP Screen:
+- Phone input
+- "Send via WhatsApp"
+- Timer
+- "Send via SMS"
+
+Contact Screen:
+- Intent selection
+- Send message
+- Call button (secondary)
+
+Call Screen:
+- "Calling..."
+- Timer
+- Auto end
+
+--------------------------------------------------
+
+FEATURE 10: BACKEND STRUCTURE
+
+/services
+  - communicationRouter.js
+  - exotelService.js
+  - zavuService.js
+  - otpService.js
+
+/routes
+  - otpRoutes.js
+  - callRoutes.js
+  - messageRoutes.js
+
+--------------------------------------------------
+
+GOAL:
+
+Build a resilient, cost-optimized communication system with:
+- Multi-provider failover
+- Full admin control
+- Secure architecture
+- Production-ready logging and analytics

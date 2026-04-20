@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Search, Download, Trash2, Tag, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { Search, Download, Trash2, Tag, ChevronLeft, ChevronRight, Loader2, Eye, Pencil } from "lucide-react";
 import {
   getInventoryPaginated,
   getInventoryCounts,
@@ -9,7 +9,7 @@ import {
   type QRInventoryItem,
   type QRInventoryBatch,
 } from "@/services/adminService";
-import { downloadBatchStickerPdf } from "@/admin/utils/inventoryPdfGenerator";
+import { downloadBatchStickerPdf, downloadSingleStickerPdf } from "@/admin/utils/inventoryPdfGenerator";
 import { QR_TYPES, STATUS_LABELS, statusBadge, formatDate } from "./inventoryHelpers";
 import { BulkStatusModal } from "./BulkStatusModal";
 import { InventoryDetailSlideOver } from "./InventoryDetailSlideOver";
@@ -51,6 +51,8 @@ export function InventoryTab({ initialBatchId, initialFocus }: Props) {
   const [showBulkStatus, setShowBulkStatus] = useState(false);
   const [bulkPdfProgress, setBulkPdfProgress] = useState<{ done: number; total: number } | null>(null);
   const [detailId, setDetailId] = useState<string | null>(initialFocus ?? null);
+  const [openToEdit, setOpenToEdit] = useState(false);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Sequential loads to avoid Supabase auth-lock contention. Each call
@@ -240,13 +242,14 @@ export function InventoryTab({ initialBatchId, initialFocus }: Props) {
                   <th className="px-3 py-3 text-left hidden lg:table-cell">Batch</th>
                   <th className="px-3 py-3 text-left">Status</th>
                   <th className="px-3 py-3 text-left hidden xl:table-cell">Created</th>
+                  <th className="px-3 py-3 text-right w-[100px]">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {items.length === 0 ? (
-                  <tr><td colSpan={7} className="px-4 py-10 text-center text-slate-400">No inventory matches these filters.</td></tr>
+                  <tr><td colSpan={8} className="px-4 py-10 text-center text-slate-400">No inventory matches these filters.</td></tr>
                 ) : items.map((item) => (
-                  <tr key={item.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => setDetailId(item.id)}>
+                  <tr key={item.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => { setOpenToEdit(false); setDetailId(item.id); }}>
                     <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
                       <input type="checkbox" checked={selected.has(item.id)} onChange={() => toggleOne(item.id)} className="accent-primary" />
                     </td>
@@ -262,6 +265,39 @@ export function InventoryTab({ initialBatchId, initialFocus }: Props) {
                       </span>
                     </td>
                     <td className="px-3 py-3 text-slate-400 hidden xl:table-cell">{formatDate(item.created_at)}</td>
+                    <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          title="View details"
+                          onClick={(e) => { e.stopPropagation(); setOpenToEdit(false); setDetailId(item.id); }}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-primary hover:bg-primary/10 transition-colors"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        <button
+                          title="Edit"
+                          onClick={(e) => { e.stopPropagation(); setOpenToEdit(true); setDetailId(item.id); }}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-colors"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button
+                          title="Download sticker PDF"
+                          disabled={downloadingId === item.id}
+                          onClick={async () => {
+                            setDownloadingId(item.id);
+                            try { await downloadSingleStickerPdf(item); }
+                            catch (e) { setError(e instanceof Error ? e.message : "PDF failed."); }
+                            finally { setDownloadingId(null); }
+                          }}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-green-700 hover:bg-green-50 transition-colors disabled:opacity-40"
+                        >
+                          {downloadingId === item.id
+                            ? <Loader2 className="w-4 h-4 animate-spin" />
+                            : <Download className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -296,8 +332,9 @@ export function InventoryTab({ initialBatchId, initialFocus }: Props) {
       {detailId && (
         <InventoryDetailSlideOver
           itemId={detailId}
-          onClose={() => setDetailId(null)}
+          onClose={() => { setDetailId(null); setOpenToEdit(false); }}
           onChanged={reload}
+          openToEdit={openToEdit}
         />
       )}
     </div>

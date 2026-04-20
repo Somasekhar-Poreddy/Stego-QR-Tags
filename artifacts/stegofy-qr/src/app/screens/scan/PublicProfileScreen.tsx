@@ -238,15 +238,20 @@ interface VerifyModalProps {
   vehicleNumberHint: string;
   onClose: () => void;
   /** Returns null on success, or an error message string on failure */
-  onVerified: (phone: string) => Promise<string | null>;
+  onVerified: (args: { phone: string; pin: string; vehicleLast4: string }) => Promise<string | null>;
   pinCode: string | null;
   vehicleNumber: string;
 }
 
+type Step = "phone" | "otp" | "details";
+
 function VerifyModal({ qrType, vehicleNumberHint, onClose, onVerified, pinCode, vehicleNumber }: VerifyModalProps) {
+  const [step, setStep] = useState<Step>("phone");
+  const [phone, setPhone] = useState("");
+  const [otp, setOtp] = useState("");
+  const [otpChannel, setOtpChannel] = useState<string | null>(null);
   const [pin, setPin] = useState(["", "", "", ""]);
   const [last4, setLast4] = useState("");
-  const [phone, setPhone] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
@@ -268,14 +273,67 @@ function VerifyModal({ qrType, vehicleNumberHint, onClose, onVerified, pinCode, 
     }
   };
 
-  const handleSubmit = async () => {
-    const enteredPin = pin.join("");
-    if (enteredPin.length < 4) {
-      setError("Please enter all 4 digits of the PIN.");
+  const requestOtp = async () => {
+    if (!/^[+0-9 \-]{8,}$/.test(phone)) {
+      setError("Please enter a valid mobile number.");
       return;
     }
-    if (pinCode && enteredPin !== pinCode) {
-      setError("Incorrect PIN. Please check the PIN printed on the tag.");
+    setSubmitting(true);
+    setError("");
+    try {
+      const res = await fetch("/api/otp/request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(body.error || "Could not send verification code. Please try again.");
+        setSubmitting(false);
+        return;
+      }
+      setOtpChannel(body.channel ?? "WhatsApp/SMS");
+      // Dev convenience: prefill the code so local testing works without a real send.
+      if (body.dev_code) setOtp(String(body.dev_code));
+      setStep("otp");
+    } catch {
+      setError("Network error. Please check your connection and try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const verifyOtp = async () => {
+    if (!/^\d{4,8}$/.test(otp)) {
+      setError("Enter the verification code we just sent.");
+      return;
+    }
+    setSubmitting(true);
+    setError("");
+    try {
+      const res = await fetch("/api/otp/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone, code: otp }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(body.error || "Code is incorrect or expired.");
+        setSubmitting(false);
+        return;
+      }
+      setStep("details");
+    } catch {
+      setError("Network error. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleSubmit = async () => {
+    const enteredPin = pin.join("");
+    if (pinCode && enteredPin.length < 4) {
+      setError("Please enter all 4 digits of the PIN.");
       return;
     }
     if (qrType === "vehicle" && vehicleNumber) {
@@ -286,9 +344,9 @@ function VerifyModal({ qrType, vehicleNumberHint, onClose, onVerified, pinCode, 
       }
     }
     setSubmitting(true);
-    const insertError = await onVerified(phone);
-    if (insertError) {
-      setError(insertError);
+    const err = await onVerified({ phone, pin: enteredPin, vehicleLast4: last4 });
+    if (err) {
+      setError(err);
       setSubmitting(false);
     }
   };
@@ -311,79 +369,137 @@ function VerifyModal({ qrType, vehicleNumberHint, onClose, onVerified, pinCode, 
           </button>
         </div>
 
-        {/* PIN input */}
-        <div className="mb-5">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">
-            4-Digit PIN <span className="text-red-500">*</span>
-          </p>
-          <p className="text-xs text-slate-400 mb-3">Enter the 4-digit PIN printed on the physical QR tag.</p>
-          <div className="flex gap-3 justify-center">
-            {pin.map((digit, i) => (
+        {/* Step 1: Phone number → request OTP */}
+        {step === "phone" && (
+          <>
+            <div className="mb-5">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Your Mobile Number</p>
+              <p className="text-xs text-slate-400 mb-2">We'll send a one-time verification code to this number on WhatsApp (or SMS as fallback).</p>
               <input
-                key={i}
-                ref={(el) => { inputRefs.current[i] = el; }}
                 type="tel"
-                inputMode="numeric"
-                maxLength={1}
-                value={digit}
-                onChange={(e) => handlePinChange(i, e.target.value)}
-                onKeyDown={(e) => handlePinKeyDown(i, e)}
-                className={cn(
-                  "w-14 h-14 text-center text-xl font-bold rounded-2xl border-2 outline-none transition-all bg-slate-50 text-slate-900",
-                  error ? "border-red-400 bg-red-50" : "border-slate-200 focus:border-primary focus:ring-2 focus:ring-primary/20"
-                )}
-              />
-            ))}
-          </div>
-        </div>
-
-        {/* Vehicle last-4 field */}
-        {qrType === "vehicle" && (
-          <div className="mb-5">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
-              Last 4 digits of vehicle number <span className="text-red-500">*</span>
-            </p>
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-slate-400">{vehicleNumberHint}</span>
-              <input
-                type="text"
-                maxLength={4}
-                value={last4}
-                onChange={(e) => { setLast4(e.target.value.toUpperCase()); setError(""); }}
-                placeholder="Last 4 Digits"
-                className="flex-1 h-12 px-4 rounded-2xl border-2 border-slate-200 bg-slate-50 text-sm font-semibold text-slate-900 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+                value={phone}
+                onChange={(e) => { setPhone(e.target.value); setError(""); }}
+                placeholder="+91 98765 43210"
+                className="w-full h-12 px-4 rounded-2xl border-2 border-slate-200 bg-slate-50 text-sm text-slate-900 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
               />
             </div>
-          </div>
+            {error && (
+              <div className="mb-4 bg-red-50 border border-red-200 rounded-2xl px-4 py-3">
+                <p className="text-sm text-red-600">{error}</p>
+              </div>
+            )}
+            <button
+              onClick={requestOtp}
+              disabled={submitting || phone.trim().length < 8}
+              className="w-full bg-gradient-to-r from-primary to-violet-600 text-white font-bold py-4 rounded-2xl shadow-lg shadow-primary/30 disabled:opacity-40 active:scale-[0.98] transition-all mb-3"
+            >
+              {submitting ? "Sending code…" : "Send verification code"}
+            </button>
+          </>
         )}
 
-        {/* Phone number */}
-        <div className="mb-5">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Your Phone Number</p>
-          <p className="text-xs text-slate-400 mb-2">We need this to set up a masked call between you and the owner.</p>
-          <input
-            type="tel"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            placeholder="+91 98765 43210"
-            className="w-full h-12 px-4 rounded-2xl border-2 border-slate-200 bg-slate-50 text-sm text-slate-900 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
-          />
-        </div>
-
-        {/* Error */}
-        {error && (
-          <div className="mb-4 bg-red-50 border border-red-200 rounded-2xl px-4 py-3">
-            <p className="text-sm text-red-600">{error}</p>
-          </div>
+        {/* Step 2: OTP entry */}
+        {step === "otp" && (
+          <>
+            <div className="mb-5">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Enter the code</p>
+              <p className="text-xs text-slate-400 mb-3">
+                Code sent to <span className="font-semibold text-slate-600">{phone}</span>
+                {otpChannel ? <> via <span className="font-semibold capitalize">{otpChannel}</span></> : null}.
+              </p>
+              <input
+                type="tel"
+                inputMode="numeric"
+                maxLength={8}
+                value={otp}
+                onChange={(e) => { setOtp(e.target.value.replace(/\D/g, "")); setError(""); }}
+                placeholder="123456"
+                className="w-full h-12 px-4 rounded-2xl border-2 border-slate-200 bg-slate-50 text-base font-mono tracking-widest text-center text-slate-900 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+              />
+              <button
+                type="button"
+                onClick={() => { setStep("phone"); setOtp(""); }}
+                className="text-xs text-primary font-semibold mt-2 hover:underline"
+              >
+                Change number
+              </button>
+            </div>
+            {error && (
+              <div className="mb-4 bg-red-50 border border-red-200 rounded-2xl px-4 py-3">
+                <p className="text-sm text-red-600">{error}</p>
+              </div>
+            )}
+            <button
+              onClick={verifyOtp}
+              disabled={submitting || otp.length < 4}
+              className="w-full bg-gradient-to-r from-primary to-violet-600 text-white font-bold py-4 rounded-2xl shadow-lg shadow-primary/30 disabled:opacity-40 active:scale-[0.98] transition-all mb-3"
+            >
+              {submitting ? "Verifying…" : "Verify code"}
+            </button>
+          </>
         )}
 
-        <button
-          onClick={handleSubmit}
-          disabled={submitting || pin.some((d) => !d)}
-          className="w-full bg-gradient-to-r from-primary to-violet-600 text-white font-bold py-4 rounded-2xl shadow-lg shadow-primary/30 disabled:opacity-40 active:scale-[0.98] transition-all mb-3"
-        >
-          {submitting ? "Verifying..." : "Submit Request"}
-        </button>
+        {/* Step 3: PIN + (vehicle) last-4 → submit */}
+        {step === "details" && (
+          <>
+            {pinCode && (
+              <div className="mb-5">
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">
+                  4-Digit PIN <span className="text-red-500">*</span>
+                </p>
+                <p className="text-xs text-slate-400 mb-3">Enter the 4-digit PIN printed on the physical QR tag.</p>
+                <div className="flex gap-3 justify-center">
+                  {pin.map((digit, i) => (
+                    <input
+                      key={i}
+                      ref={(el) => { inputRefs.current[i] = el; }}
+                      type="tel"
+                      inputMode="numeric"
+                      maxLength={1}
+                      value={digit}
+                      onChange={(e) => handlePinChange(i, e.target.value)}
+                      onKeyDown={(e) => handlePinKeyDown(i, e)}
+                      className={cn(
+                        "w-14 h-14 text-center text-xl font-bold rounded-2xl border-2 outline-none transition-all bg-slate-50 text-slate-900",
+                        error ? "border-red-400 bg-red-50" : "border-slate-200 focus:border-primary focus:ring-2 focus:ring-primary/20"
+                      )}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+            {qrType === "vehicle" && (
+              <div className="mb-5">
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+                  Last 4 digits of vehicle number <span className="text-red-500">*</span>
+                </p>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold text-slate-400">{vehicleNumberHint}</span>
+                  <input
+                    type="text"
+                    maxLength={4}
+                    value={last4}
+                    onChange={(e) => { setLast4(e.target.value.toUpperCase()); setError(""); }}
+                    placeholder="Last 4 Digits"
+                    className="flex-1 h-12 px-4 rounded-2xl border-2 border-slate-200 bg-slate-50 text-sm font-semibold text-slate-900 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+                  />
+                </div>
+              </div>
+            )}
+            {error && (
+              <div className="mb-4 bg-red-50 border border-red-200 rounded-2xl px-4 py-3">
+                <p className="text-sm text-red-600">{error}</p>
+              </div>
+            )}
+            <button
+              onClick={handleSubmit}
+              disabled={submitting || (Boolean(pinCode) && pin.some((d) => !d))}
+              className="w-full bg-gradient-to-r from-primary to-violet-600 text-white font-bold py-4 rounded-2xl shadow-lg shadow-primary/30 disabled:opacity-40 active:scale-[0.98] transition-all mb-3"
+            >
+              {submitting ? "Submitting…" : "Submit Request"}
+            </button>
+          </>
+        )}
         <button onClick={onClose} className="w-full text-sm text-slate-500 py-2 rounded-2xl hover:bg-slate-50 transition-colors">
           Cancel
         </button>
@@ -527,7 +643,29 @@ function EmergencyContactsModal({ emergencyContact, data, onBack }: EmergencyCon
 }
 
 /* ─── Success Screen ──────────────────────────────────────────────────────────── */
-function SuccessScreen() {
+/** Three terminal screens for the contact flow. */
+function CallingScreen({ onDone }: { onDone: () => void }) {
+  return (
+    <div className="min-h-screen bg-white flex flex-col items-center justify-center px-6 text-center">
+      <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mb-5 animate-pulse">
+        <Phone className="w-9 h-9 text-green-600" />
+      </div>
+      <h2 className="text-xl font-bold text-slate-900 mb-2">Connecting your call…</h2>
+      <p className="text-sm text-slate-500 mb-6 max-w-sm">
+        Your phone should ring in a moment. We'll bridge you to the owner using a privacy-masked number — neither side sees the other's real number.
+      </p>
+      <div className="w-full max-w-sm bg-blue-50 border border-blue-100 rounded-2xl p-4 text-left">
+        <p className="text-xs font-semibold text-blue-700 mb-1">If your phone doesn't ring</p>
+        <p className="text-xs text-blue-600">Make sure you're available on the number you provided. The call window is open for about 3 minutes.</p>
+      </div>
+      <button onClick={onDone} className="mt-6 text-sm font-semibold text-slate-500 hover:text-slate-700">
+        Close
+      </button>
+    </div>
+  );
+}
+
+function NotifiedScreen({ onDone }: { onDone: () => void }) {
   return (
     <div className="min-h-screen bg-white flex flex-col items-center justify-center px-6 text-center">
       <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mb-5">
@@ -535,12 +673,35 @@ function SuccessScreen() {
       </div>
       <h2 className="text-xl font-bold text-slate-900 mb-2">Owner has been notified</h2>
       <p className="text-sm text-slate-500 mb-8">
-        Your contact request has been sent. The owner will reach out soon if they accept your request.
+        We sent your message to the owner over WhatsApp (with SMS as backup). They'll reach out if they choose to respond.
       </p>
-      <div className="w-full bg-blue-50 border border-blue-100 rounded-2xl p-4">
+      <div className="w-full max-w-sm bg-blue-50 border border-blue-100 rounded-2xl p-4 text-left">
         <p className="text-xs font-semibold text-blue-700 mb-1">What happens next?</p>
-        <p className="text-xs text-blue-600">The owner will receive a notification and can choose to accept or decline your contact request. You may be contacted via your provided phone number.</p>
+        <p className="text-xs text-blue-600">The owner can accept or decline. If they accept, you'll be contacted on the phone number you provided.</p>
       </div>
+      <button onClick={onDone} className="mt-6 text-sm font-semibold text-slate-500 hover:text-slate-700">
+        Done
+      </button>
+    </div>
+  );
+}
+
+function TryAgainLaterScreen({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="min-h-screen bg-white flex flex-col items-center justify-center px-6 text-center">
+      <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mb-5">
+        <AlertOctagon className="w-9 h-9 text-amber-600" />
+      </div>
+      <h2 className="text-xl font-bold text-slate-900 mb-2">Please try again in a moment</h2>
+      <p className="text-sm text-slate-500 mb-8 max-w-sm">
+        We couldn't get through to our messaging partners just now, or you've made a few requests in a short time. Please wait a minute and try again.
+      </p>
+      <button
+        onClick={onRetry}
+        className="bg-gradient-to-r from-primary to-violet-600 text-white font-bold px-6 py-3 rounded-2xl shadow-lg shadow-primary/30 active:scale-[0.98]"
+      >
+        Try again
+      </button>
     </div>
   );
 }
@@ -551,6 +712,18 @@ const SCAN_RETRY_DELAYS = [600, 1200, 2000];
 /* ─── Main Public Contact Page ────────────────────────────────────────────────── */
 export function PublicProfileScreen() {
   const [qrData, setQrData] = useState<QRPublicData | null>(null);
+  // Public comms-flag snapshot. Used to hide CTAs for channels the admin
+  // has globally turned off; the server still rejects, this is just UX.
+  const [commsFlags, setCommsFlags] = useState<{
+    masked_call_enabled: boolean;
+    message_enabled: boolean;
+  } | null>(null);
+  useEffect(() => {
+    fetch("/api/comms/public-flags")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => { if (j) setCommsFlags(j); })
+      .catch(() => { /* leave defaults — buttons stay visible */ });
+  }, []);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [claimable, setClaimable] = useState<{ displayCode: string; type: string | null } | null>(null);
@@ -560,7 +733,9 @@ export function PublicProfileScreen() {
   const [actionType, setActionType] = useState<"contact" | "message" | "video">("contact");
   const [showEmergencyWarning, setShowEmergencyWarning] = useState(false);
   const [showEmergencyContacts, setShowEmergencyContacts] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
+  // Terminal state for the contact flow. `null` means the user is still on the
+  // profile page; the others render full-screen feedback components.
+  const [outcome, setOutcome] = useState<"calling" | "notified" | "try_again" | null>(null);
 
   // Reactive scan ID — triggers intent-update effect when it arrives after async POST
   const [scanId, setScanId] = useState<string | null>(null);
@@ -594,22 +769,22 @@ export function PublicProfileScreen() {
         await new Promise<void>((r) => setTimeout(r, SCAN_RETRY_DELAYS[attempt]));
         return fetchQrData(attempt + 1);
       }
-      // qr_codes lookup exhausted — fall back to qr_inventory so freshly-
-      // printed, unclaimed stickers show a "Claim this QR" splash instead of
-      // a generic "not found" error. We only offer claim for pre-assigned
-      // statuses; if the inventory row is already `assigned` the qr_codes
-      // lookup will succeed on a subsequent retry (or the user is looking at
-      // a very stale record — we fall through to not-found).
-      const { data: inv } = await supabase
-        .from("qr_inventory")
-        .select("id, status, type, display_code")
-        .eq("id", qrId)
-        .maybeSingle();
-      const invRow = inv as { id: string; status: string; type: string | null; display_code: string | null } | null;
-      if (invRow && invRow.status !== "assigned" && invRow.display_code) {
-        setClaimable({ displayCode: invRow.display_code, type: invRow.type });
-        setLoading(false);
-        return;
+      // qr_codes lookup exhausted — fall back to the API's claim-info endpoint.
+      // This uses the service-role key server-side and bypasses RLS, so it
+      // reliably detects freshly-printed unclaimed stickers and shows the
+      // "Activate your QR" splash instead of a generic not-found error.
+      try {
+        const infoRes = await fetch(`/api/qr/info/${encodeURIComponent(qrId)}`);
+        if (infoRes.ok) {
+          const info = await infoRes.json() as { claimable?: boolean; display_code?: string; type?: string | null };
+          if (info.claimable && info.display_code) {
+            setClaimable({ displayCode: info.display_code, type: info.type ?? null });
+            setLoading(false);
+            return;
+          }
+        }
+      } catch {
+        // Network error — fall through to not-found
       }
       // All attempts failed — only mark not-found if no cached data exists
       if (!qrDataRef.current) setNotFound(true);
@@ -665,48 +840,55 @@ export function PublicProfileScreen() {
     }).catch(() => {});
   }, [pendingRequestMade, scanId, selectedIntent]);
 
-  /** Returns null on success, or an error message on DB failure */
-  const handleVerified = async (phone: string): Promise<string | null> => {
-    if (qrData) {
-      let ip_address: string | null = null;
-      let location: string | null = null;
-      let latitude: number | null = null;
-      let longitude: number | null = null;
-      try {
-        const geoRes = await fetch("https://ipapi.co/json/", { signal: AbortSignal.timeout(4000) });
-        if (geoRes.ok) {
-          const geo = await geoRes.json() as { ip?: string; city?: string; country_name?: string; latitude?: number; longitude?: number };
-          ip_address = geo.ip ?? null;
-          const parts = [geo.city, geo.country_name].filter(Boolean);
-          location = parts.length > 0 ? parts.join(", ") : null;
-          latitude = geo.latitude ?? null;
-          longitude = geo.longitude ?? null;
-        }
-      } catch { /* silently skip geo — don't block submission */ }
+  /**
+   * Returns null on success, or a user-facing error string on failure.
+   * Calls the new server-side comms platform — no direct DB writes here.
+   * The router decides which provider (Zavu / Exotel) to use, logs delivery
+   * status, and (for calls) sets up a masked Exotel bridge.
+   */
+  const handleVerified = async (args: { phone: string; pin: string; vehicleLast4: string }): Promise<string | null> => {
+    if (!qrData) return "Something went wrong. Please refresh and try again.";
 
-      const { error } = await supabase.from("contact_requests").insert({
-        qr_id: qrData.id,
-        intent: selectedIntent,
-        message: selectedIntent === "others" ? (customMessage || null) : null,
-        action_type: actionType,
-        requester_phone: phone || null,
-        ip_address,
-        location,
-        latitude,
-        longitude,
-        status: "pending",
+    const intent = selectedIntent ?? "others";
+    const message = selectedIntent === "others" ? (customMessage || null) : null;
+
+    // Map our 3 CTA types onto the 2 server endpoints. "video" is currently
+    // surfaced as a message until the video bridge is wired up.
+    const endpoint = actionType === "contact" ? "call" : "message";
+
+    try {
+      const res = await fetch(`/api/qr/${encodeURIComponent(qrData.id)}/contact/${endpoint}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone: args.phone,
+          pin: args.pin || undefined,
+          vehicle_last4: args.vehicleLast4 || undefined,
+          intent,
+          message,
+        }),
       });
-      if (error) {
-        console.error("contact_requests insert failed:", error);
-        return "Failed to send request. Please check your connection and try again.";
+      const body = await res.json().catch(() => ({})) as Record<string, unknown>;
+
+      if (!res.ok) {
+        if (res.status === 429) {
+          setOutcome("try_again");
+          setShowVerify(false);
+          return null;
+        }
+        return (body.error as string) || "Could not deliver your request. Please try again in a moment.";
       }
-      // Signal that contact request was submitted; effect sends is_request_made update
-      // (handles both fast path where scanId exists, and late-arriving scanId race)
+
+      // Tell the analytics pipeline that a request was submitted (when scanId arrives).
       setPendingRequestMade(true);
+      setShowVerify(false);
+      setOutcome(endpoint === "call" ? "calling" : "notified");
+      return null;
+    } catch {
+      setOutcome("try_again");
+      setShowVerify(false);
+      return null;
     }
-    setShowVerify(false);
-    setSubmitted(true);
-    return null;
   };
 
   /** Opens Emergency flow or Verify modal based on selected intent */
@@ -724,7 +906,9 @@ export function PublicProfileScreen() {
   if (notFound) return <ErrorState message="QR tag not found" />;
   if (!qrData) return <ErrorState message="Something went wrong" />;
   if (!qrData.is_active) return <ErrorState message="This QR is inactive" />;
-  if (submitted) return <SuccessScreen />;
+  if (outcome === "calling") return <CallingScreen onDone={() => setOutcome(null)} />;
+  if (outcome === "notified") return <NotifiedScreen onDone={() => setOutcome(null)} />;
+  if (outcome === "try_again") return <TryAgainLaterScreen onRetry={() => setOutcome(null)} />;
 
   const intents = getIntents(qrData.type, qrData.strict_mode, qrData.data);
   const maskedLabel = getMaskedLabel(qrData.type, qrData.data);
@@ -734,6 +918,12 @@ export function PublicProfileScreen() {
   const vehicleHint = vehicleNumber ? `${vehicleNumber.slice(0, 4).toUpperCase()}####` : "";
   const contactAllowed = qrData.allow_contact;
   const videoCallEnabled = qrData.privacy?.videoCall === true;
+  // Comms feature flags fetched from /api/comms/public-flags. The server
+  // also rejects disabled channels at the API layer, but hiding the buttons
+  // up front keeps the public scan UX consistent with admin's Settings →
+  // Communication Settings switches.
+  const callEnabled = commsFlags?.masked_call_enabled ?? true;
+  const messageEnabled = commsFlags?.message_enabled ?? true;
 
   return (
     <div className="min-h-screen bg-white flex flex-col max-w-lg mx-auto">
@@ -843,25 +1033,33 @@ export function PublicProfileScreen() {
             {!qrData.strict_mode && (
               <p className="text-sm text-slate-600 mb-3">Would you like to call or text the owner?</p>
             )}
-            <div className={cn("grid gap-3", videoCallEnabled ? "grid-cols-3" : "grid-cols-2")}>
-              {/* Masked Call — always enabled, no message selection required */}
-              <button
-                onClick={() => handleCTA("contact")}
-                className="flex flex-col items-center gap-2 py-4 rounded-2xl border-2 border-amber-400 text-amber-600 font-semibold text-sm active:scale-[0.97] transition-all hover:bg-amber-50"
-              >
-                <Phone className="w-6 h-6" />
-                Masked Call
-              </button>
+            <div className={cn(
+              "grid gap-3",
+              [callEnabled, messageEnabled, videoCallEnabled].filter(Boolean).length === 3 ? "grid-cols-3" :
+              [callEnabled, messageEnabled, videoCallEnabled].filter(Boolean).length === 2 ? "grid-cols-2" : "grid-cols-1",
+            )}>
+              {/* Masked Call — hidden if globally disabled in Communication Settings. */}
+              {callEnabled && (
+                <button
+                  onClick={() => handleCTA("contact")}
+                  className="flex flex-col items-center gap-2 py-4 rounded-2xl border-2 border-amber-400 text-amber-600 font-semibold text-sm active:scale-[0.97] transition-all hover:bg-amber-50"
+                >
+                  <Phone className="w-6 h-6" />
+                  Masked Call
+                </button>
+              )}
 
-              {/* Message — requires intent selection */}
-              <button
-                onClick={() => handleCTA("message")}
-                disabled={!selectedIntent && intents.length > 0}
-                className="flex flex-col items-center gap-2 py-4 rounded-2xl border-2 border-blue-400 text-blue-600 font-semibold text-sm disabled:opacity-40 active:scale-[0.97] transition-all hover:bg-blue-50"
-              >
-                <MessageCircle className="w-6 h-6" />
-                Message
-              </button>
+              {/* Message — requires intent selection; hidden if both WA + SMS off. */}
+              {messageEnabled && (
+                <button
+                  onClick={() => handleCTA("message")}
+                  disabled={!selectedIntent && intents.length > 0}
+                  className="flex flex-col items-center gap-2 py-4 rounded-2xl border-2 border-blue-400 text-blue-600 font-semibold text-sm disabled:opacity-40 active:scale-[0.97] transition-all hover:bg-blue-50"
+                >
+                  <MessageCircle className="w-6 h-6" />
+                  Message
+                </button>
+              )}
 
               {/* Video Call — only shown if owner enabled it */}
               {videoCallEnabled && (
@@ -897,14 +1095,12 @@ export function PublicProfileScreen() {
         {/* Footer */}
         <div className="mt-8 pt-5 border-t border-slate-100">
           <div className="flex items-center gap-1 flex-wrap text-xs text-slate-400">
-            <a
-              href={`https://wa.me/919999999999?text=Urgent%20-%20QR%20ID%3A%20${qrId}`}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
+              onClick={() => { setActionType("message"); setShowVerify(true); }}
               className="hover:text-primary transition-colors"
             >
-              💬 Urgent — Stegofy us
-            </a>
+              💬 Need urgent help?
+            </button>
             <span>·</span>
             <button className="hover:text-primary transition-colors">Report wrong info</button>
             <span>·</span>

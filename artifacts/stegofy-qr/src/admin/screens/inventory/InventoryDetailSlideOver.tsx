@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { X, Loader2, Download, Trash2, ExternalLink, Save, QrCode as QrCodeIcon } from "lucide-react";
 import { useLocation } from "wouter";
 import QRCode from "qrcode";
@@ -18,11 +18,12 @@ interface Props {
   itemId: string;
   onClose: () => void;
   onChanged: () => void;
+  openToEdit?: boolean;
 }
 
 type AssignedUser = { id: string; name: string | null; email: string | null };
 
-export function InventoryDetailSlideOver({ itemId, onClose, onChanged }: Props) {
+export function InventoryDetailSlideOver({ itemId, onClose, onChanged, openToEdit }: Props) {
   const [, navigate] = useLocation();
   const [item, setItem] = useState<QRInventoryItem | null>(null);
   const [events, setEvents] = useState<QRInventoryEvent[]>([]);
@@ -30,6 +31,16 @@ export function InventoryDetailSlideOver({ itemId, onClose, onChanged }: Props) 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [qrPreview, setQrPreview] = useState<string | null>(null);
+  const editSectionRef = useRef<HTMLDivElement>(null);
+
+  // Scroll to edit form when openToEdit=true and content is loaded
+  useEffect(() => {
+    if (openToEdit && !loading && editSectionRef.current) {
+      editSectionRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+      const firstInput = editSectionRef.current.querySelector<HTMLElement>("select,input");
+      firstInput?.focus();
+    }
+  }, [openToEdit, loading]);
 
   // Edit form state
   const [editType, setEditType] = useState("");
@@ -182,7 +193,7 @@ export function InventoryDetailSlideOver({ itemId, onClose, onChanged }: Props) 
               )}
 
               {/* Edit form */}
-              <div className="space-y-3">
+              <div className="space-y-3" ref={editSectionRef}>
                 <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wide">Edit</h4>
                 <div>
                   <label className="text-xs font-semibold text-slate-500 mb-1 block">Type</label>

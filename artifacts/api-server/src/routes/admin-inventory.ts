@@ -2,6 +2,9 @@ import { Router, type IRouter } from "express";
 import type { Request, Response } from "express";
 import { randomBytes, randomUUID } from "node:crypto";
 import { supabaseAdmin } from "../lib/supabaseAdmin.js";
+import { publicScanLimiter } from "../middlewares/rate-limit.js";
+import { sendVendorEmail, isEmailConfigured } from "../services/emailService.js";
+import { generateBatchPdfBase64 } from "../utils/stickerPdfGenerator.js";
 
 const router: IRouter = Router();
 
@@ -655,7 +658,145 @@ router.post("/admin/inventory/claim/finalize", async (req: Request, res: Respons
     console.warn("[admin-inventory] post-claim low-stock check failed:", err);
   }
 
+  // Fire-and-forget: send a welcome email with the sticker PDF attached.
+  // Failures are logged but never block the claim (it's already committed).
+  void sendClaimWelcomeEmail({
+    to: caller.email,
+    profileName: profile.name,
+    qrType: profile.type ?? invRow.type ?? "belongings",
+    inventoryItem: {
+      id: invRow.id,
+      type: profile.type ?? invRow.type,
+      qr_url: invRow.qr_url,
+      display_code: display_code.trim().toUpperCase(),
+      pin_code: invRow.pin_code,
+    },
+  }).catch((err) => {
+    console.warn("[admin-inventory] welcome email failed:", err);
+  });
+
   res.status(201).json({ qr_id: qrRow.id, inventory_id: invRow.id });
 });
 
+interface ClaimWelcomeEmailOptions {
+  to: string | null;
+  profileName: string;
+  qrType: string;
+  inventoryItem: {
+    id: string;
+    type: string | null;
+    qr_url: string | null;
+    display_code: string;
+    pin_code: string | null;
+  };
+}
+
+async function sendClaimWelcomeEmail(opts: ClaimWelcomeEmailOptions): Promise<void> {
+  if (!opts.to) {
+    console.warn("[admin-inventory] welcome email skipped: no recipient email");
+    return;
+  }
+  if (!isEmailConfigured()) {
+    console.warn("[admin-inventory] welcome email skipped: RESEND_API_KEY not configured");
+    return;
+  }
+
+  const pdfBase64 = await generateBatchPdfBase64([opts.inventoryItem]);
+  const safeCode = opts.inventoryItem.display_code.replace(/[^A-Za-z0-9_-]/g, "");
+  const pdfFilename = `stegofy-sticker-${safeCode || "qr"}.pdf`;
+
+  const safeName = escapeHtml(opts.profileName);
+  const safeType = escapeHtml(opts.qrType);
+  const safeCodeHtml = escapeHtml(opts.inventoryItem.display_code);
+  const subjectName = opts.profileName.replace(/[\r\n\t\u0000-\u001F\u007F]/g, " ").trim() || "there";
+
+  const html = `
+    <div style="font-family: -apple-system, Segoe UI, Roboto, sans-serif; color: #0f172a; max-width: 560px;">
+      <h2 style="margin: 0 0 12px; color: #0f172a;">Welcome to Stegofy, ${safeName}!</h2>
+      <p style="margin: 0 0 12px; line-height: 1.5;">
+        Your QR sticker is now active and ready to use.
+      </p>
+      <table style="border-collapse: collapse; margin: 16px 0;">
+        <tr><td style="padding: 4px 12px 4px 0; color: #475569;">Profile name</td><td style="padding: 4px 0;"><strong>${safeName}</strong></td></tr>
+        <tr><td style="padding: 4px 12px 4px 0; color: #475569;">QR type</td><td style="padding: 4px 0;"><strong>${safeType}</strong></td></tr>
+        <tr><td style="padding: 4px 12px 4px 0; color: #475569;">Sticker code</td><td style="padding: 4px 0;"><strong>${safeCodeHtml}</strong></td></tr>
+      </table>
+      <p style="margin: 0 0 12px; line-height: 1.5;">
+        Your printable sticker PDF is attached to this email so you always have a copy.
+        Print it, peel it, and stick it wherever you need it.
+      </p>
+      <p style="margin: 16px 0 0; color: #64748b; font-size: 13px;">
+        — The Stegofy team
+      </p>
+    </div>
+  `;
+
+  await sendVendorEmail({
+    to: opts.to,
+    subject: `Your Stegofy QR is active — welcome, ${subjectName}!`,
+    html,
+    pdfBase64,
+    pdfFilename,
+    fromName: "Stegofy",
+  });
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+// ─── Public: claim-info lookup ───────────────────────────────────────────────
+// No auth required. Used by PublicProfileScreen when a scanned QR id exists in
+// qr_inventory but not yet in qr_codes (i.e. the sticker hasn't been claimed).
+// Uses the service-role client so RLS never blocks the read.
+// Returns:
+//   200 { claimable: true,  display_code, type }  — unclaimed, ready to claim
+//   200 { claimable: false }                       — already assigned
+//   404 { error }                                  — not found in inventory
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+router.get("/qr/info/:id", publicScanLimiter, async (req: Request, res: Response) => {
+  const { id } = req.params;
+  if (!id || !UUID_RE.test(id)) {
+    res.status(404).json({ error: "QR not found" });
+    return;
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("qr_inventory")
+    .select("id, status, type, display_code")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error) {
+    res.status(500).json({ error: error.message });
+    return;
+  }
+  if (!data) {
+    res.status(404).json({ error: "QR not found in inventory" });
+    return;
+  }
+
+  const CLAIMABLE_STATUSES = ["unassigned", "sent_to_vendor", "in_stock"] as const;
+  const row = data as { id: string; status: string; type: string | null; display_code: string | null };
+
+  if (!CLAIMABLE_STATUSES.includes(row.status as typeof CLAIMABLE_STATUSES[number])) {
+    res.json({ claimable: false });
+    return;
+  }
+  if (!row.display_code) {
+    res.status(404).json({ error: "Sticker has no display code yet" });
+    return;
+  }
+
+  res.json({ claimable: true, display_code: row.display_code, type: row.type });
+});
+
 export default router;
+
