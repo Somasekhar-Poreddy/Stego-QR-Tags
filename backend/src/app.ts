@@ -63,12 +63,22 @@ app.use("/api", router);
 
 const frontendDist = process.env.FRONTEND_DIST_PATH
   ?? path.resolve(import.meta.dirname, "..", "..", "frontend", "dist", "public");
-if (process.env.SERVE_FRONTEND !== "false" && existsSync(frontendDist)) {
+const frontendExists = existsSync(frontendDist);
+const frontendIndex = path.join(frontendDist, "index.html");
+const indexExists = existsSync(frontendIndex);
+
+if (process.env.SERVE_FRONTEND !== "false" && frontendExists && indexExists) {
   app.use(express.static(frontendDist));
   app.get("*", (req, res, next) => {
     if (req.path.startsWith("/api") || req.path.startsWith("/webhooks")) return next();
-    res.sendFile(path.join(frontendDist, "index.html"));
+    res.sendFile(frontendIndex);
   });
+} else if (process.env.SERVE_FRONTEND !== "false") {
+  console.log(`[frontend] Not serving static files.`);
+  console.log(`[frontend] Checked path: ${frontendDist}`);
+  console.log(`[frontend] Directory exists: ${frontendExists}, index.html exists: ${indexExists}`);
+  console.log(`[frontend] import.meta.dirname: ${import.meta.dirname}`);
+  console.log(`[frontend] cwd: ${process.cwd()}`);
 }
 
 export default app;
