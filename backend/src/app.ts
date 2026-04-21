@@ -67,28 +67,10 @@ const frontendExists = existsSync(frontendDist);
 const frontendIndex = path.join(frontendDist, "index.html");
 const indexExists = existsSync(frontendIndex);
 
-// Temporary debug endpoint — remove after deployment is working
-app.get("/api/debug/paths", (_req, res) => {
-  const { readdirSync } = require("node:fs");
-  let cwdContents: string[] = [];
-  let frontendContents: string[] = [];
-  try { cwdContents = readdirSync(process.cwd()); } catch {}
-  try { frontendContents = readdirSync(frontendDist); } catch {}
-  res.json({
-    cwd: process.cwd(),
-    importMetaDirname: import.meta.dirname,
-    frontendDist,
-    frontendExists,
-    indexExists,
-    SERVE_FRONTEND: process.env.SERVE_FRONTEND ?? "(not set)",
-    cwdContents,
-    frontendContents,
-  });
-});
 
 if (process.env.SERVE_FRONTEND !== "false" && frontendExists && indexExists) {
   app.use(express.static(frontendDist));
-  app.get("*", (req, res, next) => {
+  app.get("{*path}", (req, res, next) => {
     if (req.path.startsWith("/api") || req.path.startsWith("/webhooks")) return next();
     res.sendFile(frontendIndex);
   });
