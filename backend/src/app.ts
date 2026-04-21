@@ -62,7 +62,7 @@ app.use(express.urlencoded({ extended: true, verify: captureRawBody, limit: "1mb
 app.use("/api", router);
 
 const frontendDist = process.env.FRONTEND_DIST_PATH
-  ?? path.resolve(import.meta.dirname, "..", "..", "frontend", "dist", "public");
+  ?? path.resolve(process.cwd(), "frontend", "dist", "public");
 const frontendExists = existsSync(frontendDist);
 const frontendIndex = path.join(frontendDist, "index.html");
 const indexExists = existsSync(frontendIndex);
