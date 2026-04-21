@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import { ensureFreshSession, throwAsAuthError, isLockContentionError } from "@/lib/adminAuth";
+import { apiUrl } from "@/lib/apiUrl";
 
 /**
  * Retry wrapper for cross-tab auth lock contention. Supabase's client uses a
@@ -138,7 +139,7 @@ export async function adminDeleteUser(userId: string): Promise<void> {
   await ensureFreshSession();
   const { data: { session } } = await supabase.auth.getSession();
   const token = session?.access_token;
-  const res = await fetch("/api/admin/delete-end-user", {
+  const res = await fetch(apiUrl("/api/admin/delete-end-user"), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -448,7 +449,7 @@ export async function adminDecryptIP(
 ): Promise<{ ip: string } | { error: string }> {
   const { data: { session } } = await supabase.auth.getSession();
   const token = session?.access_token;
-  const res = await fetch("/api/admin/decrypt-ip", {
+  const res = await fetch(apiUrl("/api/admin/decrypt-ip"), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -636,7 +637,7 @@ async function authedFetch(path: string, init: RequestInit = {}): Promise<Respon
     await ensureFreshSession();
     const { data } = await supabase.auth.getSession();
     const token = data.session?.access_token;
-    return fetch(path, {
+    return fetch(apiUrl(path), {
       ...init,
       headers: {
         "Content-Type": "application/json",
@@ -1025,7 +1026,7 @@ export async function addAdminUser(data: Partial<AdminUser> & { password?: strin
   if (password) {
     const { data: { session } } = await supabase.auth.getSession();
     const token = session?.access_token;
-    const res = await fetch("/api/admin/create-user", {
+    const res = await fetch(apiUrl("/api/admin/create-user"), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -1048,7 +1049,7 @@ export async function updateAdminUser(id: string, data: Partial<AdminUser>) {
 export async function removeAdminUser(id: string): Promise<{ error?: string }> {
   const { data: { session } } = await supabase.auth.getSession();
   const token = session?.access_token;
-  const res = await fetch("/api/admin/delete-user", {
+  const res = await fetch(apiUrl("/api/admin/delete-user"), {
     method: "DELETE",
     headers: {
       "Content-Type": "application/json",

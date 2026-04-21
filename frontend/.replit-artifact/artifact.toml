@@ -2,7 +2,7 @@ kind = "web"
 previewPath = "/"
 title = "Stegofy QR Landing Page"
 version = "1.0.0"
-id = "artifacts/stegofy-qr"
+id = "frontend"
 router = "path"
 
 [[integratedSkills]]
@@ -19,7 +19,7 @@ run = "pnpm --filter @workspace/stegofy-qr run dev"
 
 [services.production]
 build = [ "pnpm", "--filter", "@workspace/stegofy-qr", "run", "build" ]
-publicDir = "artifacts/stegofy-qr/dist/public"
+publicDir = "frontend/dist/public"
 serve = "static"
 
 [[services.production.rewrites]]

@@ -8,6 +8,7 @@ import { supabase } from "@/lib/supabase";
 import { useQR, type QRType } from "@/app/context/QRContext";
 import { useAuth } from "@/app/context/AuthContext";
 import { cn } from "@/lib/utils";
+import { apiUrl } from "@/lib/apiUrl";
 import {
   FORM_SCHEMA, type FieldDef, getNameKey, getFormLabel,
 } from "@/app/lib/qrFormSchema";
@@ -238,7 +239,7 @@ export function ClaimQRScreen() {
     try {
       const token = await getAccessToken();
       if (!token) { setStep("auth"); return; }
-      const res = await fetch("/api/admin/inventory/claim/verify", {
+      const res = await fetch(apiUrl("/api/admin/inventory/claim/verify"), {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ display_code: code, pin_code: p }),
@@ -276,7 +277,7 @@ export function ClaimQRScreen() {
       const token = await getAccessToken();
       if (!token) throw new Error("You need to sign in to complete the claim.");
       const { name, contact } = extractNameAndContact(inventoryType, formData);
-      const res = await fetch("/api/admin/inventory/claim/finalize", {
+      const res = await fetch(apiUrl("/api/admin/inventory/claim/finalize"), {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({

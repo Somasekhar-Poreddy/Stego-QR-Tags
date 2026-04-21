@@ -1,7 +1,8 @@
 packages:
-  - artifacts/*
+  - frontend
+  - backend
+  - tools/*
   - lib/*
-  - lib/integrations/*
   - scripts
 
 autoInstallPeers: false

@@ -8,6 +8,7 @@ import {
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 import { getSessionId } from "@/lib/sessionId";
+import { apiUrl } from "@/lib/apiUrl";
 
 /* ─── Types ────────────────────────────────────────────────────────────────── */
 interface QRPublicData {
@@ -281,7 +282,7 @@ function VerifyModal({ qrType, vehicleNumberHint, onClose, onVerified, pinCode, 
     setSubmitting(true);
     setError("");
     try {
-      const res = await fetch("/api/otp/request", {
+      const res = await fetch(apiUrl("/api/otp/request"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone }),
@@ -311,7 +312,7 @@ function VerifyModal({ qrType, vehicleNumberHint, onClose, onVerified, pinCode, 
     setSubmitting(true);
     setError("");
     try {
-      const res = await fetch("/api/otp/verify", {
+      const res = await fetch(apiUrl("/api/otp/verify"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone, code: otp }),
@@ -719,7 +720,7 @@ export function PublicProfileScreen() {
     message_enabled: boolean;
   } | null>(null);
   useEffect(() => {
-    fetch("/api/comms/public-flags")
+    fetch(apiUrl("/api/comms/public-flags"))
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => { if (j) setCommsFlags(j); })
       .catch(() => { /* leave defaults — buttons stay visible */ });
@@ -774,7 +775,7 @@ export function PublicProfileScreen() {
       // reliably detects freshly-printed unclaimed stickers and shows the
       // "Activate your QR" splash instead of a generic not-found error.
       try {
-        const infoRes = await fetch(`/api/qr/info/${encodeURIComponent(qrId)}`);
+        const infoRes = await fetch(apiUrl(`/api/qr/info/${encodeURIComponent(qrId)}`));
         if (infoRes.ok) {
           const info = await infoRes.json() as { claimable?: boolean; display_code?: string; type?: string | null };
           if (info.claimable && info.display_code) {
@@ -797,7 +798,7 @@ export function PublicProfileScreen() {
     setLoading(false);
 
     // Fire-and-forget: record this QR scan; setScanId triggers pending intent effect
-    fetch("/api/track-scan", {
+    fetch(apiUrl("/api/track-scan"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -822,7 +823,7 @@ export function PublicProfileScreen() {
   // Depends on both so it replays if user selected intent before POST returned.
   useEffect(() => {
     if (!selectedIntent || !scanId) return;
-    fetch(`/api/track-scan/${scanId}/intent`, {
+    fetch(apiUrl(`/api/track-scan/${scanId}/intent`), {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ intent: selectedIntent }),
@@ -833,7 +834,7 @@ export function PublicProfileScreen() {
   // Fires when scanId arrives late (user submitted before POST returned).
   useEffect(() => {
     if (!pendingRequestMade || !scanId) return;
-    fetch(`/api/track-scan/${scanId}/intent`, {
+    fetch(apiUrl(`/api/track-scan/${scanId}/intent`), {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ intent: selectedIntent, is_request_made: true }),
@@ -857,7 +858,7 @@ export function PublicProfileScreen() {
     const endpoint = actionType === "contact" ? "call" : "message";
 
     try {
-      const res = await fetch(`/api/qr/${encodeURIComponent(qrData.id)}/contact/${endpoint}`, {
+      const res = await fetch(apiUrl(`/api/qr/${encodeURIComponent(qrData.id)}/contact/${endpoint}`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
