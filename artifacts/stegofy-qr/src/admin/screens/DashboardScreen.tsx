@@ -3,9 +3,10 @@ import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis,
   CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
-import { Users, QrCode, MessageSquare, ShoppingCart, Zap, DollarSign, RefreshCw, AlertCircle } from "lucide-react";
+import { Users, QrCode, MessageSquare, ShoppingCart, Zap, DollarSign, RefreshCw, AlertCircle, MessageCircle, PhoneCall, Shuffle, Clock, Wallet } from "lucide-react";
 import {
-  getDashboardStats, getScansPerDay, getRequestsByType,
+  getDashboardStats, getScansPerDay, getRequestsByType, getCommsDashboardMetrics,
+  type CommsDashboardMetrics,
 } from "@/services/adminService";
 import { ensureFreshSession } from "@/lib/adminAuth";
 import { DateRangeBar, useDateRange, RANGE_LABELS } from "@/admin/components/DateRangeBar";
@@ -107,11 +108,16 @@ export function DashboardScreen() {
   const [chartsLoading, setChartsLoading] = useState(true);
   const [chartsError, setChartsError] = useState<string | null>(null);
 
+  const [comms, setComms] = useState<CommsDashboardMetrics | null>(null);
+  const [commsLoading, setCommsLoading] = useState(true);
+  const [commsError, setCommsError] = useState<string | null>(null);
+
   const dateRange = useDateRange("7d");
   const { from, to, rangeKey } = dateRange;
 
   const hasLoadedStats = useRef(false);
   const hasLoadedCharts = useRef(false);
+  const hasLoadedComms = useRef(false);
   const prevRangeKey = useRef("");
 
   // Multi-tab lock contention errors from supabase-js are transient; retry
@@ -153,6 +159,26 @@ export function DashboardScreen() {
       .finally(() => setStatsLoading(false));
   }, []);
 
+  const loadComms = useCallback(() => {
+    setCommsLoading(true);
+    setCommsError(null);
+    runWithLockRetry(async () => {
+      await ensureFreshSession();
+      return getCommsDashboardMetrics(30);
+    })
+      .then((data) => {
+        setComms(data);
+        setCommsError(null);
+      })
+      .catch((e) => {
+        if (e?.name !== "AuthExpiredError") {
+          setCommsError(e instanceof Error ? e.message : "Unknown error");
+          console.error("[Dashboard] getCommsDashboardMetrics failed:", e);
+        }
+      })
+      .finally(() => setCommsLoading(false));
+  }, []);
+
   const loadCharts = useCallback((f: Date, t: Date) => {
     setChartsLoading(true);
     setChartsError(null);
@@ -179,7 +205,11 @@ export function DashboardScreen() {
       hasLoadedStats.current = true;
       loadStats();
     }
-  }, [loadStats]);
+    if (!hasLoadedComms.current) {
+      hasLoadedComms.current = true;
+      loadComms();
+    }
+  }, [loadStats, loadComms]);
 
   useEffect(() => {
     if (!hasLoadedCharts.current || prevRangeKey.current !== rangeKey) {
@@ -192,9 +222,16 @@ export function DashboardScreen() {
   const handleRefresh = () => {
     loadStats();
     loadCharts(from, to);
+    loadComms();
   };
 
-  const anyLoading = statsLoading || chartsLoading;
+  const formatPct = (v: number | null) => (v == null ? "—" : `${Math.round(v * 100)}%`);
+  const formatInr = (paise: number) => {
+    const rupees = paise / 100;
+    return `₹${rupees.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
+  };
+
+  const anyLoading = statsLoading || chartsLoading || commsLoading;
   const rangeLabel = RANGE_LABELS[rangeKey];
 
   return (
@@ -240,6 +277,37 @@ export function DashboardScreen() {
           <StatCard label="Revenue" value="—" icon={DollarSign} color="text-emerald-600" bg="bg-emerald-50" />
         </div>
       )}
+
+      <div>
+        <div className="flex items-baseline justify-between mb-3">
+          <p className="text-sm font-bold text-slate-800">Communications (last 30 days)</p>
+          {comms && (
+            <p className="text-[11px] text-slate-400">
+              Aggregate across Zavu + Exotel · resets monthly
+            </p>
+          )}
+        </div>
+        {commsLoading ? (
+          <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+            {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-28" />)}
+          </div>
+        ) : commsError || comms === null ? (
+          <ErrorBanner
+            message="Could not load communication stats."
+            detail={commsError ?? undefined}
+            onRetry={loadComms}
+          />
+        ) : (
+          <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+            <StatCard label="Total Messages"     value={comms.total_messages}                       icon={MessageCircle} color="text-sky-600"     bg="bg-sky-50" />
+            <StatCard label="WhatsApp Success"   value={formatPct(comms.whatsapp_success_rate)}     icon={MessageSquare} color="text-green-600"   bg="bg-green-50" />
+            <StatCard label="Fallback Rate"      value={formatPct(comms.fallback_rate)}             icon={Shuffle}       color="text-amber-600"   bg="bg-amber-50" />
+            <StatCard label="Total Calls"        value={comms.total_calls}                          icon={PhoneCall}     color="text-violet-600"  bg="bg-violet-50" />
+            <StatCard label="Minutes Used"       value={comms.minutes_used}                         icon={Clock}         color="text-slate-600"   bg="bg-slate-50" />
+            <StatCard label="Comms Spend"        value={formatInr(comms.cost_paise)}                icon={Wallet}        color="text-emerald-600" bg="bg-emerald-50" />
+          </div>
+        )}
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">

@@ -763,7 +763,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 router.get("/qr/info/:id", publicScanLimiter, async (req: Request, res: Response) => {
   const { id } = req.params;
-  if (!id || !UUID_RE.test(id)) {
+  if (!id || typeof id !== "string" || !UUID_RE.test(id)) {
     res.status(404).json({ error: "QR not found" });
     return;
   }
