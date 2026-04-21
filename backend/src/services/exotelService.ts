@@ -2,6 +2,8 @@ import crypto from "node:crypto";
 import { logger } from "../lib/logger.js";
 import { getCommsSettings } from "./commsCredentials.js";
 
+const WEBHOOK_BASE = (process.env.RENDER_EXTERNAL_URL ?? process.env.VITE_APP_URL ?? "").replace(/\/+$/, "");
+
 export interface ExotelSendResult {
   ok: boolean;
   providerMessageId: string | null;
@@ -56,6 +58,7 @@ export async function sendSmsViaExotel(args: { to: string; body: string }): Prom
   form.set("From", s.exotel_caller_id);
   form.set("To", args.to);
   form.set("Body", args.body);
+  if (WEBHOOK_BASE) form.set("StatusCallback", `${WEBHOOK_BASE}/api/webhooks/exotel/status`);
 
   try {
     const res = await fetch(url, {
@@ -191,6 +194,7 @@ export async function connectCallViaExotel(args: {
   form.set("CallType", "trans");
   form.set("TimeLimit", String(Math.max(15, Math.min(args.maxDurationSec ?? 60, 600))));
   form.set("Record", "false");
+  if (WEBHOOK_BASE) form.set("StatusCallback", `${WEBHOOK_BASE}/api/webhooks/exotel/status`);
 
   try {
     const res = await fetch(url, {
