@@ -108,15 +108,13 @@ router.post("/webhooks/exotel/status", async (req: Request, res: Response) => {
   const { json, raw } = isJson ? parseBody(req) : parseFormBody(req);
   const sigHeader = req.header("x-exotel-signature") ?? undefined;
   const sig = await verifyExotelSignature(raw, sigHeader);
-  if (!sig.ok) {
+  if (!sig.ok && sig.reason !== "missing_secret") {
     logger.warn({ reason: sig.reason }, "Exotel webhook signature rejected");
-    const status = sig.reason === "missing_secret" ? 503 : 401;
-    res.status(status).json({
-      error: sig.reason === "missing_secret"
-        ? "Webhook secret is not configured. Set exotel_webhook_secret in admin settings."
-        : "Invalid signature",
-    });
+    res.status(401).json({ error: "Invalid signature" });
     return;
+  }
+  if (sig.reason === "missing_secret") {
+    logger.debug("Exotel webhook accepted without signature (no secret configured)");
   }
 
   // Heuristic: if we see a "CallSid", treat this as a call status; otherwise
