@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { ChevronLeft, User, Mail, Phone, Eye, EyeOff, ChevronDown, CheckCircle2, ArrowRight, RefreshCw, AlertCircle } from "lucide-react";
 import { useAuth, SignUpData } from "@/app/context/AuthContext";
 import { supabase } from "@/lib/supabase";
+import { apiUrl } from "@/lib/apiUrl";
 import { cn } from "@/lib/utils";
 
 const AGE_GROUPS = ["Under 18", "18–25", "26–35", "36–45", "46–55", "56 and above"];
@@ -35,9 +36,9 @@ function InputRow({ icon: Icon, children, className }: { icon?: any; children: R
 }
 
 // 6 separate digit boxes
-function OtpInput({ value, onChange, disabled }: { value: string; onChange: (v: string) => void; disabled?: boolean }) {
+function OtpInput({ value, onChange, disabled, length = 8 }: { value: string; onChange: (v: string) => void; disabled?: boolean; length?: number }) {
   const refs = useRef<(HTMLInputElement | null)[]>([]);
-  const digits = value.padEnd(8, "").split("").slice(0, 8);
+  const digits = value.padEnd(length, "").split("").slice(0, length);
 
   const handleKey = (i: number, e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Backspace") {
@@ -53,20 +54,20 @@ function OtpInput({ value, onChange, disabled }: { value: string; onChange: (v: 
     arr[i] = digit;
     const joined = arr.join("").replace(/\s/g, "");
     onChange(joined);
-    if (digit && i < 7) refs.current[i + 1]?.focus();
+    if (digit && i < length - 1) refs.current[i + 1]?.focus();
   };
 
   const handlePaste = (e: React.ClipboardEvent) => {
     e.preventDefault();
-    const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 8);
+    const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, length);
     onChange(pasted);
-    const nextFocus = Math.min(pasted.length, 7);
+    const nextFocus = Math.min(pasted.length, length - 1);
     refs.current[nextFocus]?.focus();
   };
 
   return (
     <div className="flex gap-2 justify-center">
-      {Array.from({ length: 8 }).map((_, i) => (
+      {Array.from({ length }).map((_, i) => (
         <input
           key={i}
           ref={(el) => { refs.current[i] = el; }}
@@ -104,7 +105,7 @@ export function SignUpScreen() {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // OTP state
+  // Email OTP state
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState("");
   const [otpLoading, setOtpLoading] = useState(false);
@@ -113,8 +114,21 @@ export function SignUpScreen() {
   const [resendSeconds, setResendSeconds] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Phone OTP state
+  const [phoneOtpSent, setPhoneOtpSent] = useState(false);
+  const [phoneOtp, setPhoneOtp] = useState("");
+  const [phoneOtpLoading, setPhoneOtpLoading] = useState(false);
+  const [phoneOtpError, setPhoneOtpError] = useState<string | null>(null);
+  const [phoneVerified, setPhoneVerified] = useState(false);
+  const [phoneResendSeconds, setPhoneResendSeconds] = useState(0);
+  const phoneTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [phoneChannel, setPhoneChannel] = useState<string | null>(null);
+
   useEffect(() => {
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+      if (phoneTimerRef.current) clearInterval(phoneTimerRef.current);
+    };
   }, []);
 
   const startResendTimer = () => {
@@ -128,11 +142,83 @@ export function SignUpScreen() {
     }, 1000);
   };
 
+  const startPhoneResendTimer = () => {
+    setPhoneResendSeconds(60);
+    if (phoneTimerRef.current) clearInterval(phoneTimerRef.current);
+    phoneTimerRef.current = setInterval(() => {
+      setPhoneResendSeconds((s) => {
+        if (s <= 1) { clearInterval(phoneTimerRef.current!); return 0; }
+        return s - 1;
+      });
+    }, 1000);
+  };
+
   const set = (key: string, val: string) => {
     setForm((p) => ({ ...p, [key]: val }));
     setErrors((p) => ({ ...p, [key]: "" }));
     setAuthError(null);
     if (key === "email") { setOtpSent(false); setEmailVerified(false); setOtp(""); setOtpError(null); }
+    if (key === "mobile") { setPhoneOtpSent(false); setPhoneVerified(false); setPhoneOtp(""); setPhoneOtpError(null); setPhoneChannel(null); }
+  };
+
+  const handleSendPhoneOtp = async () => {
+    const mobile = form.mobile.replace(/\D/g, "");
+    if (mobile.length !== 10) {
+      setErrors((p) => ({ ...p, mobile: "Enter a valid 10-digit mobile number" }));
+      return;
+    }
+    setPhoneOtpLoading(true);
+    setPhoneOtpError(null);
+    try {
+      const res = await fetch(apiUrl("/api/otp/request"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: `+91${mobile}` }),
+      });
+      const data = await res.json() as { ok?: boolean; channel?: string; error?: string };
+      if (!res.ok || !data.ok) {
+        setPhoneOtpError(data.error ?? "Could not send OTP. Please try again.");
+      } else {
+        setPhoneOtpSent(true);
+        setPhoneOtp("");
+        setPhoneChannel(data.channel ?? "sms");
+        startPhoneResendTimer();
+      }
+    } catch {
+      setPhoneOtpError("Network error. Please check your connection.");
+    }
+    setPhoneOtpLoading(false);
+  };
+
+  const handleVerifyPhoneOtp = async () => {
+    if (phoneOtp.length < 6) {
+      setPhoneOtpError("Enter the complete 6-digit code");
+      return;
+    }
+    setPhoneOtpLoading(true);
+    setPhoneOtpError(null);
+    try {
+      const res = await fetch(apiUrl("/api/otp/verify"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: `+91${form.mobile}`, code: phoneOtp }),
+      });
+      const data = await res.json() as { ok?: boolean; error?: string; reason?: string };
+      if (!res.ok || !data.ok) {
+        const msg = data.reason === "expired" ? "Code expired. Please request a new one."
+          : data.reason === "too_many_attempts" ? "Too many attempts. Request a new code."
+          : data.reason === "mismatch" ? "Incorrect code. Try again."
+          : data.error ?? "Verification failed.";
+        setPhoneOtpError(msg);
+      } else {
+        setPhoneVerified(true);
+        setPhoneOtpSent(false);
+        if (phoneTimerRef.current) clearInterval(phoneTimerRef.current);
+      }
+    } catch {
+      setPhoneOtpError("Network error. Please check your connection.");
+    }
+    setPhoneOtpLoading(false);
   };
 
   // Step 1: Send OTP to email
@@ -219,6 +305,7 @@ export function SignUpScreen() {
     if (!form.password || form.password.length < 6) errs.password = "Min 6 characters";
     if (form.password !== form.confirmPassword) errs.confirmPassword = "Passwords do not match";
     if (!form.mobile || form.mobile.length < 10) errs.mobile = "Enter valid 10-digit mobile number";
+    else if (!phoneVerified) errs.mobile = "Please verify your mobile number";
     if (!form.ageGroup) errs.ageGroup = "Please select age group";
     if (!form.gender) errs.gender = "Please select gender";
     setErrors(errs);
@@ -415,9 +502,14 @@ export function SignUpScreen() {
           </InputRow>
         </FieldWrapper>
 
-        {/* Mobile */}
+        {/* Mobile + Verify */}
         <FieldWrapper label="Mobile Number" error={errors.mobile}>
-          <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3.5 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 transition-all">
+          <div className={cn(
+            "flex items-center gap-2 bg-slate-50 border rounded-2xl px-4 py-3.5 transition-all",
+            phoneVerified ? "border-green-400 bg-green-50/30 ring-2 ring-green-100" :
+            errors.mobile ? "border-red-300" :
+            "border-slate-200 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20"
+          )}>
             <div className="flex items-center gap-1.5 border-r border-slate-200 pr-3 flex-shrink-0">
               <span className="text-sm">🇮🇳</span>
               <span className="text-xs font-bold text-slate-700">+91</span>
@@ -430,9 +522,80 @@ export function SignUpScreen() {
               value={form.mobile}
               onChange={(e) => set("mobile", e.target.value.replace(/\D/g, "").slice(0, 10))}
               maxLength={10}
+              disabled={phoneVerified}
             />
+            {phoneVerified ? (
+              <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
+            ) : (
+              <button
+                onClick={handleSendPhoneOtp}
+                disabled={form.mobile.length !== 10 || phoneOtpLoading || phoneOtpSent}
+                className="text-xs font-bold text-primary px-2.5 py-1 bg-primary/10 rounded-xl flex-shrink-0 disabled:opacity-50 hover:bg-primary/20 transition-colors active:scale-95"
+              >
+                {phoneOtpLoading && !phoneOtpSent ? (
+                  <div className="w-3 h-3 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                ) : phoneOtpSent ? "Sent ✓" : "Verify"}
+              </button>
+            )}
           </div>
+          {phoneVerified && (
+            <p className="text-[11px] text-green-600 font-semibold flex items-center gap-1">
+              <CheckCircle2 className="w-3 h-3" /> Mobile verified successfully
+            </p>
+          )}
+          {phoneOtpError && !phoneOtpSent && (
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <AlertCircle className="w-3 h-3 text-rose-400 flex-shrink-0" />
+              <p className="text-[11px] font-semibold text-rose-500">{phoneOtpError}</p>
+            </div>
+          )}
         </FieldWrapper>
+
+        {/* Phone OTP Input */}
+        {phoneOtpSent && !phoneVerified && (
+          <div className="bg-primary/5 border border-primary/20 rounded-2xl p-4 space-y-3">
+            <p className="text-xs font-semibold text-slate-700 text-center">
+              A 6-digit code has been sent to{" "}
+              <span className="text-primary">+91 {form.mobile}</span>
+              {phoneChannel && <span className="text-slate-500"> via {phoneChannel === "whatsapp" ? "WhatsApp" : "SMS"}</span>}
+            </p>
+
+            <OtpInput value={phoneOtp} onChange={setPhoneOtp} disabled={phoneOtpLoading} length={6} />
+
+            {phoneOtpError && (
+              <div className="flex items-center justify-center gap-1.5">
+                <AlertCircle className="w-3.5 h-3.5 text-rose-400 flex-shrink-0" />
+                <p className="text-[11px] font-semibold text-rose-500">{phoneOtpError}</p>
+              </div>
+            )}
+
+            <button
+              onClick={handleVerifyPhoneOtp}
+              disabled={phoneOtp.length < 6 || phoneOtpLoading}
+              className="w-full bg-primary text-white text-sm font-bold py-3 rounded-xl disabled:opacity-50 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+            >
+              {phoneOtpLoading ? (
+                <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+              ) : "Verify Code"}
+            </button>
+
+            <div className="flex items-center justify-center gap-1.5">
+              {phoneResendSeconds > 0 ? (
+                <p className="text-[11px] text-slate-400">
+                  Resend code in <span className="font-bold text-primary">{phoneResendSeconds}s</span>
+                </p>
+              ) : (
+                <button
+                  onClick={handleSendPhoneOtp}
+                  disabled={phoneOtpLoading}
+                  className="text-[11px] text-primary font-semibold flex items-center gap-1 disabled:opacity-50"
+                >
+                  <RefreshCw className="w-3 h-3" /> Resend code
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Age Group */}
         <FieldWrapper label="Age Group" error={errors.ageGroup}>
@@ -482,7 +645,7 @@ export function SignUpScreen() {
         {/* Submit */}
         <button
           onClick={handleSignUp}
-          disabled={loading || (otpSent && !emailVerified)}
+          disabled={loading || (otpSent && !emailVerified) || (phoneOtpSent && !phoneVerified)}
           className="w-full bg-gradient-to-r from-primary to-violet-600 text-white font-semibold py-4 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-primary/30 disabled:opacity-50 transition-all active:scale-[0.98] mt-2"
         >
           {loading ? (
