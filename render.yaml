@@ -1,0 +1,63 @@
+services:
+  # ── Backend: Web Service (persistent Node.js) ──────────────
+  - type: web
+    name: stegofy-api
+    runtime: node
+    region: singapore
+    plan: starter
+    buildCommand: pnpm install && pnpm run build
+    startCommand: node --enable-source-maps backend/dist/index.mjs
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: NODE_ENV
+        value: production
+      - key: SERVE_FRONTEND
+        value: "false"
+      - key: COMMS_MIGRATIONS
+        value: "off"
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_ADMIN_USER_IDS
+        sync: false
+      - key: IP_ENCRYPTION_KEY
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_FROM_EMAIL
+        sync: false
+    healthCheckPath: /api/healthz
+
+  # ── Frontend: Static Site (free) ───────────────────────────
+  - type: web
+    name: stegofy-web
+    runtime: static
+    buildCommand: pnpm install && PORT=5173 BASE_PATH=/ pnpm --filter @workspace/stegofy-qr build
+    staticPublishPath: frontend/dist/public
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_ANON_KEY
+        sync: false
+      - key: VITE_ADMIN_USER_IDS
+        sync: false
+      - key: VITE_API_URL
+        sync: false
