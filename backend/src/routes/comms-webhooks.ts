@@ -163,9 +163,18 @@ router.post("/webhooks/exotel/status", async (req: Request, res: Response) => {
 
    Flow: User dials ExoPhone
      → Gather (dynamic URL)  → GET  /webhooks/exotel/gather
-     → Passthru (verify)     → POST /webhooks/exotel/verify
+     → Passthru (verify)     → GET  /webhooks/exotel/verify
      → Connect (dynamic URL) → GET  /webhooks/exotel/connect
    ═══════════════════════════════════════════════════ */
+
+// In-memory cache: CallSid → owner phone. Entries expire after 5 minutes.
+const verifiedCalls = new Map<string, { ownerPhone: string; qrId: string; expiresAt: number }>();
+function cleanExpiredCalls() {
+  const now = Date.now();
+  for (const [k, v] of verifiedCalls) {
+    if (v.expiresAt < now) verifiedCalls.delete(k);
+  }
+}
 
 /**
  * Gather applet — Dynamic URL.
@@ -304,7 +313,11 @@ router.get("/webhooks/exotel/verify", async (req: Request, res: Response) => {
     logger.warn({ err }, "Passthru: failed to log contact request (non-blocking)");
   }
 
-  logger.info({ qrId: qr.id, callSid }, "Passthru: verified, returning owner phone");
+  // Store in memory for the Connect applet to pick up
+  cleanExpiredCalls();
+  verifiedCalls.set(callSid, { ownerPhone, qrId: qr.id, expiresAt: Date.now() + 5 * 60_000 });
+
+  logger.info({ qrId: qr.id, callSid }, "Passthru: verified, cached owner phone for Connect");
   res.status(200).json({ ok: true });
 });
 
@@ -333,45 +346,36 @@ router.get("/webhooks/exotel/connect", async (req: Request, res: Response) => {
 
   logger.info({ callSid }, "Connect dynamic URL: looking up owner phone");
 
-  try {
-    const pool = getCommsPool();
-    const { rows } = await pool.query(
-      `SELECT owner_phone, qr_id FROM call_logs
-       WHERE provider_call_id = $1 AND channel = 'ivr_passthru'
-       ORDER BY created_at DESC LIMIT 1`,
-      [callSid],
-    );
-
-    if (rows.length === 0 || !rows[0].owner_phone) {
-      logger.warn({ callSid }, "Connect: no call_log found for CallSid");
-      res.status(400).json({ error: "Call not found" });
-      return;
-    }
-
-    const ownerPhone = String(rows[0].owner_phone);
-    const normalized = ownerPhone.startsWith("+") ? ownerPhone : `+91${ownerPhone.replace(/^0+/, "")}`;
-
-    const settings = await getCommsSettings();
-    const maxDuration = Number(settings.call_max_duration_sec) || 60;
-
-    logger.info({ callSid, qrId: rows[0].qr_id }, "Connect: returning owner phone");
-
-    res.status(200).json({
-      destination: {
-        numbers: [normalized],
-      },
-      max_conversation_duration: maxDuration,
-      record: false,
-      start_call_playback: {
-        playback_to: "callee",
-        type: "text",
-        value: "Someone is trying to reach you through your Stegofy QR tag. Connecting now.",
-      },
-    });
-  } catch (err) {
-    logger.error({ err, callSid }, "Connect dynamic URL: DB error");
-    res.status(500).json({ error: "Internal error" });
+  const cached = verifiedCalls.get(callSid);
+  if (!cached) {
+    logger.warn({ callSid }, "Connect: no verified call found for CallSid");
+    res.status(400).json({ error: "Call not verified" });
+    return;
   }
+
+  const ownerPhone = cached.ownerPhone;
+  const normalized = ownerPhone.startsWith("+") ? ownerPhone : `+91${ownerPhone.replace(/^0+/, "")}`;
+
+  const settings = await getCommsSettings();
+  const maxDuration = Number(settings.call_max_duration_sec) || 60;
+
+  // Clean up after use
+  verifiedCalls.delete(callSid);
+
+  logger.info({ callSid, qrId: cached.qrId }, "Connect: returning owner phone");
+
+  res.status(200).json({
+    destination: {
+      numbers: [normalized],
+    },
+    max_conversation_duration: maxDuration,
+    record: false,
+    start_call_playback: {
+      playback_to: "callee",
+      type: "text",
+      value: "Someone is trying to reach you through your Stegofy QR tag. Connecting now.",
+    },
+  });
 });
 
 export default router;
