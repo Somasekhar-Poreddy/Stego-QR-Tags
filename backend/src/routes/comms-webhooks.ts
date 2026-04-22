@@ -1,5 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { getCommsPool } from "../lib/migrations.js";
+import { supabaseAdmin } from "../lib/supabaseAdmin.js";
 import { logger } from "../lib/logger.js";
 import { verifyZavuSignature } from "../services/zavuService.js";
 import { verifyExotelSignature } from "../services/exotelService.js";
@@ -155,6 +156,110 @@ router.post("/webhooks/exotel/status", async (req: Request, res: Response) => {
     });
   }
   res.status(200).json({ ok: true });
+});
+
+/**
+ * Exotel Passthru applet — masked call verification.
+ *
+ * Flow: User dials ExoPhone → Gather collects 8 digits (vehicle last 4 + PIN)
+ * → Passthru hits this endpoint → we verify → return owner phone on success.
+ *
+ * Exotel sends form-encoded POST with `digits` from the preceding Gather applet.
+ * We split: first 4 = vehicle last 4 digits, last 4 = PIN code.
+ * On match: HTTP 200 + owner's phone number (for Connect applet).
+ * On failure: HTTP 400 (Exotel follows the failure branch → plays error → hangs up).
+ */
+router.post("/webhooks/exotel/verify", async (req: Request, res: Response) => {
+  const ct = req.header("content-type") ?? "";
+  const isJson = ct.includes("application/json");
+  const { json } = isJson ? parseBody(req) : parseFormBody(req);
+
+  const callSid = String(json.CallSid ?? json.call_sid ?? "");
+  const callerPhone = String(json.CallFrom ?? json.From ?? "");
+  const digits = String(json.digits ?? "").replace(/\D/g, "");
+
+  logger.info({ callSid, callerPhone, digitsLength: digits.length }, "Exotel Passthru verify");
+
+  if (digits.length < 8) {
+    logger.warn({ digits: digits.length }, "Passthru: insufficient digits");
+    res.status(400).json({ error: "Please enter 8 digits: last 4 of vehicle number + 4-digit PIN." });
+    return;
+  }
+
+  const vehicleLast4 = digits.slice(0, 4).toUpperCase();
+  const pin = digits.slice(4, 8);
+
+  const { data: matches, error } = await supabaseAdmin
+    .from("qr_codes")
+    .select("id, type, pin_code, is_active, allow_contact, emergency_contact, data")
+    .eq("type", "vehicle")
+    .eq("pin_code", pin)
+    .eq("is_active", true);
+
+  if (error) {
+    logger.error({ err: error.message }, "Passthru: DB query failed");
+    res.status(500).json({ error: "Internal error." });
+    return;
+  }
+
+  const qr = (matches ?? []).find((row) => {
+    const vn = String((row.data as Record<string, unknown>)?.vehicle_number ?? "");
+    return vn.slice(-4).toUpperCase() === vehicleLast4;
+  });
+
+  if (!qr) {
+    logger.info({ vehicleLast4, pin: "****" }, "Passthru: no matching QR found");
+    res.status(400).json({ error: "Invalid vehicle number or PIN." });
+    return;
+  }
+
+  if (!(qr.allow_contact ?? true)) {
+    res.status(403).json({ error: "Owner has disabled contact for this tag." });
+    return;
+  }
+
+  const d = (qr.data ?? {}) as Record<string, unknown>;
+  const ownerPhone = qr.emergency_contact
+    ?? (d.contact_phone as string)
+    ?? (d.owner_phone as string)
+    ?? (d.phone as string)
+    ?? (d.emergency_contact_1 as string)
+    ?? null;
+
+  if (!ownerPhone) {
+    logger.warn({ qrId: qr.id }, "Passthru: QR matched but no owner phone");
+    res.status(400).json({ error: "Owner phone number not configured." });
+    return;
+  }
+
+  // Log the call attempt
+  try {
+    const pool = getCommsPool();
+    await pool.query(
+      `INSERT INTO call_logs (provider, provider_call_id, qr_id, caller_phone, owner_phone, channel, status, created_at)
+       VALUES ('exotel', $1, $2, $3, $4, 'ivr_passthru', 'initiated', now())`,
+      [callSid, qr.id, callerPhone, ownerPhone],
+    );
+  } catch (err) {
+    logger.warn({ err }, "Passthru: failed to log call (non-blocking)");
+  }
+
+  // Log contact request in Supabase
+  try {
+    await supabaseAdmin.from("contact_requests").insert({
+      qr_id: qr.id,
+      name: null,
+      phone: callerPhone,
+      intent: "call",
+      message: `IVR masked call via ExoPhone (CallSid: ${callSid})`,
+      status: "pending",
+    });
+  } catch (err) {
+    logger.warn({ err }, "Passthru: failed to log contact request (non-blocking)");
+  }
+
+  logger.info({ qrId: qr.id, callSid }, "Passthru: verified, returning owner phone");
+  res.status(200).json({ owner_phone: ownerPhone });
 });
 
 export default router;
