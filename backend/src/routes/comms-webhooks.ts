@@ -198,10 +198,8 @@ router.get("/webhooks/exotel/gather", (_req: Request, res: Response) => {
  * On match: HTTP 200 + owner's phone number (for Connect applet).
  * On failure: HTTP 400 (Exotel follows the failure branch → plays error → hangs up).
  */
-router.post("/webhooks/exotel/verify", async (req: Request, res: Response) => {
-  const ct = req.header("content-type") ?? "";
-  const isJson = ct.includes("application/json");
-  const { json } = isJson ? parseBody(req) : parseFormBody(req);
+router.get("/webhooks/exotel/verify", async (req: Request, res: Response) => {
+  const json = req.query as Record<string, string>;
 
   const callSid = String(json.CallSid ?? json.call_sid ?? "");
   const callerPhone = String(json.CallFrom ?? json.From ?? "");
