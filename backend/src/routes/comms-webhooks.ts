@@ -175,14 +175,14 @@ router.post("/webhooks/exotel/status", async (req: Request, res: Response) => {
 router.get("/webhooks/exotel/gather", (_req: Request, res: Response) => {
   res.status(200).json({
     gather_prompt: {
-      text: "Welcome to Stego Tags. Please enter the last 4 digits of the vehicle number, followed by the 4 digit PIN code printed on the sticker. Then press hash.",
+      text: "Please enter the last 4 digits of the vehicle number, followed by the 4 digit PIN code printed on the sticker. Then press hash.",
     },
     max_input_digits: 8,
     finish_on_key: "#",
     input_timeout: 8,
     repeat_menu: 2,
     repeat_gather_prompt: {
-      text: "No input received. Please enter the last 4 digits of the vehicle number, followed by the 4 digit PIN code. Then press hash.",
+      text: "No input received. Please enter the last 4 digits of vehicle number, followed by the 4 digit PIN. Then press hash.",
     },
   });
 });
