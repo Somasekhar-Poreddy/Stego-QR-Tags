@@ -259,7 +259,73 @@ router.post("/webhooks/exotel/verify", async (req: Request, res: Response) => {
   }
 
   logger.info({ qrId: qr.id, callSid }, "Passthru: verified, returning owner phone");
-  res.status(200).json({ owner_phone: ownerPhone });
+  res.status(200).json({ ok: true });
+});
+
+/**
+ * Exotel Connect applet — Dynamic URL endpoint.
+ *
+ * After the Passthru verify succeeds, the flow moves to the Connect applet
+ * which makes a GET request to this URL to get the destination phone number.
+ * We look up the owner phone from the call_logs entry created by Passthru.
+ *
+ * Response format (Exotel Connect Dynamic URL spec):
+ * {
+ *   "destination": { "numbers": ["+919876543210"] },
+ *   "max_conversation_duration": 60,
+ *   "record": false
+ * }
+ */
+router.get("/webhooks/exotel/connect", async (req: Request, res: Response) => {
+  const callSid = String(req.query.CallSid ?? req.query.call_sid ?? "");
+
+  if (!callSid) {
+    logger.warn("Connect dynamic URL: no CallSid");
+    res.status(400).json({ error: "Missing CallSid" });
+    return;
+  }
+
+  logger.info({ callSid }, "Connect dynamic URL: looking up owner phone");
+
+  try {
+    const pool = getCommsPool();
+    const { rows } = await pool.query(
+      `SELECT owner_phone, qr_id FROM call_logs
+       WHERE provider_call_id = $1 AND channel = 'ivr_passthru'
+       ORDER BY created_at DESC LIMIT 1`,
+      [callSid],
+    );
+
+    if (rows.length === 0 || !rows[0].owner_phone) {
+      logger.warn({ callSid }, "Connect: no call_log found for CallSid");
+      res.status(400).json({ error: "Call not found" });
+      return;
+    }
+
+    const ownerPhone = String(rows[0].owner_phone);
+    const normalized = ownerPhone.startsWith("+") ? ownerPhone : `+91${ownerPhone.replace(/^0+/, "")}`;
+
+    const settings = await getCommsSettings();
+    const maxDuration = Number(settings.call_max_duration_sec) || 60;
+
+    logger.info({ callSid, qrId: rows[0].qr_id }, "Connect: returning owner phone");
+
+    res.status(200).json({
+      destination: {
+        numbers: [normalized],
+      },
+      max_conversation_duration: maxDuration,
+      record: false,
+      start_call_playback: {
+        playback_to: "callee",
+        type: "text",
+        value: "Someone is trying to reach you through your Stegofy QR tag. Connecting now.",
+      },
+    });
+  } catch (err) {
+    logger.error({ err, callSid }, "Connect dynamic URL: DB error");
+    res.status(500).json({ error: "Internal error" });
+  }
 });
 
 export default router;
