@@ -205,12 +205,14 @@ router.post("/webhooks/exotel/verify", async (req: Request, res: Response) => {
 
   const callSid = String(json.CallSid ?? json.call_sid ?? "");
   const callerPhone = String(json.CallFrom ?? json.From ?? "");
-  const digits = String(json.digits ?? "").replace(/\D/g, "");
+  // Exotel wraps digits in double quotes: "12345678" — strip them
+  const rawDigits = String(json.digits ?? "").replace(/"/g, "").trim();
+  const digits = rawDigits.replace(/\D/g, "");
 
-  logger.info({ callSid, callerPhone, digitsLength: digits.length }, "Exotel Passthru verify");
+  logger.info({ callSid, callerPhone, rawDigits, digits, digitsLength: digits.length }, "Exotel Passthru verify");
 
   if (digits.length < 8) {
-    logger.warn({ digits: digits.length }, "Passthru: insufficient digits");
+    logger.warn({ digitsLength: digits.length, rawDigits }, "Passthru: insufficient digits");
     res.status(400).json({ error: "Please enter 8 digits: last 4 of vehicle number + 4-digit PIN." });
     return;
   }
@@ -218,11 +220,12 @@ router.post("/webhooks/exotel/verify", async (req: Request, res: Response) => {
   const vehicleLast4 = digits.slice(0, 4).toUpperCase();
   const pin = digits.slice(4, 8);
 
+  logger.info({ vehicleLast4, pin: "****" }, "Passthru: parsed input");
+
+  // First try matching with pin_code on qr_codes (claimed stickers)
   const { data: matches, error } = await supabaseAdmin
     .from("qr_codes")
     .select("id, type, pin_code, is_active, allow_contact, emergency_contact, data")
-    .eq("type", "vehicle")
-    .eq("pin_code", pin)
     .eq("is_active", true);
 
   if (error) {
@@ -231,9 +234,25 @@ router.post("/webhooks/exotel/verify", async (req: Request, res: Response) => {
     return;
   }
 
+  logger.info({ totalQRs: (matches ?? []).length }, "Passthru: fetched QR codes");
+
   const qr = (matches ?? []).find((row) => {
-    const vn = String((row.data as Record<string, unknown>)?.vehicle_number ?? "");
-    return vn.slice(-4).toUpperCase() === vehicleLast4;
+    const d = (row.data ?? {}) as Record<string, unknown>;
+    const vn = String(d.vehicle_number ?? "");
+    const vnMatch = vn.length >= 4 && vn.slice(-4).toUpperCase() === vehicleLast4;
+    const pinMatch = row.pin_code === pin;
+    if (vnMatch || pinMatch) {
+      logger.info({
+        qrId: row.id,
+        type: row.type,
+        vnMatch,
+        pinMatch,
+        storedVnLast4: vn.slice(-4).toUpperCase(),
+        enteredVnLast4: vehicleLast4,
+        storedPin: row.pin_code ? "****" : "(null)",
+      }, "Passthru: checking QR");
+    }
+    return vnMatch && pinMatch;
   });
 
   if (!qr) {
