@@ -290,10 +290,13 @@ router.get("/webhooks/exotel/verify", async (req: Request, res: Response) => {
   // Log the call attempt
   try {
     const pool = getCommsPool();
+    const { hashPhone } = await import("../services/phoneHash.js");
+    const callerHash = hashPhone(callerPhone);
+    const calleeHash = hashPhone(ownerPhone);
     await pool.query(
-      `INSERT INTO call_logs (provider, provider_call_id, qr_id, caller_phone, owner_phone, channel, status, created_at)
-       VALUES ('exotel', $1, $2, $3, $4, 'ivr_passthru', 'initiated', now())`,
-      [callSid, qr.id, callerPhone, ownerPhone],
+      `INSERT INTO call_logs (provider, provider_call_id, qr_id, caller_phone_hash, callee_phone_hash, status, created_at)
+       VALUES ('exotel', $1, $2, $3, $4, 'initiated', now())`,
+      [callSid, qr.id, callerHash, calleeHash],
     );
   } catch (err) {
     logger.warn({ err }, "Passthru: failed to log call (non-blocking)");
