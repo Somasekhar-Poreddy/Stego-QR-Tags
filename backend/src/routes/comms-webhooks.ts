@@ -175,14 +175,14 @@ router.post("/webhooks/exotel/status", async (req: Request, res: Response) => {
 router.get("/webhooks/exotel/gather", (_req: Request, res: Response) => {
   res.status(200).json({
     gather_prompt: {
-      text: "Please enter the last 4 digits of the vehicle number, followed by the 4 digit PIN code printed on the sticker. Then press hash.",
+      text: "Please enter the last 4 digits of the vehicle registration number, followed by the 4 digit PIN code printed on the sticker. After entering all 8 digits, press the hash key.",
     },
     max_input_digits: 8,
     finish_on_key: "#",
-    input_timeout: 8,
-    repeat_menu: 2,
+    input_timeout: 10,
+    repeat_menu: 3,
     repeat_gather_prompt: {
-      text: "No input received. Please enter the last 4 digits of vehicle number, followed by the 4 digit PIN. Then press hash.",
+      text: "We did not receive your input. Please enter the last 4 digits of vehicle registration number, then the 4 digit PIN code, and press hash.",
     },
   });
 });
