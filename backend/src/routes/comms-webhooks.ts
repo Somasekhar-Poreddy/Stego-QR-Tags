@@ -190,7 +190,8 @@ function cleanExpired() {
  * recent contact_request (< callback_window_minutes, default 60 min),
  * skip the IVR and connect the owner directly to the stranger.
  *
- * Returns {"select":"callback"} or {"select":"stranger"}.
+ * Returns 200 OK → Exotel routes to Connect (owner callback).
+ * Returns 404    → Exotel routes to Greeting → Flow B (normal stranger IVR).
  */
 router.get("/webhooks/exotel/greeting", async (req: Request, res: Response) => {
   const json = req.query as Record<string, string>;
@@ -198,8 +199,7 @@ router.get("/webhooks/exotel/greeting", async (req: Request, res: Response) => {
   const callerPhone = String(json.CallFrom ?? json.From ?? "");
 
   if (!callerPhone) {
-    res.setHeader("Content-Type", "text/plain");
-    res.status(200).send('{"select":"stranger"}');
+    res.status(404).send("stranger");
     return;
   }
 
@@ -208,8 +208,7 @@ router.get("/webhooks/exotel/greeting", async (req: Request, res: Response) => {
     const normalized = normalizePhone(callerPhone);
 
     if (!isValidIndianMobile(normalized)) {
-      res.setHeader("Content-Type", "text/plain");
-      res.status(200).send('{"select":"stranger"}');
+      res.status(404).send("stranger");
       return;
     }
 
@@ -230,8 +229,7 @@ router.get("/webhooks/exotel/greeting", async (req: Request, res: Response) => {
       .map((qr) => qr.id as string);
 
     if (ownerQrIds.length === 0) {
-      res.setHeader("Content-Type", "text/plain");
-      res.status(200).send('{"select":"stranger"}');
+      res.status(404).send("stranger");
       return;
     }
 
@@ -252,8 +250,7 @@ router.get("/webhooks/exotel/greeting", async (req: Request, res: Response) => {
 
     if (!recent?.requester_phone) {
       logger.info({ callerPhone: "***owner***", ownerQrIds }, "Greeting: owner detected but no recent contact request");
-      res.setHeader("Content-Type", "text/plain");
-      res.status(200).send('{"select":"stranger"}');
+      res.status(404).send("no-recent-request");
       return;
     }
 
@@ -266,8 +263,7 @@ router.get("/webhooks/exotel/greeting", async (req: Request, res: Response) => {
 
     if (cbAttempts.count > 3) {
       logger.warn({ callerPhone: "***owner***" }, "Greeting: callback rate limit exceeded");
-      res.setHeader("Content-Type", "text/plain");
-      res.status(200).send('{"select":"stranger"}');
+      res.status(404).send("rate-limited");
       return;
     }
 
@@ -275,8 +271,7 @@ router.get("/webhooks/exotel/greeting", async (req: Request, res: Response) => {
 
     if (!isValidIndianMobile(normalizePhone(strangerPhone))) {
       logger.warn({ qrId: recent.qr_id }, "Greeting: stranger phone invalid for callback");
-      res.setHeader("Content-Type", "text/plain");
-      res.status(200).send('{"select":"stranger"}');
+      res.status(404).send("invalid-stranger-phone");
       return;
     }
 
@@ -304,12 +299,10 @@ router.get("/webhooks/exotel/greeting", async (req: Request, res: Response) => {
     }
 
     logger.info({ callSid, qrId: recent.qr_id }, "Greeting: owner callback — skipping IVR");
-    res.setHeader("Content-Type", "text/plain");
-    res.status(200).send('{"select":"callback"}');
+    res.status(200).send("callback");
   } catch (err) {
     logger.error({ err }, "Greeting: error during owner detection");
-    res.setHeader("Content-Type", "text/plain");
-    res.status(200).send('{"select":"stranger"}');
+    res.status(404).send("error");
   }
 });
 
