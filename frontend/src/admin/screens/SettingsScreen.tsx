@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { Save, RotateCcw, Settings, Plus, Trash2, ChevronDown, ChevronUp, Eye, EyeOff, Key, Info, Send, Radio, Zap, DollarSign, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Save, RotateCcw, Settings, Plus, Trash2, ChevronDown, ChevronUp, Eye, EyeOff, Key, Info, Send, Radio, Zap, DollarSign, CheckCircle2, AlertTriangle, Phone, MessageCircle, Shield } from "lucide-react";
 import { getSettings, upsertSetting, getConfigStatus, sendTestEmail, testCommsProvider, invalidateCommsCache } from "@/services/adminService";
+import { cn } from "@/lib/utils";
 
 interface ApiKeyRowDef {
   key: string;
@@ -441,330 +442,367 @@ export function SettingsScreen() {
     setFaqs((f) => f.map((item, idx) => idx === i ? { ...item, [field]: val } : item));
   const deleteFaq = (i: number) => setFaqs((f) => f.filter((_, idx) => idx !== i));
 
+  const [activeTab, setActiveTab] = useState<"general" | "comms" | "cost" | "keys" | "faq">("general");
+
+  const TABS = [
+    { id: "general" as const, label: "General", icon: Settings },
+    { id: "comms" as const, label: "Communications", icon: Phone },
+    { id: "cost" as const, label: "Cost Control", icon: DollarSign },
+    { id: "keys" as const, label: "API Keys", icon: Key },
+    { id: "faq" as const, label: "FAQ", icon: MessageCircle },
+  ];
+
   if (loading) return <div className="py-12 text-center text-sm text-slate-400">Loading…</div>;
 
   return (
-    <div className="space-y-5 max-w-xl">
-      {/* Feature toggles */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-        <div className="flex items-center gap-2 mb-4">
-          <Settings className="w-4 h-4 text-primary" />
-          <p className="font-bold text-slate-900">Feature Toggles</p>
-        </div>
-        {FEATURE_KEYS.map((k) => (
-          <ToggleSetting key={k} label={labelOf(k)} value={values[k] ?? "false"} onChange={(v) => set(k, v)} />
-        ))}
-      </div>
-
-      {/* Config values */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-        <p className="font-bold text-slate-900 mb-4">Configuration</p>
-        {CONFIG_KEYS.map((k) => (
-          <TextSetting key={k} label={labelOf(k)} value={values[k] ?? ""} onChange={(v) => set(k, v)} />
-        ))}
-      </div>
-
-      {/* ── Communications: Routing ─────────────────────────────────── */}
-      <div id="comms-routing" className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 scroll-mt-20">
-        <div className="flex items-center gap-2 mb-1">
-          <Radio className="w-4 h-4 text-primary" />
-          <p className="font-bold text-slate-900">Communication Settings</p>
-        </div>
-        <p className="text-xs text-slate-400 mb-4">
-          Choose which provider is the primary for each channel. The system always falls back to the other provider if the primary fails — Zavu and Exotel are the two supported providers.
-        </p>
-
-        <div className="space-y-3">
-          <div>
-            <label className="text-sm font-semibold text-slate-800 block mb-1.5">WhatsApp routing</label>
-            <select
-              value={values.comms_routing_whatsapp ?? "zavu_first"}
-              onChange={(e) => set("comms_routing_whatsapp", e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm outline-none focus:border-primary transition-colors bg-white"
+    <div className="max-w-2xl">
+      {/* Tab Navigation */}
+      <div className="flex gap-1 bg-slate-100 rounded-xl p-1 mb-6 overflow-x-auto">
+        {TABS.map((tab) => {
+          const Icon = tab.icon;
+          const active = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold transition-all whitespace-nowrap flex-1 justify-center",
+                active
+                  ? "bg-white text-primary shadow-sm"
+                  : "text-slate-500 hover:text-slate-700"
+              )}
             >
-              <option value="zavu_first">Zavu first, fall back to Exotel (recommended)</option>
-              <option value="exotel_first">Exotel first, fall back to Zavu</option>
-              <option value="off">Disabled — do not send WhatsApp messages</option>
-            </select>
-          </div>
-          <div>
-            <label className="text-sm font-semibold text-slate-800 block mb-1.5">SMS routing</label>
-            <select
-              value={values.comms_routing_sms ?? "exotel"}
-              onChange={(e) => set("comms_routing_sms", e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm outline-none focus:border-primary transition-colors bg-white"
-            >
-              <option value="exotel">Exotel (recommended)</option>
-              <option value="zavu">Zavu</option>
-              <option value="off">Disabled — do not send SMS</option>
-            </select>
-          </div>
-          <div>
-            <label className="text-sm font-semibold text-slate-800 block mb-1.5">Masked-call routing</label>
-            <select
-              value={values.comms_routing_call ?? "exotel"}
-              onChange={(e) => set("comms_routing_call", e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm outline-none focus:border-primary transition-colors bg-white"
-            >
-              <option value="exotel">Exotel (recommended)</option>
-              <option value="off">Disabled — do not place masked calls</option>
-            </select>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-5">
-          <TestProviderButton provider="zavu" />
-          <TestProviderButton provider="exotel" />
-        </div>
+              <Icon className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">{tab.label}</span>
+            </button>
+          );
+        })}
       </div>
 
-      {/* ── Communications: Feature Flags ───────────────────────────── */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-        <div className="flex items-center gap-2 mb-1">
-          <Zap className="w-4 h-4 text-primary" />
-          <p className="font-bold text-slate-900">Feature Flags</p>
-        </div>
-        <p className="text-xs text-slate-400 mb-3">
-          Master switches for each part of the contact flow. Disable a flag to immediately stop that channel without redeploying.
-        </p>
-        {COMMS_FLAG_KEYS.map((k) => (
-          <ToggleSetting
-            key={k}
-            label={labelOf(k.replace(/^feature_/, ""))}
-            value={values[k] ?? "false"}
-            onChange={(v) => {
-              set(k, v);
-              // Keep the legacy aliases in lock-step so the API server's
-              // historical readers stay consistent with the new keys.
-              if (k === "masked_call_enabled") set("feature_calls_enabled", v);
-              if (k === "sms_enabled") set("feature_messages_enabled", v);
-              if (k === "whatsapp_enabled") set("feature_whatsapp_enabled", v);
-            }}
-          />
-        ))}
-      </div>
-
-      {/* ── Communication Settings ─────────────────────────────────── */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-        <div className="flex items-center gap-2 mb-1">
-          <Zap className="w-4 h-4 text-primary" />
-          <p className="font-bold text-slate-900">Communication Settings</p>
-        </div>
-        <p className="text-xs text-slate-400 mb-3">
-          Reliability knobs for the messaging and call platform. Values are seconds (or attempts) — defaults are tuned for the spec (60s call cap, 60s cooldown, 2 calls per QR per hour).
-        </p>
-        {COMMS_SETTINGS_KEYS.map((k) => (
-          <TextSetting key={k} label={labelOf(k)} value={values[k] ?? ""} onChange={(v) => set(k, v)} />
-        ))}
-      </div>
-
-      {/* ── Communications: Cost Control ────────────────────────────── */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-        <div className="flex items-center gap-2 mb-1">
-          <DollarSign className="w-4 h-4 text-primary" />
-          <p className="font-bold text-slate-900">Cost Control</p>
-        </div>
-        <p className="text-xs text-slate-400 mb-3">
-          Set a monthly communications budget in rupees. When the budget is reached, the platform either blocks just masked calls (cheapest mitigation) or all paid comms, depending on the over-budget behavior. The daily cap and warn threshold below remain available as a secondary safety net.
-        </p>
-        <TextSetting
-          label="Monthly Budget (₹)"
-          value={String(Math.round((Number(values.monthly_budget_paise) || 0) / 100))}
-          onChange={(v) => {
-            const inr = Math.max(0, Math.floor(Number(v) || 0));
-            set("monthly_budget_paise", String(inr * 100));
-          }}
-        />
-        <div className="flex items-center justify-between py-2.5 border-b border-slate-100 last:border-b-0">
-          <span className="text-sm text-slate-700">Over Budget Behavior</span>
-          <select
-            value={values.over_budget_behavior ?? "calls_only"}
-            onChange={(e) => set("over_budget_behavior", e.target.value)}
-            className="px-3 py-1.5 rounded-lg border border-slate-200 text-sm outline-none focus:border-primary"
-          >
-            <option value="calls_only">Block masked calls only</option>
-            <option value="all_comms">Block all paid comms</option>
-          </select>
-        </div>
-        {COMMS_COST_KEYS.map((k) => (
-          <TextSetting key={k} label={labelOf(k)} value={values[k] ?? ""} onChange={(v) => set(k, v)} />
-        ))}
-      </div>
-
-      {/* FAQ editor */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-        <div className="flex items-center justify-between mb-4">
-          <p className="font-bold text-slate-900">FAQ List</p>
-          <button onClick={addFaq} className="flex items-center gap-1.5 px-3 py-2 bg-primary/10 text-primary rounded-xl text-sm font-semibold hover:bg-primary/20 transition-colors">
-            <Plus className="w-4 h-4" /> Add FAQ
-          </button>
-        </div>
-        {faqs.length === 0 ? (
-          <p className="text-sm text-slate-400 text-center py-4">No FAQs yet. Click "Add FAQ" to create one.</p>
-        ) : (
-          <div className="space-y-3">
-            {faqs.map((faq, i) => (
-              <div key={i} className="border border-slate-200 rounded-xl overflow-hidden">
-                <div className="flex items-center justify-between px-4 py-2.5 bg-slate-50 cursor-pointer" onClick={() => setExpandedFaq(expandedFaq === i ? null : i)}>
-                  <p className="text-sm font-semibold text-slate-700 truncate">{faq.q || `FAQ #${i + 1}`}</p>
-                  <div className="flex items-center gap-1">
-                    <button onClick={(e) => { e.stopPropagation(); deleteFaq(i); }} className="p-1 rounded-lg hover:bg-red-50 text-red-400 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
-                    {expandedFaq === i ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
-                  </div>
-                </div>
-                {expandedFaq === i && (
-                  <div className="p-4 space-y-3">
-                    <div>
-                      <label className="text-xs font-semibold text-slate-500 mb-1 block">Question</label>
-                      <input value={faq.q} onChange={(e) => updateFaq(i, "q", e.target.value)} placeholder="Enter question…" className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm outline-none focus:border-primary transition-colors" />
-                    </div>
-                    <div>
-                      <label className="text-xs font-semibold text-slate-500 mb-1 block">Answer</label>
-                      <textarea value={faq.a} onChange={(e) => updateFaq(i, "a", e.target.value)} placeholder="Enter answer…" rows={3} className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm outline-none focus:border-primary transition-colors resize-none" />
-                    </div>
-                  </div>
-                )}
+      <div className="space-y-5">
+        {/* ═══ GENERAL TAB ═══ */}
+        {activeTab === "general" && (
+          <>
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <Zap className="w-4 h-4 text-primary" />
+                <p className="font-bold text-slate-900">Feature Toggles</p>
               </div>
+              {FEATURE_KEYS.map((k) => (
+                <ToggleSetting key={k} label={labelOf(k)} value={values[k] ?? "false"} onChange={(v) => set(k, v)} />
+              ))}
+            </div>
+
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+              <p className="font-bold text-slate-900 mb-4">Configuration</p>
+              {CONFIG_KEYS.map((k) => (
+                <TextSetting key={k} label={labelOf(k)} value={values[k] ?? ""} onChange={(v) => set(k, v)} />
+              ))}
+            </div>
+
+            <div className="flex gap-3">
+              <button onClick={handleReset} className="flex items-center gap-2 px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
+                <RotateCcw className="w-4 h-4" /> Reset
+              </button>
+              <button onClick={handleSave} disabled={saving} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all ${saved ? "bg-green-500 text-white" : "bg-primary text-white hover:bg-primary/90"} disabled:opacity-60`}>
+                <Save className="w-4 h-4" /> {saving ? "Saving…" : saved ? "Saved!" : "Save Settings"}
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* ═══ COMMUNICATIONS TAB ═══ */}
+        {activeTab === "comms" && (
+          <>
+            <div id="comms-routing" className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+              <div className="flex items-center gap-2 mb-1">
+                <Radio className="w-4 h-4 text-primary" />
+                <p className="font-bold text-slate-900">Routing</p>
+              </div>
+              <p className="text-xs text-slate-400 mb-4">
+                Choose which provider handles each channel. The system falls back automatically if the primary fails.
+              </p>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="text-sm font-semibold text-slate-800 block mb-1.5">WhatsApp routing</label>
+                  <select value={values.comms_routing_whatsapp ?? "zavu_first"} onChange={(e) => set("comms_routing_whatsapp", e.target.value)} className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm outline-none focus:border-primary transition-colors bg-white">
+                    <option value="zavu_first">Zavu first, fall back to Exotel</option>
+                    <option value="exotel_first">Exotel first, fall back to Zavu</option>
+                    <option value="off">Disabled</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm font-semibold text-slate-800 block mb-1.5">SMS routing</label>
+                  <select value={values.comms_routing_sms ?? "exotel"} onChange={(e) => set("comms_routing_sms", e.target.value)} className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm outline-none focus:border-primary transition-colors bg-white">
+                    <option value="exotel">Exotel</option>
+                    <option value="zavu">Zavu</option>
+                    <option value="off">Disabled</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm font-semibold text-slate-800 block mb-1.5">Masked-call routing</label>
+                  <select value={values.comms_routing_call ?? "exotel"} onChange={(e) => set("comms_routing_call", e.target.value)} className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm outline-none focus:border-primary transition-colors bg-white">
+                    <option value="exotel">Exotel</option>
+                    <option value="off">Disabled</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-5">
+                <TestProviderButton provider="zavu" />
+                <TestProviderButton provider="exotel" />
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+              <div className="flex items-center gap-2 mb-1">
+                <Zap className="w-4 h-4 text-primary" />
+                <p className="font-bold text-slate-900">Feature Flags</p>
+              </div>
+              <p className="text-xs text-slate-400 mb-3">
+                Master switches for each channel. Disable to immediately stop that channel without redeploying.
+              </p>
+              {COMMS_FLAG_KEYS.map((k) => (
+                <ToggleSetting
+                  key={k}
+                  label={labelOf(k.replace(/^feature_/, ""))}
+                  value={values[k] ?? "false"}
+                  onChange={(v) => {
+                    set(k, v);
+                    if (k === "masked_call_enabled") set("feature_calls_enabled", v);
+                    if (k === "sms_enabled") set("feature_messages_enabled", v);
+                    if (k === "whatsapp_enabled") set("feature_whatsapp_enabled", v);
+                  }}
+                />
+              ))}
+            </div>
+
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+              <div className="flex items-center gap-2 mb-1">
+                <Settings className="w-4 h-4 text-primary" />
+                <p className="font-bold text-slate-900">Timeouts &amp; Limits</p>
+              </div>
+              <p className="text-xs text-slate-400 mb-3">
+                Values are in seconds or attempts. Defaults: 60s call cap, 60s cooldown, 2 calls per QR per hour.
+              </p>
+              {COMMS_SETTINGS_KEYS.map((k) => (
+                <TextSetting key={k} label={labelOf(k)} value={values[k] ?? ""} onChange={(v) => set(k, v)} />
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* ═══ COST CONTROL TAB ═══ */}
+        {activeTab === "cost" && (
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+            <div className="flex items-center gap-2 mb-1">
+              <DollarSign className="w-4 h-4 text-primary" />
+              <p className="font-bold text-slate-900">Budget &amp; Limits</p>
+            </div>
+            <p className="text-xs text-slate-400 mb-4">
+              Set monthly and daily spending limits. When exceeded, the platform blocks calls or all comms based on your preference.
+            </p>
+            <TextSetting
+              label="Monthly Budget (₹)"
+              value={String(Math.round((Number(values.monthly_budget_paise) || 0) / 100))}
+              onChange={(v) => {
+                const inr = Math.max(0, Math.floor(Number(v) || 0));
+                set("monthly_budget_paise", String(inr * 100));
+              }}
+            />
+            <div className="flex items-center justify-between py-2.5 border-b border-slate-100 last:border-b-0">
+              <span className="text-sm text-slate-700">Over Budget Behavior</span>
+              <select
+                value={values.over_budget_behavior ?? "calls_only"}
+                onChange={(e) => set("over_budget_behavior", e.target.value)}
+                className="px-3 py-1.5 rounded-lg border border-slate-200 text-sm outline-none focus:border-primary"
+              >
+                <option value="calls_only">Block masked calls only</option>
+                <option value="all_comms">Block all paid comms</option>
+              </select>
+            </div>
+            {COMMS_COST_KEYS.map((k) => (
+              <TextSetting key={k} label={labelOf(k)} value={values[k] ?? ""} onChange={(v) => set(k, v)} />
             ))}
           </div>
         )}
-      </div>
 
-      {/* API Keys & Integrations */}
-      <div id="api-keys" className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 scroll-mt-20">
-        <div className="flex items-center gap-2 mb-4">
-          <Key className="w-4 h-4 text-primary" />
-          <p className="font-bold text-slate-900">API Keys &amp; Integrations</p>
-        </div>
-
-        <p className="text-xs text-slate-400 mb-2 -mt-2">
-          These keys are stored in the <span className="font-mono">settings</span> table and read by the API server at request time.
-          Keys that must live in environment variables are listed below as read-only status indicators.
-        </p>
-
-        {API_KEY_ROWS.map((def, idx) => (
-          <ApiKeyRow
-            key={def.key}
-            def={def}
-            initialValue={values[def.key] ?? ""}
-            isLast={idx === API_KEY_ROWS.length - 1}
-          />
-        ))}
-
-        {/* IP Encryption Key — read-only status */}
-        <div className="py-3 border-b border-slate-50">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-semibold text-slate-800">IP Encryption Key</p>
-              <p className="text-xs text-slate-400 mt-0.5">Must be set as an environment variable (IP_ENCRYPTION_KEY). Cannot be stored in the database.</p>
-            </div>
-            {encryptionKeySet === null ? (
-              <span className="text-xs text-slate-400 font-medium">Checking…</span>
-            ) : encryptionKeySet ? (
-              <span className="flex items-center gap-1 px-2.5 py-1 bg-green-50 text-green-700 rounded-lg text-xs font-semibold">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />
-                Configured
-              </span>
-            ) : (
-              <span className="flex items-center gap-1 px-2.5 py-1 bg-amber-50 text-amber-700 rounded-lg text-xs font-semibold">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block" />
-                Not set
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* Resend API Key — read-only status */}
-        <div className="py-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-semibold text-slate-800">Email Service (Resend)</p>
-              <p className="text-xs text-slate-400 mt-0.5">Must be set as a secret (RESEND_API_KEY). Used to send vendor emails directly from the dashboard.</p>
-            </div>
-            {resendKeySet === null ? (
-              <span className="text-xs text-slate-400 font-medium">Checking…</span>
-            ) : resendKeySet ? (
-              <span className="flex items-center gap-1 px-2.5 py-1 bg-green-50 text-green-700 rounded-lg text-xs font-semibold">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />
-                Configured
-              </span>
-            ) : (
-              <span className="flex items-center gap-1 px-2.5 py-1 bg-amber-50 text-amber-700 rounded-lg text-xs font-semibold">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block" />
-                Not set
-              </span>
-            )}
-          </div>
-
-          {/* From address row */}
-          <div className="mt-3 pt-3 border-t border-slate-50 flex items-start justify-between gap-3">
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5">
-                <p className="text-sm font-semibold text-slate-800">Sending Address</p>
-                <span className="group relative inline-flex">
-                  <Info className="w-3.5 h-3.5 text-slate-400 cursor-help" />
-                  <span className="absolute left-1/2 -translate-x-1/2 top-full mt-2 w-72 p-3 bg-slate-900 text-white text-xs rounded-lg shadow-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-10 leading-relaxed">
-                    <span className="font-semibold block mb-1">Use your own domain:</span>
-                    1. In Resend, go to Domains → Add Domain (e.g. stegofy.com).<br />
-                    2. Add the DNS records (SPF, DKIM, DMARC) shown by Resend to your DNS provider.<br />
-                    3. Wait for verification, then set the <code className="font-mono">RESEND_FROM_EMAIL</code> secret to e.g. <code className="font-mono">admin@stegofy.com</code>.<br />
-                    4. Restart the API server.
-                  </span>
-                </span>
+        {/* ═══ API KEYS TAB ═══ */}
+        {activeTab === "keys" && (
+          <>
+            <div id="api-keys" className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+              <div className="flex items-center gap-2 mb-2">
+                <Key className="w-4 h-4 text-primary" />
+                <p className="font-bold text-slate-900">Provider Credentials</p>
               </div>
-              <p className="text-xs text-slate-400 mt-0.5 truncate font-mono">
-                {resendFromEmail || "—"}
+              <p className="text-xs text-slate-400 mb-3">
+                Stored in the database and read by the API server at request time. Each key saves independently.
               </p>
+
+              {API_KEY_ROWS.map((def, idx) => (
+                <ApiKeyRow
+                  key={def.key}
+                  def={def}
+                  initialValue={values[def.key] ?? ""}
+                  isLast={idx === API_KEY_ROWS.length - 1}
+                />
+              ))}
             </div>
-            <div className="flex items-center gap-2 whitespace-nowrap">
-              {resendKeySet && (
-                <button
-                  onClick={handleSendTestEmail}
-                  disabled={testEmailSending}
-                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-primary/10 text-primary hover:bg-primary/20 transition-colors disabled:opacity-60"
-                >
-                  <Send className="w-3 h-3" />
-                  {testEmailSending ? "Sending…" : "Send test email"}
+
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <Shield className="w-4 h-4 text-primary" />
+                <p className="font-bold text-slate-900">Environment Variables</p>
+              </div>
+              <p className="text-xs text-slate-400 mb-3">
+                These must be set on your hosting platform (Render, Railway, etc.) — not in the database.
+              </p>
+
+              <div className="py-3 border-b border-slate-50">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-800">IP Encryption Key</p>
+                    <p className="text-xs text-slate-400 mt-0.5">IP_ENCRYPTION_KEY</p>
+                  </div>
+                  {encryptionKeySet === null ? (
+                    <span className="text-xs text-slate-400 font-medium">Checking…</span>
+                  ) : encryptionKeySet ? (
+                    <span className="flex items-center gap-1 px-2.5 py-1 bg-green-50 text-green-700 rounded-lg text-xs font-semibold">
+                      <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" /> Configured
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1 px-2.5 py-1 bg-amber-50 text-amber-700 rounded-lg text-xs font-semibold">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block" /> Not set
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="py-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-800">Email Service (Resend)</p>
+                    <p className="text-xs text-slate-400 mt-0.5">RESEND_API_KEY</p>
+                  </div>
+                  {resendKeySet === null ? (
+                    <span className="text-xs text-slate-400 font-medium">Checking…</span>
+                  ) : resendKeySet ? (
+                    <span className="flex items-center gap-1 px-2.5 py-1 bg-green-50 text-green-700 rounded-lg text-xs font-semibold">
+                      <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" /> Configured
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1 px-2.5 py-1 bg-amber-50 text-amber-700 rounded-lg text-xs font-semibold">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block" /> Not set
+                    </span>
+                  )}
+                </div>
+
+                <div className="mt-3 pt-3 border-t border-slate-50 flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-sm font-semibold text-slate-800">Sending Address</p>
+                      <span className="group relative inline-flex">
+                        <Info className="w-3.5 h-3.5 text-slate-400 cursor-help" />
+                        <span className="absolute left-1/2 -translate-x-1/2 top-full mt-2 w-72 p-3 bg-slate-900 text-white text-xs rounded-lg shadow-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-10 leading-relaxed">
+                          <span className="font-semibold block mb-1">Use your own domain:</span>
+                          1. In Resend, go to Domains → Add Domain.<br />
+                          2. Add DNS records (SPF, DKIM, DMARC).<br />
+                          3. Set RESEND_FROM_EMAIL secret.<br />
+                          4. Restart the API server.
+                        </span>
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-400 mt-0.5 truncate font-mono">{resendFromEmail || "—"}</p>
+                  </div>
+                  <div className="flex items-center gap-2 whitespace-nowrap">
+                    {resendKeySet && (
+                      <button onClick={handleSendTestEmail} disabled={testEmailSending} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-primary/10 text-primary hover:bg-primary/20 transition-colors disabled:opacity-60">
+                        <Send className="w-3 h-3" />
+                        {testEmailSending ? "Sending…" : "Send test email"}
+                      </button>
+                    )}
+                    {resendFromEmail ? (
+                      resendCustomDomain ? (
+                        <span className="flex items-center gap-1 px-2.5 py-1 bg-green-50 text-green-700 rounded-lg text-xs font-semibold">
+                          <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" /> Custom domain
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1 px-2.5 py-1 bg-amber-50 text-amber-700 rounded-lg text-xs font-semibold">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block" /> Resend default
+                        </span>
+                      )
+                    ) : (
+                      <span className="text-xs text-slate-400 font-medium">Checking…</span>
+                    )}
+                  </div>
+                </div>
+
+                {testEmailResult && (
+                  testEmailResult.ok ? (
+                    <p className="mt-2 text-xs text-green-600">
+                      Test email sent to <span className="font-mono">{testEmailResult.sentTo}</span>. Check your inbox.
+                    </p>
+                  ) : (
+                    <p className="mt-2 text-xs text-red-500">{testEmailResult.error}</p>
+                  )
+                )}
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* ═══ FAQ TAB ═══ */}
+        {activeTab === "faq" && (
+          <>
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+              <div className="flex items-center justify-between mb-4">
+                <p className="font-bold text-slate-900">FAQ List</p>
+                <button onClick={addFaq} className="flex items-center gap-1.5 px-3 py-2 bg-primary/10 text-primary rounded-xl text-sm font-semibold hover:bg-primary/20 transition-colors">
+                  <Plus className="w-4 h-4" /> Add FAQ
                 </button>
-              )}
-              {resendFromEmail ? (
-                resendCustomDomain ? (
-                  <span className="flex items-center gap-1 px-2.5 py-1 bg-green-50 text-green-700 rounded-lg text-xs font-semibold">
-                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />
-                    Custom domain
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-1 px-2.5 py-1 bg-amber-50 text-amber-700 rounded-lg text-xs font-semibold">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block" />
-                    Resend default
-                  </span>
-                )
+              </div>
+              {faqs.length === 0 ? (
+                <p className="text-sm text-slate-400 text-center py-4">No FAQs yet. Click "Add FAQ" to create one.</p>
               ) : (
-                <span className="text-xs text-slate-400 font-medium">Checking…</span>
+                <div className="space-y-3">
+                  {faqs.map((faq, i) => (
+                    <div key={i} className="border border-slate-200 rounded-xl overflow-hidden">
+                      <div className="flex items-center justify-between px-4 py-2.5 bg-slate-50 cursor-pointer" onClick={() => setExpandedFaq(expandedFaq === i ? null : i)}>
+                        <p className="text-sm font-semibold text-slate-700 truncate">{faq.q || `FAQ #${i + 1}`}</p>
+                        <div className="flex items-center gap-1">
+                          <button onClick={(e) => { e.stopPropagation(); deleteFaq(i); }} className="p-1 rounded-lg hover:bg-red-50 text-red-400 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
+                          {expandedFaq === i ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+                        </div>
+                      </div>
+                      {expandedFaq === i && (
+                        <div className="p-4 space-y-3">
+                          <div>
+                            <label className="text-xs font-semibold text-slate-500 mb-1 block">Question</label>
+                            <input value={faq.q} onChange={(e) => updateFaq(i, "q", e.target.value)} placeholder="Enter question…" className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm outline-none focus:border-primary transition-colors" />
+                          </div>
+                          <div>
+                            <label className="text-xs font-semibold text-slate-500 mb-1 block">Answer</label>
+                            <textarea value={faq.a} onChange={(e) => updateFaq(i, "a", e.target.value)} placeholder="Enter answer…" rows={3} className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm outline-none focus:border-primary transition-colors resize-none" />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
-          </div>
 
-          {testEmailResult && (
-            testEmailResult.ok ? (
-              <p className="mt-2 text-xs text-green-600">
-                Test email sent to <span className="font-mono">{testEmailResult.sentTo}</span>. Check your inbox (and spam folder).
-              </p>
-            ) : (
-              <p className="mt-2 text-xs text-red-500">{testEmailResult.error}</p>
-            )
-          )}
-        </div>
-      </div>
-
-      {/* Save / Reset */}
-      <div className="flex gap-3">
-        <button onClick={handleReset} className="flex items-center gap-2 px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
-          <RotateCcw className="w-4 h-4" /> Reset
-        </button>
-        <button onClick={handleSave} disabled={saving} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all ${saved ? "bg-green-500 text-white" : "bg-primary text-white hover:bg-primary/90"} disabled:opacity-60`}>
-          <Save className="w-4 h-4" /> {saving ? "Saving…" : saved ? "Saved!" : "Save Settings"}
-        </button>
+            <div className="flex gap-3">
+              <button onClick={handleReset} className="flex items-center gap-2 px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
+                <RotateCcw className="w-4 h-4" /> Reset
+              </button>
+              <button onClick={handleSave} disabled={saving} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all ${saved ? "bg-green-500 text-white" : "bg-primary text-white hover:bg-primary/90"} disabled:opacity-60`}>
+                <Save className="w-4 h-4" /> {saving ? "Saving…" : saved ? "Saved!" : "Save Settings"}
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
