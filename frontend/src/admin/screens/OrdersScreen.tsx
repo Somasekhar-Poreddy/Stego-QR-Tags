@@ -3,6 +3,7 @@ import {
   Search, ShoppingBag, ChevronDown, ChevronUp, MapPin, Phone,
   Mail, AlertCircle, RefreshCw, Package, ChevronLeft, ChevronRight,
   CheckCircle2, XCircle, Truck, Box, ClipboardList, CircleDot,
+  ExternalLink, RotateCcw,
 } from "lucide-react";
 import {
   adminGetOrders,
@@ -13,6 +14,8 @@ import {
   ORDER_STATUS_LABELS,
 } from "@/services/adminService";
 import { ensureFreshSession } from "@/lib/adminAuth";
+import { apiUrl } from "@/lib/apiUrl";
+import { supabase } from "@/lib/supabase";
 import type { Order, OrderStatus, OrderWithItems } from "@/services/orderService";
 
 /* ─── Constants ─── */
@@ -171,6 +174,268 @@ function PipelineStepper({
   );
 }
 
+/* ─── Shipping panel ─── */
+
+interface CourierOption {
+  courier_company_id: number;
+  courier_name: string;
+  rate: number;
+  estimated_delivery_days: number;
+  etd: string;
+  freight_charge: number;
+}
+
+async function authedShipFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token;
+  return fetch(apiUrl(path), {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(init.headers ?? {}),
+    },
+  });
+}
+
+function ShippingPanel({ order, onUpdate }: { order: OrderWithItems; onUpdate: () => void }) {
+  const [step, setStep] = useState<"idle" | "loading_rates" | "selecting" | "shipping" | "done">("idle");
+  const [couriers, setCouriers] = useState<CourierOption[]>([]);
+  const [selectedCourier, setSelectedCourier] = useState<number | null>(null);
+  const [tracking, setTracking] = useState<{ awb: string; courier: string; url: string; status: string } | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [loadingTrack, setLoadingTrack] = useState(false);
+
+  const o = order as unknown as Record<string, unknown>;
+  const hasShiprocket = Boolean(o.shiprocket_order_id);
+  const hasAwb = Boolean(o.awb_code);
+  const canShip = ["confirmed", "packed"].includes(order.order_status) && !hasAwb;
+  const canTrack = hasAwb;
+  const canCancel = hasShiprocket && !["delivered", "cancelled"].includes(order.order_status);
+  const canReturn = order.order_status === "delivered" && hasShiprocket;
+
+  const loadRates = async () => {
+    setStep("loading_rates");
+    setErr(null);
+    try {
+      const pincode = order.shipping_details?.pincode;
+      if (!pincode) throw new Error("No shipping pincode");
+      const res = await authedShipFetch("/api/shipping/rates", {
+        method: "POST",
+        body: JSON.stringify({ delivery_pincode: pincode }),
+      });
+      const data = await res.json() as { rates?: CourierOption[]; error?: string };
+      if (!res.ok) throw new Error(data.error ?? "Failed to fetch rates");
+      setCouriers(data.rates ?? []);
+      setStep("selecting");
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Failed");
+      setStep("idle");
+    }
+  };
+
+  const shipOrder = async () => {
+    if (!selectedCourier) return;
+    setStep("shipping");
+    setErr(null);
+    try {
+      // Step 1: Create order on Shiprocket
+      let res = await authedShipFetch("/api/admin/shipping/create-order", {
+        method: "POST",
+        body: JSON.stringify({ order_id: order.id }),
+      });
+      let data = await res.json() as { shipment_id?: number; error?: string };
+      if (!res.ok) throw new Error(data.error ?? "Order creation failed");
+      const shipmentId = data.shipment_id;
+
+      // Step 2: Assign courier
+      res = await authedShipFetch("/api/admin/shipping/assign-courier", {
+        method: "POST",
+        body: JSON.stringify({ order_id: order.id, shipment_id: shipmentId, courier_id: selectedCourier }),
+      });
+      data = await res.json() as { awb_code?: string; error?: string };
+      if (!res.ok) throw new Error(data.error ?? "Courier assignment failed");
+
+      // Step 3: Request pickup
+      res = await authedShipFetch("/api/admin/shipping/request-pickup", {
+        method: "POST",
+        body: JSON.stringify({ order_id: order.id, shipment_id: shipmentId }),
+      });
+      if (!res.ok) {
+        const body = await res.json() as { error?: string };
+        throw new Error(body.error ?? "Pickup request failed");
+      }
+
+      setStep("done");
+      onUpdate();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Shipping failed");
+      setStep("idle");
+    }
+  };
+
+  const loadTracking = async () => {
+    setLoadingTrack(true);
+    try {
+      const res = await authedShipFetch(`/api/admin/shipping/track/${order.id}`);
+      const data = await res.json() as { current_status?: string; tracking_url?: string; error?: string };
+      if (!res.ok) throw new Error(data.error ?? "Tracking failed");
+      setTracking({
+        awb: String(o.awb_code ?? ""),
+        courier: String(o.courier_name ?? ""),
+        url: data.tracking_url ?? "",
+        status: data.current_status ?? "",
+      });
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Tracking failed");
+    }
+    setLoadingTrack(false);
+  };
+
+  const cancelShipment = async () => {
+    if (!confirm("Cancel this shipment?")) return;
+    try {
+      const res = await authedShipFetch(`/api/admin/shipping/cancel/${order.id}`, { method: "POST" });
+      if (!res.ok) {
+        const data = await res.json() as { error?: string };
+        throw new Error(data.error ?? "Cancel failed");
+      }
+      onUpdate();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Cancel failed");
+    }
+  };
+
+  const createReturn = async () => {
+    if (!confirm("Create a return shipment?")) return;
+    try {
+      const res = await authedShipFetch("/api/admin/shipping/return", {
+        method: "POST",
+        body: JSON.stringify({ order_id: order.id }),
+      });
+      if (!res.ok) {
+        const data = await res.json() as { error?: string };
+        throw new Error(data.error ?? "Return failed");
+      }
+      onUpdate();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Return failed");
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-xl border border-slate-100 p-4">
+      <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+        <Truck className="w-3.5 h-3.5 text-primary" /> Shipping
+      </p>
+
+      {/* Tracking info */}
+      {hasAwb && (
+        <div className="space-y-2 mb-3">
+          <div className="flex items-center justify-between">
+            <div className="text-sm">
+              <span className="text-slate-500">AWB:</span>{" "}
+              <span className="font-mono font-semibold text-slate-800">{String(o.awb_code)}</span>
+            </div>
+            {Boolean(o.tracking_url) && (
+              <a href={String(o.tracking_url)} target="_blank" rel="noopener noreferrer" className="text-xs text-primary font-semibold flex items-center gap-1 hover:underline">
+                Track <ExternalLink className="w-3 h-3" />
+              </a>
+            )}
+          </div>
+          {Boolean(o.courier_name) && <p className="text-xs text-slate-500">Courier: <span className="font-semibold text-slate-700">{String(o.courier_name)}</span></p>}
+          {tracking && <p className="text-xs text-slate-500">Status: <span className="font-semibold text-slate-700">{tracking.status}</span></p>}
+          {canTrack && !tracking && (
+            <button onClick={loadTracking} disabled={loadingTrack} className="text-xs text-primary font-semibold flex items-center gap-1">
+              {loadingTrack ? <RefreshCw className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+              Refresh tracking
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Ship order flow */}
+      {canShip && step === "idle" && (
+        <button onClick={loadRates} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-white text-sm font-semibold rounded-xl hover:bg-primary/90 transition-colors">
+          <Truck className="w-4 h-4" /> Ship Order
+        </button>
+      )}
+
+      {step === "loading_rates" && (
+        <div className="flex items-center justify-center gap-2 py-4 text-sm text-slate-500">
+          <RefreshCw className="w-4 h-4 animate-spin" /> Fetching courier rates…
+        </div>
+      )}
+
+      {step === "selecting" && (
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-slate-600">Select a courier:</p>
+          <div className="max-h-48 overflow-y-auto space-y-1.5">
+            {couriers.map((c) => (
+              <label
+                key={c.courier_company_id}
+                className={`flex items-center justify-between p-2.5 rounded-xl border cursor-pointer transition-colors ${selectedCourier === c.courier_company_id ? "border-primary bg-primary/5" : "border-slate-200 hover:bg-slate-50"}`}
+              >
+                <div className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="courier"
+                    checked={selectedCourier === c.courier_company_id}
+                    onChange={() => setSelectedCourier(c.courier_company_id)}
+                    className="accent-primary"
+                  />
+                  <div>
+                    <p className="text-sm font-semibold text-slate-800">{c.courier_name}</p>
+                    <p className="text-xs text-slate-500">{c.estimated_delivery_days} days · {c.etd}</p>
+                  </div>
+                </div>
+                <span className="text-sm font-bold text-slate-800">₹{c.rate}</span>
+              </label>
+            ))}
+            {couriers.length === 0 && <p className="text-xs text-slate-400 text-center py-3">No couriers available for this pincode.</p>}
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => setStep("idle")} className="flex-1 px-3 py-2 border border-slate-200 text-sm font-semibold text-slate-600 rounded-xl hover:bg-slate-50">Cancel</button>
+            <button onClick={shipOrder} disabled={!selectedCourier} className="flex-1 px-3 py-2 bg-primary text-white text-sm font-semibold rounded-xl disabled:opacity-50 hover:bg-primary/90">Ship Now</button>
+          </div>
+        </div>
+      )}
+
+      {step === "shipping" && (
+        <div className="flex items-center justify-center gap-2 py-4 text-sm text-slate-500">
+          <RefreshCw className="w-4 h-4 animate-spin" /> Creating shipment…
+        </div>
+      )}
+
+      {step === "done" && (
+        <div className="flex items-center gap-2 text-sm text-green-600 py-2">
+          <CheckCircle2 className="w-4 h-4" /> Shipment created successfully!
+        </div>
+      )}
+
+      {/* Actions */}
+      <div className="flex gap-2 mt-3">
+        {canCancel && (
+          <button onClick={cancelShipment} className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-500 border border-red-200 text-xs font-semibold rounded-lg hover:bg-red-100">
+            <XCircle className="w-3 h-3" /> Cancel Shipment
+          </button>
+        )}
+        {canReturn && (
+          <button onClick={createReturn} className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-600 border border-amber-200 text-xs font-semibold rounded-lg hover:bg-amber-100">
+            <RotateCcw className="w-3 h-3" /> Create Return
+          </button>
+        )}
+      </div>
+
+      {err && (
+        <p className="text-xs text-red-500 flex items-center gap-1.5 mt-2">
+          <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" /> {err}
+        </p>
+      )}
+    </div>
+  );
+}
+
 /* ─── Order detail panel (expanded row) ─── */
 
 function OrderDetail({ order, onUpdate }: { order: Order; onUpdate: () => void }) {
@@ -275,17 +540,20 @@ function OrderDetail({ order, onUpdate }: { order: Order; onUpdate: () => void }
         </div>
       </div>
 
-      {/* Status pipeline */}
-      <div className="bg-white rounded-xl border border-slate-100 p-4">
-        <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
-          <Truck className="w-3.5 h-3.5 text-primary" /> Update Status
-        </p>
-        <PipelineStepper
-          current={localStatus}
-          orderId={detail.id}
-          onUpdate={onUpdate}
-          onStatusChanged={(s) => setLocalStatus(s)}
-        />
+      {/* Status + Shipping */}
+      <div className="space-y-4">
+        <div className="bg-white rounded-xl border border-slate-100 p-4">
+          <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+            <ClipboardList className="w-3.5 h-3.5 text-primary" /> Update Status
+          </p>
+          <PipelineStepper
+            current={localStatus}
+            orderId={detail.id}
+            onUpdate={onUpdate}
+            onStatusChanged={(s) => setLocalStatus(s)}
+          />
+        </div>
+        <ShippingPanel order={detail} onUpdate={onUpdate} />
       </div>
     </div>
   );
