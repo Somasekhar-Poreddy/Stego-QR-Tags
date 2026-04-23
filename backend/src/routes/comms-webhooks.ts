@@ -173,10 +173,12 @@ router.post("/webhooks/exotel/status", async (req: Request, res: Response) => {
 // In-memory caches. Entries expire after 5 minutes.
 const pendingVehicle = new Map<string, { vehicleLast4: string; callerPhone: string; expiresAt: number }>();
 const verifiedCalls = new Map<string, { ownerPhone: string; qrId: string; expiresAt: number }>();
+const attemptCount = new Map<string, { count: number; expiresAt: number }>();
 function cleanExpired() {
   const now = Date.now();
   for (const [k, v] of pendingVehicle) { if (v.expiresAt < now) pendingVehicle.delete(k); }
   for (const [k, v] of verifiedCalls) { if (v.expiresAt < now) verifiedCalls.delete(k); }
+  for (const [k, v] of attemptCount) { if (v.expiresAt < now) attemptCount.delete(k); }
 }
 
 /**
@@ -247,7 +249,12 @@ router.get("/webhooks/exotel/gather/pin", (_req: Request, res: Response) => {
 
 /**
  * Passthru #2 — Verify vehicle + PIN against database.
- * Reads stored vehicle digits from cache + PIN from this request's digits param.
+ * Returns text/plain with {"select":"keyword"} for SwitchCase routing.
+ *
+ * Keywords:
+ *   "verified"      → match found, proceed to Connect
+ *   "retry"         → wrong input, try again (attempt < 3)
+ *   "max_attempts"  → 3 failed attempts, hang up
  */
 router.get("/webhooks/exotel/verify", async (req: Request, res: Response) => {
   const json = req.query as Record<string, string>;
@@ -256,21 +263,39 @@ router.get("/webhooks/exotel/verify", async (req: Request, res: Response) => {
   const rawDigits = String(json.digits ?? "").replace(/"/g, "").trim();
   const pin = rawDigits.replace(/\D/g, "").slice(0, 4);
 
+  // Track attempts per CallSid
+  cleanExpired();
+  const attempts = attemptCount.get(callSid) ?? { count: 0, expiresAt: Date.now() + 5 * 60_000 };
+  attempts.count++;
+  attemptCount.set(callSid, attempts);
+
   const stored = pendingVehicle.get(callSid);
   if (!stored) {
-    logger.warn({ callSid }, "Verify: no stored vehicle digits for this CallSid");
-    res.status(400).json({ error: "Session expired. Please try again." });
+    logger.warn({ callSid, attempt: attempts.count }, "Verify: no stored vehicle digits");
+    if (attempts.count >= 3) {
+      res.setHeader("Content-Type", "text/plain");
+      res.status(200).send('{"select":"max_attempts"}');
+    } else {
+      res.setHeader("Content-Type", "text/plain");
+      res.status(200).send('{"select":"retry"}');
+    }
     return;
   }
 
   const vehicleLast4 = stored.vehicleLast4;
   pendingVehicle.delete(callSid);
 
-  logger.info({ callSid, vehicleLast4, pin: "****", callerPhone }, "Verify: checking vehicle + PIN");
+  logger.info({ callSid, vehicleLast4, pin: "****", attempt: attempts.count }, "Verify: checking");
 
   if (pin.length < 4) {
-    logger.warn({ pinLength: pin.length }, "Verify: insufficient PIN digits");
-    res.status(400).json({ error: "Please enter a 4-digit PIN." });
+    logger.warn({ pinLength: pin.length, attempt: attempts.count }, "Verify: insufficient PIN");
+    if (attempts.count >= 3) {
+      res.setHeader("Content-Type", "text/plain");
+      res.status(200).send('{"select":"max_attempts"}');
+    } else {
+      res.setHeader("Content-Type", "text/plain");
+      res.status(200).send('{"select":"retry"}');
+    }
     return;
   }
 
@@ -281,7 +306,8 @@ router.get("/webhooks/exotel/verify", async (req: Request, res: Response) => {
 
   if (error) {
     logger.error({ err: error.message }, "Verify: DB query failed");
-    res.status(500).json({ error: "Internal error." });
+    res.setHeader("Content-Type", "text/plain");
+    res.status(200).send('{"select":"retry"}');
     return;
   }
 
@@ -294,13 +320,20 @@ router.get("/webhooks/exotel/verify", async (req: Request, res: Response) => {
   });
 
   if (!qr) {
-    logger.info({ vehicleLast4, pin: "****" }, "Verify: no matching QR found");
-    res.status(400).json({ error: "Invalid vehicle number or PIN." });
+    logger.info({ vehicleLast4, pin: "****", attempt: attempts.count }, "Verify: no match");
+    if (attempts.count >= 3) {
+      res.setHeader("Content-Type", "text/plain");
+      res.status(200).send('{"select":"max_attempts"}');
+    } else {
+      res.setHeader("Content-Type", "text/plain");
+      res.status(200).send('{"select":"retry"}');
+    }
     return;
   }
 
   if (!(qr.allow_contact ?? true)) {
-    res.status(403).json({ error: "Owner has disabled contact for this tag." });
+    res.setHeader("Content-Type", "text/plain");
+    res.status(200).send('{"select":"max_attempts"}');
     return;
   }
 
@@ -313,8 +346,9 @@ router.get("/webhooks/exotel/verify", async (req: Request, res: Response) => {
     ?? null;
 
   if (!ownerPhone) {
-    logger.warn({ qrId: qr.id }, "Verify: QR matched but no owner phone");
-    res.status(400).json({ error: "Owner phone number not configured." });
+    logger.warn({ qrId: qr.id }, "Verify: no owner phone configured");
+    res.setHeader("Content-Type", "text/plain");
+    res.status(200).send('{"select":"max_attempts"}');
     return;
   }
 
@@ -347,11 +381,13 @@ router.get("/webhooks/exotel/verify", async (req: Request, res: Response) => {
     logger.warn({ err }, "Verify: failed to log contact request (non-blocking)");
   }
 
-  cleanExpired();
+  // Cache for Connect applet
   verifiedCalls.set(callSid, { ownerPhone, qrId: qr.id, expiresAt: Date.now() + 5 * 60_000 });
+  attemptCount.delete(callSid);
 
-  logger.info({ qrId: qr.id, callSid }, "Verify: success, cached owner phone for Connect");
-  res.status(200).json({ ok: true });
+  logger.info({ qrId: qr.id, callSid }, "Verify: success");
+  res.setHeader("Content-Type", "text/plain");
+  res.status(200).send('{"select":"verified"}');
 });
 
 /**
