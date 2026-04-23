@@ -162,108 +162,139 @@ router.post("/webhooks/exotel/status", async (req: Request, res: Response) => {
    EXOTEL IVR FLOW — Masked Calling via AppBazaar
 
    Flow: User dials ExoPhone
-     → Gather (dynamic URL)  → GET  /webhooks/exotel/gather
-     → Passthru (verify)     → GET  /webhooks/exotel/verify
-     → Connect (dynamic URL) → GET  /webhooks/exotel/connect
+     → Greeting                          (configured in Exotel)
+     → Gather #1 (vehicle)  → GET  /webhooks/exotel/gather/vehicle
+     → Passthru #1 (store)  → GET  /webhooks/exotel/store-vehicle
+     → Gather #2 (PIN)      → GET  /webhooks/exotel/gather/pin
+     → Passthru #2 (verify) → GET  /webhooks/exotel/verify
+     → Connect (dynamic)    → GET  /webhooks/exotel/connect
    ═══════════════════════════════════════════════════ */
 
-// In-memory cache: CallSid → owner phone. Entries expire after 5 minutes.
+// In-memory caches. Entries expire after 5 minutes.
+const pendingVehicle = new Map<string, { vehicleLast4: string; callerPhone: string; expiresAt: number }>();
 const verifiedCalls = new Map<string, { ownerPhone: string; qrId: string; expiresAt: number }>();
-function cleanExpiredCalls() {
+function cleanExpired() {
   const now = Date.now();
-  for (const [k, v] of verifiedCalls) {
-    if (v.expiresAt < now) verifiedCalls.delete(k);
-  }
+  for (const [k, v] of pendingVehicle) { if (v.expiresAt < now) pendingVehicle.delete(k); }
+  for (const [k, v] of verifiedCalls) { if (v.expiresAt < now) verifiedCalls.delete(k); }
 }
 
 /**
- * Gather applet — Dynamic URL.
- * Returns the voice prompt and input configuration as JSON.
- * Exotel makes a GET request with call params as query strings.
+ * Gather #1 — Vehicle number (last 4 digits).
  */
-router.get("/webhooks/exotel/gather", (_req: Request, res: Response) => {
+router.get("/webhooks/exotel/gather/vehicle", (_req: Request, res: Response) => {
   res.status(200).json({
     gather_prompt: {
-      text: "Please enter the last 4 digits of the vehicle registration number, followed by the 4 digit PIN code printed on the sticker. After entering all 8 digits, press the hash key.",
+      text: "Please enter the last 4 digits of the vehicle registration number, and then press hash.",
     },
-    max_input_digits: 8,
+    max_input_digits: 4,
     finish_on_key: "#",
     input_timeout: 10,
     repeat_menu: 3,
     repeat_gather_prompt: {
-      text: "We did not receive your input. Please enter the last 4 digits of vehicle registration number, then the 4 digit PIN code, and press hash.",
+      text: "We did not receive your input. Please enter the last 4 digits of the vehicle registration number, and press hash.",
     },
   });
 });
 
 /**
- * Passthru applet — verification.
- *
- * Flow: User dials ExoPhone → Gather collects 8 digits (vehicle last 4 + PIN)
- * → Passthru hits this endpoint → we verify → return owner phone on success.
- *
- * Exotel sends form-encoded POST with `digits` from the preceding Gather applet.
- * We split: first 4 = vehicle last 4 digits, last 4 = PIN code.
- * On match: HTTP 200 + owner's phone number (for Connect applet).
- * On failure: HTTP 400 (Exotel follows the failure branch → plays error → hangs up).
+ * Passthru #1 — Store vehicle last 4 digits (keyed by CallSid).
+ * Returns 200 so the flow proceeds to Gather #2.
  */
-router.get("/webhooks/exotel/verify", async (req: Request, res: Response) => {
+router.get("/webhooks/exotel/store-vehicle", (req: Request, res: Response) => {
   const json = req.query as Record<string, string>;
-
   const callSid = String(json.CallSid ?? json.call_sid ?? "");
   const callerPhone = String(json.CallFrom ?? json.From ?? "");
-  // Exotel wraps digits in double quotes: "12345678" — strip them
   const rawDigits = String(json.digits ?? "").replace(/"/g, "").trim();
   const digits = rawDigits.replace(/\D/g, "");
 
-  logger.info({ callSid, callerPhone, rawDigits, digits, digitsLength: digits.length }, "Exotel Passthru verify");
+  logger.info({ callSid, callerPhone, digits }, "Store vehicle: received");
 
-  if (digits.length < 8) {
-    logger.warn({ digitsLength: digits.length, rawDigits }, "Passthru: insufficient digits");
-    res.status(400).json({ error: "Please enter 8 digits: last 4 of vehicle number + 4-digit PIN." });
+  if (digits.length < 4) {
+    logger.warn({ digits }, "Store vehicle: insufficient digits");
+    res.status(400).json({ error: "Please enter 4 digits." });
     return;
   }
 
-  const vehicleLast4 = digits.slice(0, 4).toUpperCase();
-  const pin = digits.slice(4, 8);
+  cleanExpired();
+  pendingVehicle.set(callSid, {
+    vehicleLast4: digits.slice(0, 4).toUpperCase(),
+    callerPhone,
+    expiresAt: Date.now() + 5 * 60_000,
+  });
 
-  logger.info({ vehicleLast4, pin: "****" }, "Passthru: parsed input");
+  logger.info({ callSid, vehicleLast4: digits.slice(0, 4) }, "Store vehicle: cached");
+  res.status(200).json({ ok: true });
+});
 
-  // First try matching with pin_code on qr_codes (claimed stickers)
+/**
+ * Gather #2 — PIN code (4 digits).
+ */
+router.get("/webhooks/exotel/gather/pin", (_req: Request, res: Response) => {
+  res.status(200).json({
+    gather_prompt: {
+      text: "Now please enter the 4 digit PIN code printed on the sticker, and then press hash.",
+    },
+    max_input_digits: 4,
+    finish_on_key: "#",
+    input_timeout: 10,
+    repeat_menu: 3,
+    repeat_gather_prompt: {
+      text: "We did not receive your input. Please enter the 4 digit PIN code from the sticker, and press hash.",
+    },
+  });
+});
+
+/**
+ * Passthru #2 — Verify vehicle + PIN against database.
+ * Reads stored vehicle digits from cache + PIN from this request's digits param.
+ */
+router.get("/webhooks/exotel/verify", async (req: Request, res: Response) => {
+  const json = req.query as Record<string, string>;
+  const callSid = String(json.CallSid ?? json.call_sid ?? "");
+  const callerPhone = String(json.CallFrom ?? json.From ?? "");
+  const rawDigits = String(json.digits ?? "").replace(/"/g, "").trim();
+  const pin = rawDigits.replace(/\D/g, "").slice(0, 4);
+
+  const stored = pendingVehicle.get(callSid);
+  if (!stored) {
+    logger.warn({ callSid }, "Verify: no stored vehicle digits for this CallSid");
+    res.status(400).json({ error: "Session expired. Please try again." });
+    return;
+  }
+
+  const vehicleLast4 = stored.vehicleLast4;
+  pendingVehicle.delete(callSid);
+
+  logger.info({ callSid, vehicleLast4, pin: "****", callerPhone }, "Verify: checking vehicle + PIN");
+
+  if (pin.length < 4) {
+    logger.warn({ pinLength: pin.length }, "Verify: insufficient PIN digits");
+    res.status(400).json({ error: "Please enter a 4-digit PIN." });
+    return;
+  }
+
   const { data: matches, error } = await supabaseAdmin
     .from("qr_codes")
     .select("id, type, pin_code, is_active, allow_contact, emergency_contact, data")
     .eq("is_active", true);
 
   if (error) {
-    logger.error({ err: error.message }, "Passthru: DB query failed");
+    logger.error({ err: error.message }, "Verify: DB query failed");
     res.status(500).json({ error: "Internal error." });
     return;
   }
-
-  logger.info({ totalQRs: (matches ?? []).length }, "Passthru: fetched QR codes");
 
   const qr = (matches ?? []).find((row) => {
     const d = (row.data ?? {}) as Record<string, unknown>;
     const vn = String(d.vehicle_number ?? "");
     const vnMatch = vn.length >= 4 && vn.slice(-4).toUpperCase() === vehicleLast4;
     const pinMatch = row.pin_code === pin;
-    if (vnMatch || pinMatch) {
-      logger.info({
-        qrId: row.id,
-        type: row.type,
-        vnMatch,
-        pinMatch,
-        storedVnLast4: vn.slice(-4).toUpperCase(),
-        enteredVnLast4: vehicleLast4,
-        storedPin: row.pin_code ? "****" : "(null)",
-      }, "Passthru: checking QR");
-    }
     return vnMatch && pinMatch;
   });
 
   if (!qr) {
-    logger.info({ vehicleLast4, pin: "****" }, "Passthru: no matching QR found");
+    logger.info({ vehicleLast4, pin: "****" }, "Verify: no matching QR found");
     res.status(400).json({ error: "Invalid vehicle number or PIN." });
     return;
   }
@@ -282,16 +313,16 @@ router.get("/webhooks/exotel/verify", async (req: Request, res: Response) => {
     ?? null;
 
   if (!ownerPhone) {
-    logger.warn({ qrId: qr.id }, "Passthru: QR matched but no owner phone");
+    logger.warn({ qrId: qr.id }, "Verify: QR matched but no owner phone");
     res.status(400).json({ error: "Owner phone number not configured." });
     return;
   }
 
-  // Log the call attempt
+  // Log the call attempt (non-blocking)
   try {
     const pool = getCommsPool();
     const { hashPhone } = await import("../services/phoneHash.js");
-    const callerHash = hashPhone(callerPhone);
+    const callerHash = hashPhone(callerPhone || stored.callerPhone);
     const calleeHash = hashPhone(ownerPhone);
     await pool.query(
       `INSERT INTO call_logs (provider, provider_call_id, qr_id, caller_phone_hash, callee_phone_hash, status, created_at)
@@ -299,59 +330,46 @@ router.get("/webhooks/exotel/verify", async (req: Request, res: Response) => {
       [callSid, qr.id, callerHash, calleeHash],
     );
   } catch (err) {
-    logger.warn({ err }, "Passthru: failed to log call (non-blocking)");
+    logger.warn({ err }, "Verify: failed to log call (non-blocking)");
   }
 
-  // Log contact request in Supabase
+  // Log contact request (non-blocking)
   try {
     await supabaseAdmin.from("contact_requests").insert({
       qr_id: qr.id,
       name: null,
-      phone: callerPhone,
+      phone: callerPhone || stored.callerPhone,
       intent: "call",
       message: `IVR masked call via ExoPhone (CallSid: ${callSid})`,
       status: "pending",
     });
   } catch (err) {
-    logger.warn({ err }, "Passthru: failed to log contact request (non-blocking)");
+    logger.warn({ err }, "Verify: failed to log contact request (non-blocking)");
   }
 
-  // Store in memory for the Connect applet to pick up
-  cleanExpiredCalls();
+  cleanExpired();
   verifiedCalls.set(callSid, { ownerPhone, qrId: qr.id, expiresAt: Date.now() + 5 * 60_000 });
 
-  logger.info({ qrId: qr.id, callSid }, "Passthru: verified, cached owner phone for Connect");
+  logger.info({ qrId: qr.id, callSid }, "Verify: success, cached owner phone for Connect");
   res.status(200).json({ ok: true });
 });
 
 /**
- * Exotel Connect applet — Dynamic URL endpoint.
- *
- * After the Passthru verify succeeds, the flow moves to the Connect applet
- * which makes a GET request to this URL to get the destination phone number.
- * We look up the owner phone from the call_logs entry created by Passthru.
- *
- * Response format (Exotel Connect Dynamic URL spec):
- * {
- *   "destination": { "numbers": ["+919876543210"] },
- *   "max_conversation_duration": 60,
- *   "record": false
- * }
+ * Connect applet — Dynamic URL.
+ * Returns the owner phone number for Exotel to dial.
  */
 router.get("/webhooks/exotel/connect", async (req: Request, res: Response) => {
   const callSid = String(req.query.CallSid ?? req.query.call_sid ?? "");
 
   if (!callSid) {
-    logger.warn("Connect dynamic URL: no CallSid");
+    logger.warn("Connect: no CallSid");
     res.status(400).json({ error: "Missing CallSid" });
     return;
   }
 
-  logger.info({ callSid }, "Connect dynamic URL: looking up owner phone");
-
   const cached = verifiedCalls.get(callSid);
   if (!cached) {
-    logger.warn({ callSid }, "Connect: no verified call found for CallSid");
+    logger.warn({ callSid }, "Connect: no verified call found");
     res.status(400).json({ error: "Call not verified" });
     return;
   }
@@ -362,7 +380,6 @@ router.get("/webhooks/exotel/connect", async (req: Request, res: Response) => {
   const settings = await getCommsSettings();
   const maxDuration = Number(settings.call_max_duration_sec) || 60;
 
-  // Clean up after use
   verifiedCalls.delete(callSid);
 
   logger.info({ callSid, qrId: cached.qrId }, "Connect: returning owner phone");
