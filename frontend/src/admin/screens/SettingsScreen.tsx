@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Save, RotateCcw, Settings, Plus, Trash2, ChevronDown, ChevronUp, Eye, EyeOff, Key, Info, Send, Radio, Zap, DollarSign, CheckCircle2, AlertTriangle, Phone, MessageCircle, Shield } from "lucide-react";
+import { Save, RotateCcw, Settings, Plus, Trash2, ChevronDown, ChevronUp, Eye, EyeOff, Key, Info, Send, Radio, Zap, DollarSign, CheckCircle2, AlertTriangle, Phone, MessageCircle, Shield, Truck } from "lucide-react";
 import { getSettings, upsertSetting, getConfigStatus, sendTestEmail, testCommsProvider, invalidateCommsCache } from "@/services/adminService";
 import { cn } from "@/lib/utils";
 
@@ -267,25 +267,39 @@ function ApiKeyRow({ def, initialValue, isLast }: { def: ApiKeyRowDef; initialVa
  * shows the result inline. Always invalidates the server-side credential cache
  * first so we test the freshest stored credentials, not the cached ones.
  */
-function TestProviderButton({ provider }: { provider: "zavu" | "exotel" }) {
+function TestProviderButton({ provider }: { provider: "zavu" | "exotel" | "shiprocket" }) {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; detail: string } | null>(null);
 
-  const label = provider === "zavu" ? "Zavu" : "Exotel";
+  const label = provider === "zavu" ? "Zavu" : provider === "exotel" ? "Exotel" : "Shiprocket";
 
   const run = async () => {
     setBusy(true);
     setResult(null);
     try {
-      // Drop the 30s credential cache so we test what was just saved.
       try { await invalidateCommsCache(); } catch { /* non-fatal */ }
-      const res = await testCommsProvider(provider);
-      setResult({
-        ok: Boolean(res.ok),
-        detail: res.ok
-          ? "Connection successful."
-          : (res.error ?? `Connection failed (HTTP ${res.status}).`),
-      });
+      if (provider === "shiprocket") {
+        const { supabase } = await import("@/lib/supabase");
+        const { apiUrl } = await import("@/lib/apiUrl");
+        const { data: { session } } = await supabase.auth.getSession();
+        const res = await fetch(apiUrl("/api/admin/shipping/test"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}) },
+        });
+        const body = await res.json() as { ok?: boolean; error?: string | null };
+        setResult({
+          ok: Boolean(body.ok),
+          detail: body.ok ? "Connection successful." : (body.error ?? "Connection failed."),
+        });
+      } else {
+        const res = await testCommsProvider(provider);
+        setResult({
+          ok: Boolean(res.ok),
+          detail: res.ok
+            ? "Connection successful."
+            : (res.error ?? `Connection failed (HTTP ${res.status}).`),
+        });
+      }
     } catch (err) {
       setResult({ ok: false, detail: err instanceof Error ? err.message : "Test failed." });
     } finally {
@@ -442,13 +456,14 @@ export function SettingsScreen() {
     setFaqs((f) => f.map((item, idx) => idx === i ? { ...item, [field]: val } : item));
   const deleteFaq = (i: number) => setFaqs((f) => f.filter((_, idx) => idx !== i));
 
-  const [activeTab, setActiveTab] = useState<"general" | "comms" | "cost" | "keys" | "faq">("general");
+  const [activeTab, setActiveTab] = useState<"general" | "comms" | "cost" | "keys" | "shipping" | "faq">("general");
 
   const TABS = [
     { id: "general" as const, label: "General", icon: Settings },
     { id: "comms" as const, label: "Communications", icon: Phone },
     { id: "cost" as const, label: "Cost Control", icon: DollarSign },
     { id: "keys" as const, label: "API Keys", icon: Key },
+    { id: "shipping" as const, label: "Shipping", icon: Truck },
     { id: "faq" as const, label: "FAQ", icon: MessageCircle },
   ];
 
@@ -748,6 +763,63 @@ export function SettingsScreen() {
                   )
                 )}
               </div>
+            </div>
+          </>
+        )}
+
+        {/* ═══ SHIPPING TAB ═══ */}
+        {activeTab === "shipping" && (
+          <>
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+              <div className="flex items-center gap-2 mb-1">
+                <Truck className="w-4 h-4 text-primary" />
+                <p className="font-bold text-slate-900">Shiprocket Credentials</p>
+              </div>
+              <p className="text-xs text-slate-400 mb-3">
+                Connect your Shiprocket account to enable automated shipping, courier selection, and tracking.
+              </p>
+              <ApiKeyRow def={{ key: "shiprocket_email", label: "Shiprocket Email", hint: "Email address used to login to Shiprocket.", placeholder: "your@email.com" }} initialValue={values.shiprocket_email ?? ""} isLast={false} />
+              <ApiKeyRow def={{ key: "shiprocket_password", label: "Shiprocket Password", hint: "Password for your Shiprocket account. Used to generate API tokens.", placeholder: "Enter password…" }} initialValue={values.shiprocket_password ?? ""} isLast={true} />
+
+              <div className="mt-3">
+                <TestProviderButton provider={"shiprocket" as "zavu"} />
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+              <div className="flex items-center gap-2 mb-1">
+                <Settings className="w-4 h-4 text-primary" />
+                <p className="font-bold text-slate-900">Pickup &amp; Package Defaults</p>
+              </div>
+              <p className="text-xs text-slate-400 mb-3">
+                Default values used when creating shipments. Can be overridden per order.
+              </p>
+              <TextSetting label="Pickup Pincode" value={values.shiprocket_pickup_pincode ?? ""} onChange={(v) => set("shiprocket_pickup_pincode", v)} />
+              <TextSetting label="Default Weight (kg)" value={values.shiprocket_default_weight ?? "0.5"} onChange={(v) => set("shiprocket_default_weight", v)} />
+              <TextSetting label="Default Length (cm)" value={values.shiprocket_default_length ?? "10"} onChange={(v) => set("shiprocket_default_length", v)} />
+              <TextSetting label="Default Breadth (cm)" value={values.shiprocket_default_breadth ?? "10"} onChange={(v) => set("shiprocket_default_breadth", v)} />
+              <TextSetting label="Default Height (cm)" value={values.shiprocket_default_height ?? "5"} onChange={(v) => set("shiprocket_default_height", v)} />
+            </div>
+
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+              <div className="flex items-center gap-2 mb-1">
+                <Zap className="w-4 h-4 text-primary" />
+                <p className="font-bold text-slate-900">Automation</p>
+              </div>
+              <p className="text-xs text-slate-400 mb-3">
+                When enabled, orders are automatically pushed to Shiprocket when confirmed. The cheapest courier is assigned automatically.
+              </p>
+              <ToggleSetting
+                label="Auto-ship on order confirmation"
+                value={values.shiprocket_auto_ship ?? "false"}
+                onChange={(v) => set("shiprocket_auto_ship", v)}
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button onClick={handleSave} disabled={saving} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all ${saved ? "bg-green-500 text-white" : "bg-primary text-white hover:bg-primary/90"} disabled:opacity-60`}>
+                <Save className="w-4 h-4" /> {saving ? "Saving…" : saved ? "Saved!" : "Save Settings"}
+              </button>
             </div>
           </>
         )}
