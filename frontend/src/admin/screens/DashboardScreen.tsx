@@ -3,7 +3,7 @@ import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis,
   CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
-import { Users, QrCode, MessageSquare, ShoppingCart, Zap, DollarSign, RefreshCw, AlertCircle, MessageCircle, PhoneCall, Shuffle, Clock, Wallet } from "lucide-react";
+import { Users, QrCode, MessageSquare, ShoppingCart, Zap, DollarSign, RefreshCw, AlertCircle, MessageCircle, PhoneCall, Shuffle, Clock, Wallet, Truck, Package, Timer } from "lucide-react";
 import {
   getDashboardStats, getScansPerDay, getRequestsByType, getCommsDashboardMetrics,
   type CommsDashboardMetrics,
@@ -159,6 +159,36 @@ export function DashboardScreen() {
       .finally(() => setStatsLoading(false));
   }, []);
 
+  // Shipping metrics
+  const [shippingStats, setShippingStats] = useState<{
+    pendingShipment: number;
+    inTransit: number;
+    delivered: number;
+    totalShippingCost: number;
+  } | null>(null);
+
+  const loadShipping = useCallback(() => {
+    runWithLockRetry(async () => {
+      await ensureFreshSession();
+      const { supabase } = await import("@/lib/supabase");
+      const [pending, shipped, deliveredRes, costRes] = await Promise.all([
+        supabase.from("orders").select("id", { count: "exact", head: true }).in("order_status", ["placed", "confirmed", "packed"]),
+        supabase.from("orders").select("id", { count: "exact", head: true }).eq("order_status", "shipped"),
+        supabase.from("orders").select("id", { count: "exact", head: true }).eq("order_status", "delivered"),
+        supabase.from("orders").select("shipping_cost").eq("order_status", "delivered"),
+      ]);
+      const totalCost = ((costRes.data ?? []) as Array<{ shipping_cost: number }>).reduce((s, r) => s + (Number(r.shipping_cost) || 0), 0);
+      return {
+        pendingShipment: pending.count ?? 0,
+        inTransit: shipped.count ?? 0,
+        delivered: deliveredRes.count ?? 0,
+        totalShippingCost: totalCost,
+      };
+    })
+      .then(setShippingStats)
+      .catch(() => null);
+  }, []);
+
   const loadComms = useCallback(() => {
     setCommsLoading(true);
     setCommsError(null);
@@ -209,7 +239,8 @@ export function DashboardScreen() {
       hasLoadedComms.current = true;
       loadComms();
     }
-  }, [loadStats, loadComms]);
+    loadShipping();
+  }, [loadStats, loadComms, loadShipping]);
 
   useEffect(() => {
     if (!hasLoadedCharts.current || prevRangeKey.current !== rangeKey) {
@@ -308,6 +339,19 @@ export function DashboardScreen() {
           </div>
         )}
       </div>
+
+      {/* Shipping metrics */}
+      {shippingStats && (
+        <div>
+          <p className="text-sm font-bold text-slate-800 mb-3">Shipping Overview</p>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <StatCard label="Pending Shipment" value={shippingStats.pendingShipment} icon={Package} color="text-amber-600" bg="bg-amber-50" />
+            <StatCard label="In Transit" value={shippingStats.inTransit} icon={Truck} color="text-blue-600" bg="bg-blue-50" />
+            <StatCard label="Delivered" value={shippingStats.delivered} icon={Package} color="text-green-600" bg="bg-green-50" />
+            <StatCard label="Shipping Revenue" value={`₹${shippingStats.totalShippingCost.toLocaleString()}`} icon={DollarSign} color="text-emerald-600" bg="bg-emerald-50" />
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">

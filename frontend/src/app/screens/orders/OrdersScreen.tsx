@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { ChevronLeft, ChevronDown, ChevronUp, Package, ShoppingBag } from "lucide-react";
+import { ChevronLeft, ChevronDown, ChevronUp, Package, ShoppingBag, Truck, ExternalLink } from "lucide-react";
 import { useAuth } from "@/app/context/AuthContext";
 import { getUserOrders, getUserOrderWithItems, type Order, type OrderWithItems, type OrderStatus, ORDER_STATUS_LABELS } from "@/services/orderService";
 import { useDataFetch } from "@/hooks/useDataFetch";
@@ -113,6 +113,31 @@ function OrderCard({ order }: { order: Order }) {
                 </p>
                 <p className="text-[10px] text-slate-500">{detail.shipping_details.phone}</p>
               </div>
+
+              {/* Tracking info */}
+              {(() => {
+                const d = detail as unknown as Record<string, unknown>;
+                const awb = d.awb_code as string | undefined;
+                const courier = d.courier_name as string | undefined;
+                const trackUrl = d.tracking_url as string | undefined;
+                const estDelivery = d.estimated_delivery as string | undefined;
+                if (!awb && !courier) return null;
+                return (
+                  <div className="mt-3 bg-blue-50 rounded-xl p-3 space-y-1.5">
+                    <p className="text-[10px] font-bold text-blue-500 uppercase tracking-wider flex items-center gap-1">
+                      <Truck className="w-3 h-3" /> Tracking
+                    </p>
+                    {awb && <p className="text-xs text-slate-700"><span className="text-slate-500">AWB:</span> <span className="font-mono font-semibold">{awb}</span></p>}
+                    {courier && <p className="text-xs text-slate-700"><span className="text-slate-500">Courier:</span> <span className="font-semibold">{courier}</span></p>}
+                    {estDelivery && <p className="text-xs text-slate-700"><span className="text-slate-500">Est. delivery:</span> <span className="font-semibold">{estDelivery}</span></p>}
+                    {trackUrl && (
+                      <a href={trackUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary font-semibold hover:underline mt-1">
+                        Track shipment <ExternalLink className="w-3 h-3" />
+                      </a>
+                    )}
+                  </div>
+                );
+              })()}
             </>
           ) : (
             <p className="text-xs text-slate-400 text-center py-3">Could not load order details</p>
