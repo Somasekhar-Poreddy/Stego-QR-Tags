@@ -9,6 +9,7 @@ import { IdleWarningModal } from "@/admin/components/IdleWarningModal";
 import { SessionErrorBoundary } from "@/admin/SessionErrorBoundary";
 import { MfaChallengeScreen } from "@/admin/MfaChallengeScreen";
 import { MfaEnrollScreen } from "@/admin/MfaEnrollScreen";
+import { AdminProfileSetup } from "@/admin/components/AdminProfileSetup";
 import { useAuth } from "@/app/context/AuthContext";
 
 import { DashboardScreen } from "@/admin/screens/DashboardScreen";
@@ -27,6 +28,7 @@ import { VisitorLogScreen } from "@/admin/screens/VisitorLogScreen";
 import { CommunicationsScreen } from "@/admin/screens/CommunicationsScreen";
 
 interface AdminInfo {
+  id: string;
   name: string;
   email: string;
   role: string;
@@ -138,7 +140,7 @@ export function AdminRouter() {
   const cacheHit = seedInfo !== null;
   const [checking, setChecking] = useState(!cacheHit);
   const [adminInfo, setAdminInfo] = useState<AdminInfo>(
-    seedInfo ?? { name: "", email: "", role: "", permissions: {} },
+    seedInfo ?? { id: "", name: "", email: "", role: "", permissions: {} },
   );
 
   // MFA gate state. `unknown` means we haven't checked yet; `ok` means the
@@ -218,13 +220,13 @@ export function AdminRouter() {
     // can briefly invalidate ours, and by the time we retry the other tab
     // has finished.
     async function lookupAdminRecord(): Promise<
-      | { ok: true; record: { name: string; role: string; email: string; permissions: Record<string, boolean> } | null }
+      | { ok: true; record: { id: string; name: string; role: string; email: string; permissions: Record<string, boolean> } | null }
       | { ok: false; reason: "lock" | "error" }
     > {
       try {
         const { data, error } = await supabase
           .from("admin_users")
-          .select("name, role, email, permissions")
+          .select("id, name, role, email, permissions")
           .eq("user_id", currentUser.id)
           .limit(1);
         if (error) {
@@ -235,6 +237,7 @@ export function AdminRouter() {
         return {
           ok: true,
           record: {
+            id: (first.id as string) ?? "",
             name: (first.name as string) ?? "",
             role: (first.role as string) ?? "",
             email: (first.email as string) ?? "",
@@ -278,16 +281,17 @@ export function AdminRouter() {
       let info: AdminInfo;
       if (result.ok && result.record) {
         info = {
+          id: result.record.id || "",
           name: result.record.name || currentUser.email?.split("@")[0] || "Admin",
           email: result.record.email || currentUser.email || "",
           role: result.record.role || "",
           permissions: result.record.permissions || {},
         };
       } else if (cachedInfo) {
-        // Keep the last-known-good info rather than degrade to email prefix.
         info = cachedInfo;
       } else {
         info = {
+          id: "",
           name: currentUser.email?.split("@")[0] || "Admin",
           email: currentUser.email || "",
           role: isAllowlisted ? "super_admin" : "",
@@ -413,12 +417,24 @@ export function AdminRouter() {
     return <MfaEnrollScreen onEnrolled={() => setMfaState("ok")} />;
   }
 
+  const needsProfile = !adminInfo.name || adminInfo.name.trim() === "" || adminInfo.name === adminInfo.email?.split("@")[0];
+
   return (
     <AdminLayout
       adminName={adminInfo.name}
       adminRole={adminInfo.role}
       permissions={adminInfo.permissions}
     >
+      {needsProfile && adminInfo.id && (
+        <AdminProfileSetup
+          adminId={adminInfo.id}
+          currentName={adminInfo.name}
+          currentEmail={adminInfo.email ?? user?.email ?? ""}
+          onComplete={(name) => {
+            setAdminInfo((prev) => ({ ...prev, name }));
+          }}
+        />
+      )}
       {(reconnecting || !sessionOk) && (
         <div className="fixed top-0 left-0 right-0 z-50 flex items-center justify-center gap-2 bg-amber-500 px-4 py-2 text-sm font-medium text-white shadow">
           <svg
