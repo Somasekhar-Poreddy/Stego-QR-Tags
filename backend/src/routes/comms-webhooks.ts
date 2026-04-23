@@ -162,7 +162,9 @@ router.post("/webhooks/exotel/status", async (req: Request, res: Response) => {
    EXOTEL IVR FLOW — Masked Calling via AppBazaar
 
    Flow: User dials ExoPhone
-     → Greeting                          (configured in Exotel)
+     → Passthru #0 (greeting) → GET  /webhooks/exotel/greeting
+       ├─ "callback"  → Connect (owner calling back a stranger)
+       └─ "stranger"  → normal IVR below
      → Gather #1 (vehicle)  → GET  /webhooks/exotel/gather/vehicle
      → Passthru #1 (store)  → GET  /webhooks/exotel/store-vehicle
      → Gather #2 (PIN)      → GET  /webhooks/exotel/gather/pin
@@ -172,7 +174,7 @@ router.post("/webhooks/exotel/status", async (req: Request, res: Response) => {
 
 // In-memory caches. Entries expire after 5 minutes.
 const pendingVehicle = new Map<string, { vehicleLast4: string; callerPhone: string; expiresAt: number }>();
-const verifiedCalls = new Map<string, { ownerPhone: string; qrId: string; expiresAt: number }>();
+const verifiedCalls = new Map<string, { ownerPhone: string; qrId: string; isCallback?: boolean; expiresAt: number }>();
 const attemptCount = new Map<string, { count: number; expiresAt: number }>();
 function cleanExpired() {
   const now = Date.now();
@@ -180,6 +182,136 @@ function cleanExpired() {
   for (const [k, v] of verifiedCalls) { if (v.expiresAt < now) verifiedCalls.delete(k); }
   for (const [k, v] of attemptCount) { if (v.expiresAt < now) attemptCount.delete(k); }
 }
+
+/**
+ * Passthru #0 — Greeting / Owner callback detection.
+ *
+ * When the caller's phone matches a registered QR owner AND there is a
+ * recent contact_request (< callback_window_minutes, default 60 min),
+ * skip the IVR and connect the owner directly to the stranger.
+ *
+ * Returns {"select":"callback"} or {"select":"stranger"}.
+ */
+router.get("/webhooks/exotel/greeting", async (req: Request, res: Response) => {
+  const json = req.query as Record<string, string>;
+  const callSid = String(json.CallSid ?? json.call_sid ?? "");
+  const callerPhone = String(json.CallFrom ?? json.From ?? "");
+
+  if (!callerPhone) {
+    res.setHeader("Content-Type", "text/plain");
+    res.status(200).send('{"select":"stranger"}');
+    return;
+  }
+
+  try {
+    const { normalizePhone, isValidIndianMobile } = await import("../services/phoneHash.js");
+    const normalized = normalizePhone(callerPhone);
+
+    if (!isValidIndianMobile(normalized)) {
+      res.setHeader("Content-Type", "text/plain");
+      res.status(200).send('{"select":"stranger"}');
+      return;
+    }
+
+    const { data: allQrs } = await supabaseAdmin
+      .from("qr_codes")
+      .select("id, user_id, emergency_contact, data")
+      .eq("is_active", true);
+
+    const ownerQrIds = (allQrs ?? [])
+      .filter((qr) => {
+        const d = (qr.data ?? {}) as Record<string, unknown>;
+        const phones = [
+          qr.emergency_contact,
+          d.contact_phone, d.owner_phone, d.phone, d.emergency_contact_1,
+        ].filter(Boolean).map((p) => normalizePhone(String(p)));
+        return phones.includes(normalized);
+      })
+      .map((qr) => qr.id as string);
+
+    if (ownerQrIds.length === 0) {
+      res.setHeader("Content-Type", "text/plain");
+      res.status(200).send('{"select":"stranger"}');
+      return;
+    }
+
+    // Check for recent contact request within callback window
+    const settings = await getCommsSettings();
+    const windowMin = Number((settings as Record<string, string>).callback_window_minutes) || 60;
+    const cutoff = new Date(Date.now() - windowMin * 60_000).toISOString();
+
+    const { data: recent } = await supabaseAdmin
+      .from("contact_requests")
+      .select("id, qr_id, requester_phone, created_at")
+      .in("qr_id", ownerQrIds)
+      .in("intent", ["call", "emergency", "contact"])
+      .gte("created_at", cutoff)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!recent?.requester_phone) {
+      logger.info({ callerPhone: "***owner***", ownerQrIds }, "Greeting: owner detected but no recent contact request");
+      res.setHeader("Content-Type", "text/plain");
+      res.status(200).send('{"select":"stranger"}');
+      return;
+    }
+
+    // Rate-limit callbacks: max 3 per owner per hour
+    cleanExpired();
+    const cbKey = `cb:${normalized}`;
+    const cbAttempts = attemptCount.get(cbKey) ?? { count: 0, expiresAt: Date.now() + 60 * 60_000 };
+    cbAttempts.count++;
+    attemptCount.set(cbKey, cbAttempts);
+
+    if (cbAttempts.count > 3) {
+      logger.warn({ callerPhone: "***owner***" }, "Greeting: callback rate limit exceeded");
+      res.setHeader("Content-Type", "text/plain");
+      res.status(200).send('{"select":"stranger"}');
+      return;
+    }
+
+    const strangerPhone = recent.requester_phone as string;
+
+    if (!isValidIndianMobile(normalizePhone(strangerPhone))) {
+      logger.warn({ qrId: recent.qr_id }, "Greeting: stranger phone invalid for callback");
+      res.setHeader("Content-Type", "text/plain");
+      res.status(200).send('{"select":"stranger"}');
+      return;
+    }
+
+    // Cache for Connect applet — stranger becomes the destination
+    verifiedCalls.set(callSid, {
+      ownerPhone: strangerPhone,
+      qrId: recent.qr_id as string,
+      isCallback: true,
+      expiresAt: Date.now() + 5 * 60_000,
+    });
+
+    // Log callback call attempt (non-blocking)
+    try {
+      const pool = getCommsPool();
+      const { hashPhone } = await import("../services/phoneHash.js");
+      const callerHash = hashPhone(callerPhone);
+      const calleeHash = hashPhone(strangerPhone);
+      await pool.query(
+        `INSERT INTO call_logs (provider, provider_call_id, qr_id, caller_phone_hash, callee_phone_hash, status, created_at)
+         VALUES ('exotel', $1, $2, $3, $4, 'initiated', now())`,
+        [callSid, recent.qr_id, callerHash, calleeHash],
+      );
+    } catch (err) {
+      logger.warn({ err }, "Greeting: failed to log callback call (non-blocking)");
+    }
+
+    logger.info({ callSid, qrId: recent.qr_id }, "Greeting: owner callback — skipping IVR");
+    res.setHeader("Content-Type", "text/plain");
+    res.status(200).send('{"select":"callback"}');
+  } catch (err) {
+    logger.error({ err }, "Greeting: error during owner detection");
+    res.setHeader("Content-Type", "text/plain");
+    res.status(200).send('{"select":"stranger"}');
+  }
+});
 
 /**
  * Gather #1 — Vehicle number (last 4 digits).
@@ -418,7 +550,8 @@ router.get("/webhooks/exotel/connect", async (req: Request, res: Response) => {
 
   verifiedCalls.delete(callSid);
 
-  logger.info({ callSid, qrId: cached.qrId }, "Connect: returning owner phone");
+  const isCallback = cached.isCallback ?? false;
+  logger.info({ callSid, qrId: cached.qrId, isCallback }, "Connect: returning destination phone");
 
   res.status(200).json({
     destination: {
@@ -429,7 +562,9 @@ router.get("/webhooks/exotel/connect", async (req: Request, res: Response) => {
     start_call_playback: {
       playback_to: "callee",
       type: "text",
-      value: "Someone is trying to reach you through your Stegofy QR tag. Connecting now.",
+      value: isCallback
+        ? "The vehicle owner is calling you back. Connecting now."
+        : "Someone is trying to reach you through your Stegofy QR tag. Connecting now.",
     },
   });
 });
