@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
-import { ChevronLeft, ShoppingBag, MapPin, Phone, Mail, AlertCircle } from "lucide-react";
+import { ChevronLeft, ShoppingBag, MapPin, Phone, Mail, AlertCircle, Truck, RefreshCw } from "lucide-react";
 import { useCart } from "@/app/context/CartContext";
 import { useAuth } from "@/app/context/AuthContext";
 import { createOrder, type ShippingDetails } from "@/services/orderService";
+import { apiUrl } from "@/lib/apiUrl";
 import { cn } from "@/lib/utils";
 
 /* ─── Field component ─── */
@@ -95,6 +96,54 @@ export function CheckoutScreen() {
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Shipping rates
+  interface ShippingRate {
+    courier_company_id: number;
+    courier_name: string;
+    rate: number;
+    estimated_delivery_days: number;
+    etd: string;
+  }
+  const [shippingRates, setShippingRates] = useState<ShippingRate[]>([]);
+  const [selectedShipping, setSelectedShipping] = useState<number | null>(null);
+  const [shippingCost, setShippingCost] = useState(0);
+  const [ratesLoading, setRatesLoading] = useState(false);
+  const [ratesError, setRatesError] = useState<string | null>(null);
+  const lastFetchedPincode = useRef("");
+
+  useEffect(() => {
+    const pincode = form.pincode.replace(/\D/g, "");
+    if (pincode.length !== 6 || pincode === lastFetchedPincode.current) return;
+    lastFetchedPincode.current = pincode;
+    setRatesLoading(true);
+    setRatesError(null);
+    setShippingRates([]);
+    setSelectedShipping(null);
+    setShippingCost(0);
+
+    fetch(apiUrl("/api/shipping/rates"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ delivery_pincode: pincode, cod: true }),
+    })
+      .then((r) => r.json())
+      .then((data: { rates?: ShippingRate[]; error?: string }) => {
+        if (data.error) {
+          setRatesError(data.error);
+        } else {
+          const rates = data.rates ?? [];
+          setShippingRates(rates);
+          if (rates.length > 0) {
+            const cheapest = rates.reduce((a, b) => (a.rate < b.rate ? a : b));
+            setSelectedShipping(cheapest.courier_company_id);
+            setShippingCost(cheapest.rate);
+          }
+        }
+      })
+      .catch(() => setRatesError("Could not fetch shipping rates"))
+      .finally(() => setRatesLoading(false));
+  }, [form.pincode]);
 
   const set = (key: keyof ShippingDetails) => (val: string) =>
     setForm((f) => ({ ...f, [key]: val }));
@@ -222,6 +271,75 @@ export function CheckoutScreen() {
           </Field>
         </div>
 
+        {/* Shipping options */}
+        {form.pincode.replace(/\D/g, "").length === 6 && (
+          <div className="bg-white rounded-2xl border border-slate-100 p-4 space-y-3">
+            <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+              <Truck className="w-4 h-4 text-primary" /> Shipping Options
+            </h2>
+
+            {ratesLoading && (
+              <div className="flex items-center gap-2 py-3 text-sm text-slate-500">
+                <RefreshCw className="w-4 h-4 animate-spin" /> Checking delivery options…
+              </div>
+            )}
+
+            {ratesError && (
+              <div className="flex items-start gap-2 bg-amber-50 text-amber-700 rounded-xl px-3 py-2.5 text-xs font-medium">
+                <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                {ratesError}
+              </div>
+            )}
+
+            {!ratesLoading && shippingRates.length > 0 && (
+              <div className="space-y-2">
+                {shippingRates.map((r) => (
+                  <label
+                    key={r.courier_company_id}
+                    className={cn(
+                      "flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-colors",
+                      selectedShipping === r.courier_company_id
+                        ? "border-primary bg-primary/5"
+                        : "border-slate-200 hover:bg-slate-50"
+                    )}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <input
+                        type="radio"
+                        name="shipping"
+                        checked={selectedShipping === r.courier_company_id}
+                        onChange={() => {
+                          setSelectedShipping(r.courier_company_id);
+                          setShippingCost(r.rate);
+                        }}
+                        className="accent-primary"
+                      />
+                      <div>
+                        <p className="text-sm font-semibold text-slate-800">{r.courier_name}</p>
+                        <p className="text-xs text-slate-500">
+                          {r.estimated_delivery_days} days{r.etd ? ` · by ${r.etd}` : ""}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="text-sm font-bold text-slate-800">₹{r.rate}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+
+            {!ratesLoading && shippingRates.length === 0 && !ratesError && (
+              <p className="text-xs text-slate-400 text-center py-2">No delivery options available for this pincode.</p>
+            )}
+
+            {shippingCost > 0 && (
+              <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                <span className="text-xs text-slate-500">Shipping</span>
+                <span className="text-sm font-bold text-slate-700">₹{shippingCost.toLocaleString()}</span>
+              </div>
+            )}
+          </div>
+        )}
+
         {error && (
           <div className="flex items-start gap-2 bg-red-50 text-red-600 rounded-xl px-3 py-3 text-xs font-medium">
             <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
@@ -243,7 +361,7 @@ export function CheckoutScreen() {
               Placing Order…
             </span>
           ) : (
-            `Place Order · ₹${items.reduce((s, i) => s + i.price * i.quantity, 0).toLocaleString()}`
+            `Place Order · ₹${(items.reduce((s, i) => s + i.price * i.quantity, 0) + shippingCost).toLocaleString()}`
           )}
         </button>
       </form>
