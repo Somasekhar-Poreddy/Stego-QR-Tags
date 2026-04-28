@@ -4,6 +4,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import LandingPage from "@/pages/LandingPage";
+import PrivacyPolicyPage from "@/pages/PrivacyPolicyPage";
+import TermsPage from "@/pages/TermsPage";
 import { AuthProvider } from "@/app/context/AuthContext";
 import { QRProvider } from "@/app/context/QRContext";
 import { CartProvider } from "@/app/context/CartContext";
@@ -59,6 +61,9 @@ function usePathname() {
 
 function Router() {
   const pathname = usePathname();
+
+  if (pathname === "/privacy") return <PrivacyPolicyPage />;
+  if (pathname === "/terms") return <TermsPage />;
 
   if (LANDING_PATHS.includes(pathname)) {
     return <LandingPage />;

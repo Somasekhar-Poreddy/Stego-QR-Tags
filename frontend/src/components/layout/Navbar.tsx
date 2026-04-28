@@ -20,9 +20,9 @@ const PRODUCTS_MENU = [
 ];
 
 const ABOUT_MENU = [
-  { name: "Privacy Policy", icon: ShieldCheck, href: "#privacy" },
-  { name: "Terms & Conditions", icon: FileText, href: "#terms" },
-  { name: "Refund Policy", icon: RefreshCcw, href: "#refund" },
+  { name: "Privacy Policy", icon: ShieldCheck, href: "/privacy" },
+  { name: "Terms & Conditions", icon: FileText, href: "/terms" },
+  { name: "Refund Policy", icon: RefreshCcw, href: "/terms#refund" },
 ];
 
 export function Navbar() {

@@ -74,10 +74,14 @@ export function Footer() {
               </button>
             </form>
             <ul className="flex flex-col gap-3">
-              {['Privacy Policy', 'Terms of Service', 'Refund Policy'].map((item) => (
-                <li key={item}>
-                  <a href="#" className="text-sm text-slate-400 hover:text-white transition-colors underline decoration-white/20 underline-offset-4">
-                    {item}
+              {[
+                { label: 'Privacy Policy', href: '/privacy' },
+                { label: 'Terms of Service', href: '/terms' },
+                { label: 'Refund Policy', href: '/terms#refund' },
+              ].map((item) => (
+                <li key={item.label}>
+                  <a href={item.href} className="text-sm text-slate-400 hover:text-white transition-colors underline decoration-white/20 underline-offset-4">
+                    {item.label}
                   </a>
                 </li>
               ))}
