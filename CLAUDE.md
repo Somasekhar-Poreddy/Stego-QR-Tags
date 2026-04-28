@@ -87,7 +87,7 @@ pnpm --filter @workspace/stegofy-qr build      # Build frontend → frontend/dis
 
 ## Exotel IVR Architecture
 
-Two Exotel flows are configured in AppBazaar — **Flow A** and **Flow B**. The system uses only **Passthru** applets with HTTP status code routing (no SwitchCase applets).
+Two Exotel flows are configured in AppBazaar — **Flow A** and **Flow B**. The system uses **Passthru** applets (HTTP status code routing) and **SwitchCase** applets for branching logic.
 
 **Flow A** (entry point when someone dials the ExoPhone):
 ```
@@ -107,6 +107,8 @@ Gather (vehicle last 4) → Passthru (/api/webhooks/exotel/store-vehicle)
 **Passthru applet behavior:** Calls a URL, branches based on HTTP status code:
 - **200 OK** → follows the "success" path
 - **Any non-200 status (404, etc.)** → follows the "failure" path
+
+**SwitchCase applet behavior:** Routes the call to different branches based on a variable or condition value — used for multi-way branching in the IVR flow.
 
 **Owner callback detection** (`/webhooks/exotel/greeting`): Matches caller phone (from `CallFrom` query param) against registered QR owners' phones. If match found AND a contact_request exists within callback window (default 60 min), returns **200** → skips IVR → connects owner to stranger. Otherwise returns **404** → normal stranger IVR via Flow B.
 
