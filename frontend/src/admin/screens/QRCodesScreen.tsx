@@ -295,7 +295,7 @@ function QREditModal({ qr: initialQr, owner, onClose, onUpdated, onEnable, onDis
       }
       doc.setFontSize(8);
       doc.setTextColor(148, 163, 184);
-      doc.text("Powered by Stegofy — stegofy.com", pageW / 2, 280, { align: "center" });
+      doc.text("Powered by Stegofy — stegotags.stegofy.com", pageW / 2, 280, { align: "center" });
       const fname = qr.display_code ? `stegofy-${qr.display_code}` : (qr.name || qr.id);
       doc.save(`${fname}.pdf`);
     } catch { /* ignore */ }

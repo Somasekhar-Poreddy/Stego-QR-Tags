@@ -44,7 +44,7 @@ const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
 // @ts-expect-error
 const EMAIL_FROM = Deno.env.get("EMAIL_FROM") ?? "alerts@example.com";
 // @ts-expect-error
-const ADMIN_APP_URL = Deno.env.get("ADMIN_APP_URL") ?? "https://stegofy.app";
+const ADMIN_APP_URL = Deno.env.get("ADMIN_APP_URL") ?? "https://stegotags.stegofy.com";
 
 const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 

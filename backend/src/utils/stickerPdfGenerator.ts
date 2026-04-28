@@ -64,7 +64,7 @@ function headingFor(type: string | null | undefined): string {
 }
 
 function appBaseUrl(): string {
-  return (process.env.APP_URL ?? process.env.VITE_APP_URL ?? "https://stegofy.com").replace(/\/$/, "");
+  return (process.env.APP_URL ?? process.env.VITE_APP_URL ?? "https://stegotags.stegofy.com").replace(/\/$/, "");
 }
 
 async function toQrDataUrl(text: string): Promise<string> {
