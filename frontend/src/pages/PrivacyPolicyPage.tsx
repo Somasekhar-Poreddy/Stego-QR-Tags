@@ -16,7 +16,7 @@ export default function PrivacyPolicyPage() {
 
           <h2>1. Introduction</h2>
           <p>
-            Stegofy ("we," "our," or "us") operates the Stegofy platform, including the website at stegotags.com and the Stegofy mobile web application (collectively, the "Platform"). We provide QR-based identification and safety products — including vehicle parking tags, pet ID tags, child safety bands, medical alert tags, luggage tags, and NFC cards — along with related communication and e-commerce services.
+            Stegofy ("we," "our," or "us") operates the Stegofy platform, including the website at stegotags.stegofy.com and the Stegofy mobile web application (collectively, the "Platform"). We provide QR-based identification and safety products — including vehicle parking tags, pet ID tags, child safety bands, medical alert tags, luggage tags, and NFC cards — along with related communication and e-commerce services.
           </p>
           <p>
             This Privacy Policy explains how we collect, use, store, share, and protect your personal information when you use our Platform. By accessing or using Stegofy, you agree to the terms of this Privacy Policy.
@@ -157,7 +157,7 @@ export default function PrivacyPolicyPage() {
             <li><strong>Opt-out</strong> — unsubscribe from promotional communications (transactional messages like OTPs and order updates cannot be opted out of while your account is active)</li>
           </ul>
           <p>
-            To exercise any of these rights, contact us at <strong>privacy@stegotags.com</strong>.
+            To exercise any of these rights, contact us at <strong>privacy@stegofy.com</strong>.
           </p>
 
           <h2>10. Children's Privacy</h2>
@@ -173,8 +173,8 @@ export default function PrivacyPolicyPage() {
           <h2>12. Contact Us</h2>
           <p>If you have any questions about this Privacy Policy or our data practices, contact us:</p>
           <ul>
-            <li><strong>Email:</strong> privacy@stegotags.com</li>
-            <li><strong>Platform:</strong> <a href="https://stegotags.com">stegotags.com</a></li>
+            <li><strong>Email:</strong> privacy@stegofy.com</li>
+            <li><strong>Platform:</strong> <a href="https://stegotags.stegofy.com">stegotags.stegofy.com</a></li>
           </ul>
         </div>
       </main>

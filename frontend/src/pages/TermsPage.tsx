@@ -16,7 +16,7 @@ export default function TermsPage() {
 
           <h2>1. Introduction &amp; Acceptance</h2>
           <p>
-            These Terms and Conditions ("Terms") govern your access to and use of the Stegofy platform, including the website at stegotags.com, the Stegofy mobile web application, and all related products and services (collectively, the "Platform"), operated by Stegofy ("we," "our," or "us").
+            These Terms and Conditions ("Terms") govern your access to and use of the Stegofy platform, including the website at stegotags.stegofy.com, the Stegofy mobile web application, and all related products and services (collectively, the "Platform"), operated by Stegofy ("we," "our," or "us").
           </p>
           <p>
             By creating an account, purchasing products, scanning a QR tag, or otherwise using the Platform, you agree to be bound by these Terms. If you do not agree, please do not use the Platform.
@@ -190,8 +190,8 @@ export default function TermsPage() {
           <h2>16. Contact Us</h2>
           <p>If you have questions about these Terms, contact us:</p>
           <ul>
-            <li><strong>Email:</strong> legal@stegotags.com</li>
-            <li><strong>Platform:</strong> <a href="https://stegotags.com">stegotags.com</a></li>
+            <li><strong>Email:</strong> legal@stegofy.com</li>
+            <li><strong>Platform:</strong> <a href="https://stegotags.stegofy.com">stegotags.stegofy.com</a></li>
           </ul>
         </div>
       </main>

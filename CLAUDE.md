@@ -25,7 +25,7 @@ pnpm --filter @workspace/stegofy-qr build      # Build frontend → frontend/dis
 
 **Database:** Supabase (Postgres + Auth + RLS). Backend uses `supabaseAdmin` (service role) for server operations and direct Postgres pool (`getCommsPool()`) for comms tables with RLS that blocks anon/authenticated access.
 
-**Deployment:** Render — backend as web service (`stegofy-api`), frontend as static site (`stegofy-web`). See `render.yaml`.
+**Deployment:** Render — single combined service (`stegofy-api`) hosting both backend Express server and frontend static files. The backend serves the built frontend via `SERVE_FRONTEND=true`. Custom domain: **stegotags.stegofy.com**. See `render.yaml`.
 
 ### Backend (`backend/src/`)
 
@@ -87,32 +87,28 @@ pnpm --filter @workspace/stegofy-qr build      # Build frontend → frontend/dis
 
 ## Exotel IVR Architecture
 
-Two Exotel flows configured in AppBazaar:
+Two Exotel flows are configured in AppBazaar — **Flow A** and **Flow B**. The system uses only **Passthru** applets with HTTP status code routing (no SwitchCase applets).
 
 **Flow A** (entry point when someone dials the ExoPhone):
 ```
 Greeting → Passthru (/api/webhooks/exotel/greeting)
-             ├─ 200 OK → Connect (/api/webhooks/exotel/connect)  [owner callback]
-             └─ non-200 → Transfer to Flow B                     [stranger IVR]
+             ├─ 200 OK    → Connect (/api/webhooks/exotel/connect)  [owner callback]
+             └─ non-200   → Transfer to Flow B                       [stranger IVR]
 ```
 
-**Flow B** (stranger verification):
+**Flow B** (stranger verification — vehicle last-4 digits + 4-digit PIN):
 ```
-Gather (vehicle last 4) → Passthru (store digits)
-  → Gather (4-digit PIN) → Passthru (verify) → SwitchCase
-      ├─ "verified"     → Connect (dynamic URL returns owner phone)
-      ├─ "retry"        → loop back to Gather
-      └─ "max_attempts" → hang up
+Gather (vehicle last 4) → Passthru (/api/webhooks/exotel/store-vehicle)
+  → Gather (4-digit PIN) → Passthru (/api/webhooks/exotel/verify)
+      ├─ 200 OK  → Connect (/api/webhooks/exotel/connect)  [owner phone returned]
+      └─ non-200 → loop back to Gather (or hang up after 3 attempts)
 ```
 
-**Passthru applet behavior:** Calls a URL, routes based on HTTP status code:
-- 200 OK → follows the "success" path
-- Any other status (404, etc.) → follows the "failure" path
+**Passthru applet behavior:** Calls a URL, branches based on HTTP status code:
+- **200 OK** → follows the "success" path
+- **Any non-200 status (404, etc.)** → follows the "failure" path
 
-**SwitchCase applet behavior:** Routes based on keywords in the Passthru response body:
-- Response format: `{"select":"keyword"}` (Content-Type: text/plain)
-
-**Owner callback detection** (`/webhooks/exotel/greeting`): Matches caller phone (from `CallFrom` query param) against registered QR owners' phones. If match found AND a contact_request exists within callback window (default 60 min), returns 200 → skips IVR → connects owner to stranger. Otherwise returns 404 → normal stranger IVR.
+**Owner callback detection** (`/webhooks/exotel/greeting`): Matches caller phone (from `CallFrom` query param) against registered QR owners' phones. If match found AND a contact_request exists within callback window (default 60 min), returns **200** → skips IVR → connects owner to stranger. Otherwise returns **404** → normal stranger IVR via Flow B.
 
 **In-memory IVR caches** (5-min TTL, keyed by CallSid):
 - `pendingVehicle` — stores vehicle last-4 digits between Gather and Verify
