@@ -78,6 +78,7 @@ const STATEMENTS: string[] = [
   `CREATE INDEX IF NOT EXISTS call_logs_created_idx ON call_logs (created_at DESC)`,
   `CREATE INDEX IF NOT EXISTS call_logs_provider_call_id_idx ON call_logs (provider, provider_call_id)`,
   `CREATE INDEX IF NOT EXISTS call_logs_contact_request_idx ON call_logs (contact_request_id)`,
+  `ALTER TABLE call_logs ADD COLUMN IF NOT EXISTS recording_url text NULL`,
 
   `CREATE TABLE IF NOT EXISTS comms_rate_buckets (
      id           bigserial PRIMARY KEY,

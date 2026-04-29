@@ -60,6 +60,7 @@ export const COMMS_SETTING_KEYS = [
   "call_max_duration_sec",
   "call_cooldown_sec",
   "calls_per_qr_per_hour",
+  "call_recording_enabled",
   // Cost control — monthly budget in paise + over-budget behavior
   "monthly_budget_paise",
   "over_budget_behavior",
@@ -92,6 +93,7 @@ const DEFAULTS: Record<string, string> = {
   comms_retry_attempts: "1",
   call_max_duration_sec: "60",
   call_cooldown_sec: "60",
+  call_recording_enabled: "false",
   calls_per_qr_per_hour: "2",
   monthly_budget_paise: "0",
   over_budget_behavior: "calls_only",

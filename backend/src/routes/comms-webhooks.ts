@@ -125,6 +125,7 @@ router.post("/webhooks/exotel/status", async (req: Request, res: Response) => {
   if (callSid) {
     const status = String(json.Status ?? json.status ?? "");
     const duration = Number((json.ConversationDuration as string) ?? json.duration ?? 0) || 0;
+    const recordingUrl = (json.RecordingUrl as string) ?? (json.recording_url as string) ?? null;
     const settings = await getCommsSettings();
     const tariffPerMin = Number(settings.comms_tariff_call_paise_per_min) || 0;
     const minutes = Math.max(1, Math.ceil(duration / 60));
@@ -141,10 +142,11 @@ router.post("/webhooks/exotel/status", async (req: Request, res: Response) => {
       `UPDATE call_logs
          SET status = $1, duration_seconds = $2,
              cost_paise = CASE WHEN $3 > 0 THEN $3 ELSE cost_paise END,
+             recording_url = COALESCE($5, recording_url),
              ended_at = CASE WHEN $1 IN ('completed','failed','disconnected') THEN now() ELSE ended_at END,
              updated_at = now()
        WHERE provider = 'exotel' AND provider_call_id = $4`,
-      [normalized, duration, cost, callSid],
+      [normalized, duration, cost, callSid, recordingUrl],
     ).catch((err) => logger.warn({ err }, "Failed to apply Exotel call status"));
   } else {
     const msgSid = (json.SmsSid as string) ?? (json.MessageSid as string) ?? (json.sid as string) ?? null;
@@ -532,18 +534,19 @@ router.get("/webhooks/exotel/connect", async (req: Request, res: Response) => {
 
   const settings = await getCommsSettings();
   const maxDuration = Number(settings.call_max_duration_sec) || 60;
+  const recordEnabled = String(settings.call_recording_enabled ?? "false").toLowerCase() === "true";
 
   verifiedCalls.delete(callSid);
 
   const isCallback = cached.isCallback ?? false;
-  logger.info({ callSid, qrId: cached.qrId, isCallback }, "Connect: returning destination phone");
+  logger.info({ callSid, qrId: cached.qrId, isCallback, record: recordEnabled }, "Connect: returning destination phone");
 
   res.status(200).json({
     destination: {
       numbers: [normalized],
     },
     max_conversation_duration: maxDuration,
-    record: false,
+    record: recordEnabled,
     start_call_playback: {
       playback_to: "callee",
       type: "text",
