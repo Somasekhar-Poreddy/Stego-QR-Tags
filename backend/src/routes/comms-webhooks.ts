@@ -221,8 +221,9 @@ router.get("/webhooks/exotel/greeting", async (req: Request, res: Response) => {
       .filter((qr) => {
         const d = (qr.data ?? {}) as Record<string, unknown>;
         const phones = [
-          qr.emergency_contact,
-          d.contact_phone, d.owner_phone, d.phone, d.emergency_contact_1,
+          d.primary_phone, d.owner_phone, d.parent_phone,
+          d.emergency_contact, d.contact_number, d.contact_phone,
+          d.phone, qr.emergency_contact, d.emergency_contact_1,
         ].filter(Boolean).map((p) => normalizePhone(String(p)));
         return phones.includes(normalized);
       })
@@ -443,7 +444,16 @@ router.get("/webhooks/exotel/verify", async (req: Request, res: Response) => {
   }
 
   const d = (qr.data ?? {}) as Record<string, unknown>;
-  const ownerPhone = (d.owner_phone as string)
+  // Owner-phone resolution must mirror the frontend's canonical contact-key
+  // priority (see CreateQRScreen.tsx + ClaimQRScreen.tsx): vehicle uses
+  // `primary_phone`, pet uses `owner_phone`, child uses `parent_phone`, etc.
+  // The `qr.emergency_contact` column is a SEPARATE "manage emergency
+  // contact" field — only fall back to it last.
+  const ownerPhone = (d.primary_phone as string)
+    ?? (d.owner_phone as string)
+    ?? (d.parent_phone as string)
+    ?? (d.emergency_contact as string)
+    ?? (d.contact_number as string)
     ?? (d.contact_phone as string)
     ?? (d.phone as string)
     ?? qr.emergency_contact
