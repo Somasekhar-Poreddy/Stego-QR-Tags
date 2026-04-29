@@ -443,10 +443,10 @@ router.get("/webhooks/exotel/verify", async (req: Request, res: Response) => {
   }
 
   const d = (qr.data ?? {}) as Record<string, unknown>;
-  const ownerPhone = qr.emergency_contact
+  const ownerPhone = (d.owner_phone as string)
     ?? (d.contact_phone as string)
-    ?? (d.owner_phone as string)
     ?? (d.phone as string)
+    ?? qr.emergency_contact
     ?? (d.emergency_contact_1 as string)
     ?? null;
 
