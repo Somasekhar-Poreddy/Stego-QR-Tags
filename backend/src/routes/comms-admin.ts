@@ -92,6 +92,19 @@ router.get("/admin/comms/health", async (req: Request, res: Response) => {
     isZavuConfigured(), isExotelConfigured(),
   ]);
 
+  // Optional ?userId=<uuid> scopes the recent feed to QRs owned by that user.
+  // Provider-health and cost numbers stay global — those are platform metrics.
+  const userIdFilter = typeof req.query.userId === "string" && req.query.userId
+    ? String(req.query.userId)
+    : null;
+  let qrIdFilter: string[] | null = null;
+  if (userIdFilter) {
+    const { data: qrs } = await supabaseAdmin
+      .from("qr_codes").select("id").eq("user_id", userIdFilter);
+    qrIdFilter = ((qrs ?? []) as Array<{ id: string }>).map((q) => q.id);
+    if (qrIdFilter.length === 0) qrIdFilter = ["00000000-0000-0000-0000-000000000000"];
+  }
+
   // Recent failure rate by provider over last 24h.
   const pool = getCommsPool();
   const { rows: provRows } = await pool.query<{
@@ -121,24 +134,50 @@ router.get("/admin/comms/health", async (req: Request, res: Response) => {
   // Recent log feed — the last 50 message + call attempts, interleaved by
   // creation time. Used by the Communications screen so admins can spot
   // anomalies without paging through analytics.
-  const { rows: recentMsgs } = await pool.query<{
-    id: string; kind: "message"; channel: string; provider: string;
-    status: string; error_code: string | null; cost_paise: number;
-    fallback_from: string | null; created_at: string;
-  }>(
-    `SELECT id, 'message'::text AS kind, channel, provider, status,
-            error_code, cost_paise, fallback_from, created_at
-       FROM message_logs ORDER BY created_at DESC LIMIT 50`,
-  );
-  const { rows: recentCalls } = await pool.query<{
-    id: string; kind: "call"; provider: string; status: string;
-    error_code: string | null; cost_paise: number; duration_seconds: number | null;
-    created_at: string;
-  }>(
-    `SELECT id, 'call'::text AS kind, provider, status,
-            error_code, cost_paise, duration_seconds, created_at
-       FROM call_logs ORDER BY created_at DESC LIMIT 50`,
-  );
+  const recentMsgsRes = qrIdFilter
+    ? await pool.query<{
+        id: string; kind: "message"; channel: string; provider: string;
+        status: string; error_code: string | null; cost_paise: number;
+        fallback_from: string | null; created_at: string;
+      }>(
+        `SELECT id, 'message'::text AS kind, channel, provider, status,
+                error_code, cost_paise, fallback_from, created_at
+           FROM message_logs WHERE qr_id = ANY($1::uuid[])
+          ORDER BY created_at DESC LIMIT 50`,
+        [qrIdFilter],
+      )
+    : await pool.query<{
+        id: string; kind: "message"; channel: string; provider: string;
+        status: string; error_code: string | null; cost_paise: number;
+        fallback_from: string | null; created_at: string;
+      }>(
+        `SELECT id, 'message'::text AS kind, channel, provider, status,
+                error_code, cost_paise, fallback_from, created_at
+           FROM message_logs ORDER BY created_at DESC LIMIT 50`,
+      );
+  const recentMsgs = recentMsgsRes.rows;
+  const recentCallsRes = qrIdFilter
+    ? await pool.query<{
+        id: string; kind: "call"; provider: string; status: string;
+        error_code: string | null; cost_paise: number; duration_seconds: number | null;
+        created_at: string;
+      }>(
+        `SELECT id, 'call'::text AS kind, provider, status,
+                error_code, cost_paise, duration_seconds, created_at
+           FROM call_logs WHERE qr_id = ANY($1::uuid[])
+          ORDER BY created_at DESC LIMIT 50`,
+        [qrIdFilter],
+      )
+    : await pool.query<{
+        id: string; kind: "call"; provider: string; status: string;
+        error_code: string | null; cost_paise: number; duration_seconds: number | null;
+        created_at: string;
+      }>(
+        `SELECT id, 'call'::text AS kind, provider, status,
+                error_code, cost_paise, duration_seconds, created_at
+           FROM call_logs ORDER BY created_at DESC LIMIT 50`,
+      );
+  const recentCalls = recentCallsRes.rows;
   const recent = [...recentMsgs, ...recentCalls]
     .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
     .slice(0, 50);

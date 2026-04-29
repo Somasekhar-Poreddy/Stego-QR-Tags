@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
-import { Phone, MessageCircle, IndianRupee, Activity, RefreshCcw, ShieldCheck, AlertOctagon } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Phone, MessageCircle, IndianRupee, Activity, RefreshCcw, ShieldCheck, AlertOctagon, X } from "lucide-react";
 import {
-  getCommsHealth, getCommsAnalytics,
+  getCommsHealth, getCommsAnalytics, adminGetAllUsers,
   type CommsHealth, type CommsAnalytics,
 } from "@/services/adminService";
 
@@ -33,6 +33,8 @@ function StatCard({ icon: Icon, label, value, sub, tone = "default" }: {
   );
 }
 
+interface UserOption { id: string; label: string }
+
 export function CommunicationsScreen() {
   const [health, setHealth] = useState<CommsHealth | null>(null);
   const [analytics, setAnalytics] = useState<CommsAnalytics | null>(null);
@@ -40,11 +42,49 @@ export function CommunicationsScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const load = async (range: number) => {
+  // ?userId filter scopes the recent feed to one user's QRs. Cost / analytics
+  // stay global because they're platform metrics.
+  const [users, setUsers] = useState<UserOption[]>([]);
+  const [userQuery, setUserQuery] = useState("");
+  const [userFilter, setUserFilter] = useState<UserOption | null>(null);
+  const [showSuggest, setShowSuggest] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    adminGetAllUsers()
+      .then((rows) => {
+        if (cancelled) return;
+        const opts = (rows as Array<Record<string, unknown>>).map((u) => {
+          const first = (u.first_name as string | null) ?? "";
+          const last = (u.last_name as string | null) ?? "";
+          const name = `${first} ${last}`.trim();
+          const phone = (u.mobile as string | null) ?? "";
+          const email = (u.email as string | null) ?? "";
+          return {
+            id: u.id as string,
+            label: [name || "(no name)", phone, email].filter(Boolean).join(" · "),
+          };
+        });
+        setUsers(opts);
+      })
+      .catch(() => { /* picker stays empty — non-blocking */ });
+    return () => { cancelled = true; };
+  }, []);
+
+  const suggestions = useMemo(() => {
+    if (!userQuery.trim()) return [] as UserOption[];
+    const q = userQuery.trim().toLowerCase();
+    return users.filter((u) => u.label.toLowerCase().includes(q)).slice(0, 8);
+  }, [userQuery, users]);
+
+  const load = async (range: number, selectedUserId: string | null) => {
     setLoading(true);
     setError(null);
     try {
-      const [h, a] = await Promise.all([getCommsHealth(), getCommsAnalytics(range)]);
+      const [h, a] = await Promise.all([
+        getCommsHealth({ userId: selectedUserId }),
+        getCommsAnalytics(range),
+      ]);
       setHealth(h);
       setAnalytics(a);
     } catch (err) {
@@ -54,7 +94,7 @@ export function CommunicationsScreen() {
     }
   };
 
-  useEffect(() => { void load(days); }, [days]);
+  useEffect(() => { void load(days, userFilter?.id ?? null); }, [days, userFilter?.id]);
 
   const totalMessages = analytics?.messages_daily.reduce((a, r) => a + r.sent, 0) ?? 0;
   const totalDelivered = analytics?.messages_daily.reduce((a, r) => a + r.delivered, 0) ?? 0;
@@ -84,12 +124,59 @@ export function CommunicationsScreen() {
             </button>
           ))}
           <button
-            onClick={() => load(days)}
+            onClick={() => load(days, userFilter?.id ?? null)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
           >
             <RefreshCcw className="w-3.5 h-3.5" /> Refresh
           </button>
         </div>
+      </div>
+
+      {/* User filter — scopes the recent feed to one user's QRs (analytics
+          and cost numbers stay global). */}
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 relative">
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+          Filter recent feed by user
+        </p>
+        {userFilter ? (
+          <div className="flex items-center justify-between gap-3 bg-primary/5 border border-primary/15 rounded-xl px-3 py-2">
+            <div className="text-sm font-semibold text-primary truncate">
+              {userFilter.label}
+            </div>
+            <button
+              onClick={() => { setUserFilter(null); setUserQuery(""); }}
+              className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 px-2 py-1 rounded-lg hover:bg-white"
+            >
+              <X className="w-3.5 h-3.5" /> Clear
+            </button>
+          </div>
+        ) : (
+          <>
+            <input
+              type="text"
+              value={userQuery}
+              onChange={(e) => { setUserQuery(e.target.value); setShowSuggest(true); }}
+              onFocus={() => setShowSuggest(true)}
+              onBlur={() => setTimeout(() => setShowSuggest(false), 150)}
+              placeholder="Search by name, phone or email…"
+              className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:border-primary"
+            />
+            {showSuggest && suggestions.length > 0 && (
+              <div className="absolute left-4 right-4 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-10 max-h-72 overflow-y-auto">
+                {suggestions.map((u) => (
+                  <button
+                    key={u.id}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => { setUserFilter(u); setUserQuery(""); setShowSuggest(false); }}
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50"
+                  >
+                    {u.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       {error && (

@@ -24,6 +24,7 @@ import { CheckoutScreen } from "@/app/screens/checkout/CheckoutScreen";
 import { OrderConfirmationScreen } from "@/app/screens/checkout/OrderConfirmationScreen";
 import { OrdersScreen } from "@/app/screens/orders/OrdersScreen";
 import { ProfileScreen } from "@/app/screens/profile/ProfileScreen";
+import { ActivityScreen } from "@/app/screens/activity/ActivityScreen";
 
 // Simple container for screens that don't need bottom nav (e.g. unauthenticated Create QR)
 function PlainLayout({ children }: { children: React.ReactNode }) {
@@ -160,6 +161,7 @@ export function AppRouter() {
           {(params) => params ? <OrderConfirmationScreen orderId={params.id} /> : null}
         </Route>
         <Route path="/app/orders" component={OrdersScreen} />
+        <Route path="/app/activity" component={ActivityScreen} />
         <Route path="/app/profile" component={ProfileScreen} />
         <Route component={HomeScreen} />
       </Switch>

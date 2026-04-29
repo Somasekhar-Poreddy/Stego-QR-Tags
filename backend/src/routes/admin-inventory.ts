@@ -2,58 +2,18 @@ import { Router, type IRouter } from "express";
 import type { Request, Response } from "express";
 import { randomBytes, randomUUID } from "node:crypto";
 import { supabaseAdmin } from "../lib/supabaseAdmin.js";
+import { verifyUserFromRequest } from "../lib/auth.js";
 import { publicScanLimiter } from "../middlewares/rate-limit.js";
 import { sendVendorEmail, isEmailConfigured } from "../services/emailService.js";
 import { generateBatchPdfBase64 } from "../utils/stickerPdfGenerator.js";
 
 const router: IRouter = Router();
 
-function getSupabaseUrl(): string {
-  return process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? "";
-}
-
-function getServiceRoleKey(): string {
-  return process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
-}
-
 interface AdminRecord {
   id: string;
   user_id: string;
   role: string;
   permissions: Record<string, boolean>;
-}
-
-// ─── Auth helpers ────────────────────────────────────────────────────────────
-
-async function verifyUserFromRequest(
-  req: Request,
-  res: Response,
-): Promise<{ userId: string; email: string | null } | null> {
-  const authHeader = req.headers["authorization"];
-  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
-  if (!token) {
-    res.status(401).json({ error: "Missing authorization token" });
-    return null;
-  }
-  const supabaseUrl = getSupabaseUrl();
-  const serviceKey = getServiceRoleKey();
-  if (!supabaseUrl || !serviceKey) {
-    res.status(500).json({ error: "Server is missing Supabase configuration" });
-    return null;
-  }
-  const userRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
-    headers: { "Authorization": `Bearer ${token}`, "apikey": serviceKey },
-  });
-  if (!userRes.ok) {
-    res.status(401).json({ error: "Invalid or expired session" });
-    return null;
-  }
-  const userData = (await userRes.json()) as { id?: string; email?: string };
-  if (!userData.id) {
-    res.status(401).json({ error: "Could not identify user" });
-    return null;
-  }
-  return { userId: userData.id, email: userData.email ?? null };
 }
 
 async function requireManageInventory(

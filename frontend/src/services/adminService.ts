@@ -1154,8 +1154,9 @@ export interface CommsHealth {
   }>;
 }
 
-export async function getCommsHealth(): Promise<CommsHealth> {
-  const res = await authedFetch("/api/admin/comms/health");
+export async function getCommsHealth(opts?: { userId?: string | null }): Promise<CommsHealth> {
+  const qs = opts?.userId ? `?userId=${encodeURIComponent(opts.userId)}` : "";
+  const res = await authedFetch(`/api/admin/comms/health${qs}`);
   if (!res.ok) throw new Error(`Failed to fetch comms health (${res.status})`);
   return res.json() as Promise<CommsHealth>;
 }

@@ -5,8 +5,10 @@ import {
   Phone, MapPin, Globe, Calendar, Instagram, Twitter, Facebook,
   Save, Edit3, RefreshCw, Filter, Home, Activity, Plus, Key, Link2,
   ExternalLink, Download, Clock, LogIn, LogOut, Smartphone, Monitor,
-  BarChart2, Eye, EyeOff, ShoppingBag,
+  BarChart2, Eye, EyeOff, ShoppingBag, PhoneCall,
 } from "lucide-react";
+import { ActivityList } from "@/app/components/ActivityList";
+import { getUserActivityAdmin } from "@/services/activityService";
 import {
   getUserOrders, getUserOrderWithItems,
   ORDER_STATUS_LABELS,
@@ -1067,6 +1069,23 @@ function QRCodesTab({ qrs: initialQrs, contacts, onRefreshQrs }: {
    ───────────────────────────────────────────────── */
 type FilterType = "all" | "pending" | "resolved" | "emergency";
 
+function CommsTab({ userId }: { userId: string }) {
+  const load = useCallback(() => getUserActivityAdmin(userId, 200), [userId]);
+  return (
+    <div className="px-5 py-5">
+      <div className="mb-3 text-xs text-slate-500">
+        Calls and WhatsApp/SMS messages tied to QRs this user owns.
+      </div>
+      <ActivityList
+        load={load}
+        refreshKey={userId}
+        showQrName
+        emptyMessage="No calls or messages have been logged for this user's QRs yet."
+      />
+    </div>
+  );
+}
+
 function ActivityTab({ contacts }: { contacts: ContactRow[] }) {
   const [filter, setFilter] = useState<FilterType>("all");
   const [page, setPage] = useState(1);
@@ -1725,7 +1744,7 @@ function OrdersTab({ userId }: { userId: string }) {
 /* ─────────────────────────────────────────────────
    USER DETAIL MODAL — true full-page overlay
    ───────────────────────────────────────────────── */
-type TabKey = "profile" | "qrcodes" | "activity" | "sessions" | "scans" | "orders";
+type TabKey = "profile" | "qrcodes" | "activity" | "comms" | "sessions" | "scans" | "orders";
 
 function UserDetailModal({ user, onRefresh, onClose }: {
   user: UserRow; onRefresh: () => void; onClose: () => void;
@@ -1866,6 +1885,7 @@ function UserDetailModal({ user, onRefresh, onClose }: {
     { key: "profile", label: "Profile", icon: <User className="w-4 h-4" /> },
     { key: "qrcodes", label: "QR Codes", icon: <QrCode className="w-4 h-4" />, badge: qrs.length },
     { key: "activity", label: "Activity", icon: <Activity className="w-4 h-4" />, badge: contacts.length },
+    { key: "comms", label: "Comms", icon: <PhoneCall className="w-4 h-4" /> },
     { key: "sessions", label: "Sessions", icon: <Clock className="w-4 h-4" />, badge: sessionCount },
     { key: "scans", label: "Scans", icon: <BarChart2 className="w-4 h-4" />, badge: scanCount },
     { key: "orders", label: "Orders", icon: <ShoppingBag className="w-4 h-4" />, badge: orderCount },
@@ -1950,6 +1970,7 @@ function UserDetailModal({ user, onRefresh, onClose }: {
               {tab === "profile" && <ProfileTab user={localUser} onRefresh={onRefresh} onUserUpdated={handleUserUpdated} />}
               {tab === "qrcodes" && <QRCodesTab qrs={qrs} contacts={contacts} onRefreshQrs={loadUserData} />}
               {tab === "activity" && <ActivityTab contacts={contacts} />}
+              {tab === "comms" && <CommsTab userId={user.id} />}
               {tab === "sessions" && <SessionsTab userId={user.id} totalCount={sessionCount} />}
               {tab === "scans" && <ScansTab qrs={qrs} totalCount={scanCount} isSuperAdmin={isSuperAdmin} />}
               {tab === "orders" && <OrdersTab userId={user.id} />}

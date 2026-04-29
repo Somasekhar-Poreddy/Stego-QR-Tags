@@ -289,13 +289,16 @@ router.get("/webhooks/exotel/greeting", async (req: Request, res: Response) => {
     // Log callback call attempt (non-blocking)
     try {
       const pool = getCommsPool();
-      const { hashPhone } = await import("../services/phoneHash.js");
+      const { hashPhone, normalizePhone: norm } = await import("../services/phoneHash.js");
       const callerHash = hashPhone(callerPhone);
       const calleeHash = hashPhone(strangerPhone);
+      const callerNorm = norm(callerPhone) || null;
+      const calleeNorm = norm(strangerPhone) || null;
       await pool.query(
-        `INSERT INTO call_logs (provider, provider_call_id, qr_id, caller_phone_hash, callee_phone_hash, status, created_at)
-         VALUES ('exotel', $1, $2, $3, $4, 'initiated', now())`,
-        [callSid, recent.qr_id, callerHash, calleeHash],
+        `INSERT INTO call_logs (provider, provider_call_id, qr_id, caller_phone_hash, callee_phone_hash,
+                                caller_phone, callee_phone, status, created_at)
+         VALUES ('exotel', $1, $2, $3, $4, $5, $6, 'initiated', now())`,
+        [callSid, recent.qr_id, callerHash, calleeHash, callerNorm, calleeNorm],
       );
     } catch (err) {
       logger.warn({ err }, "Greeting: failed to log callback call (non-blocking)");
@@ -471,13 +474,17 @@ router.get("/webhooks/exotel/verify", async (req: Request, res: Response) => {
   // Log the call attempt (non-blocking)
   try {
     const pool = getCommsPool();
-    const { hashPhone } = await import("../services/phoneHash.js");
-    const callerHash = hashPhone(callerPhone || stored.callerPhone);
+    const { hashPhone, normalizePhone: norm } = await import("../services/phoneHash.js");
+    const callerRaw = callerPhone || stored.callerPhone;
+    const callerHash = hashPhone(callerRaw);
     const calleeHash = hashPhone(ownerPhone);
+    const callerNorm = norm(callerRaw) || null;
+    const calleeNorm = norm(ownerPhone) || null;
     await pool.query(
-      `INSERT INTO call_logs (provider, provider_call_id, qr_id, caller_phone_hash, callee_phone_hash, status, created_at)
-       VALUES ('exotel', $1, $2, $3, $4, 'initiated', now())`,
-      [callSid, qr.id, callerHash, calleeHash],
+      `INSERT INTO call_logs (provider, provider_call_id, qr_id, caller_phone_hash, callee_phone_hash,
+                              caller_phone, callee_phone, vehicle_last4, status, created_at)
+       VALUES ('exotel', $1, $2, $3, $4, $5, $6, $7, 'initiated', now())`,
+      [callSid, qr.id, callerHash, calleeHash, callerNorm, calleeNorm, vehicleLast4],
     );
   } catch (err) {
     logger.warn({ err }, "Verify: failed to log call (non-blocking)");

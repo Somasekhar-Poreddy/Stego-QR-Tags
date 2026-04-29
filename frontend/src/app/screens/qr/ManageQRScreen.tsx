@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useCallback, useState, useRef } from "react";
 import {
   ChevronLeft, ChevronRight, Bell, MapPin, PhoneOff, PauseCircle,
   Phone, UserRound, Download, MessageSquare, PhoneCall, Upload,
@@ -9,6 +9,8 @@ import { useLocation } from "wouter";
 import { useQR, QRProfile } from "@/app/context/QRContext";
 import { QRCardDesign, QRCardDesignHandle } from "@/app/components/QRCardDesign";
 import { EditQRModal } from "@/app/components/EditQRModal";
+import { ActivityList } from "@/app/components/ActivityList";
+import { getQRActivity } from "@/services/activityService";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 
@@ -256,7 +258,7 @@ function DeleteSheet({
 export function ManageQRScreen({ profileId }: { profileId: string }) {
   const { profiles, updateProfile, deleteProfile } = useQR();
   const [, navigate] = useLocation();
-  const [activeTab, setActiveTab] = useState<"manage" | "more">("manage");
+  const [activeTab, setActiveTab] = useState<"manage" | "activity" | "more">("manage");
   const [toast, setToast] = useState<string | null>(null);
   const [showDelete, setShowDelete] = useState(false);
   const [showNotifs, setShowNotifs] = useState(false);
@@ -317,6 +319,12 @@ export function ManageQRScreen({ profileId }: { profileId: string }) {
 
   const [showEdit, setShowEdit] = useState(false);
   const handleEditProfile = () => setShowEdit(true);
+
+  const qrIdForActivity = profile?.qrId ?? "";
+  const loadActivity = useCallback(
+    () => getQRActivity(qrIdForActivity, 50),
+    [qrIdForActivity],
+  );
 
   if (!profile) {
     return (
@@ -393,7 +401,18 @@ export function ManageQRScreen({ profileId }: { profileId: string }) {
                 : "text-slate-400 border-b-2 border-transparent"
             )}
           >
-            Manage Tag
+            Manage
+          </button>
+          <button
+            onClick={() => setActiveTab("activity")}
+            className={cn(
+              "flex-1 py-3 text-sm font-bold transition-all",
+              activeTab === "activity"
+                ? "text-primary border-b-2 border-primary"
+                : "text-slate-400 border-b-2 border-transparent"
+            )}
+          >
+            Activity
           </button>
           <button
             onClick={() => setActiveTab("more")}
@@ -504,6 +523,24 @@ export function ManageQRScreen({ profileId }: { profileId: string }) {
                 <Download className="w-4 h-4 text-slate-300 flex-shrink-0" />
               </button>
             </>
+          )}
+
+          {/* ═══ ACTIVITY tab ════════════════════════════════════════════ */}
+          {activeTab === "activity" && (
+            <div className="-mx-1">
+              {qrIdForActivity ? (
+                <ActivityList
+                  load={loadActivity}
+                  refreshKey={qrIdForActivity}
+                  showQrName={false}
+                  emptyMessage="When someone calls or messages this QR, it will show up here."
+                />
+              ) : (
+                <p className="text-center text-xs text-slate-400 py-12">
+                  Activity is available once the QR is fully created.
+                </p>
+              )}
+            </div>
           )}
 
           {/* ═══ MORE tab ═════════════════════════════════════════════════ */}

@@ -1,7 +1,7 @@
 import { getCommsPool } from "../lib/migrations.js";
 import { logger } from "../lib/logger.js";
 import { getCommsSettings, flagOn } from "./commsCredentials.js";
-import { hashPhone } from "./phoneHash.js";
+import { hashPhone, normalizePhone } from "./phoneHash.js";
 import { sendWhatsAppViaZavu } from "./zavuService.js";
 import {
   sendSmsViaExotel,
@@ -90,15 +90,16 @@ export async function insertMessageLog(args: LogMessageArgs): Promise<string> {
   const pool = getCommsPool();
   const { rows } = await pool.query<{ id: string }>(
     `INSERT INTO message_logs
-       (contact_request_id, qr_id, recipient_phone_hash, channel, provider,
+       (contact_request_id, qr_id, recipient_phone_hash, recipient_phone, channel, provider,
         provider_message_id, status, template, payload_summary,
         error_code, error_message, cost_paise, fallback_from)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
      RETURNING id`,
     [
       args.contactRequestId ?? null,
       args.qrId ?? null,
       hashPhone(args.recipientPhone),
+      normalizePhone(args.recipientPhone) || null,
       args.channel,
       args.provider,
       args.providerMessageId,
@@ -119,6 +120,7 @@ interface LogCallArgs {
   qrId?: string | null;
   callerPhone: string;
   calleePhone: string;
+  vehicleLast4?: string | null;
   provider: "exotel";
   providerCallId: string | null;
   status: "initiated" | "in_progress" | "completed" | "failed" | "disconnected";
@@ -131,15 +133,18 @@ export async function insertCallLog(args: LogCallArgs): Promise<string> {
   const pool = getCommsPool();
   const { rows } = await pool.query<{ id: string }>(
     `INSERT INTO call_logs
-       (contact_request_id, qr_id, caller_phone_hash, callee_phone_hash,
-        provider, provider_call_id, status, error_code, error_message, cost_paise, started_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10, CASE WHEN $7 = 'initiated' THEN now() ELSE NULL END)
+       (contact_request_id, qr_id, caller_phone_hash, callee_phone_hash, caller_phone, callee_phone,
+        vehicle_last4, provider, provider_call_id, status, error_code, error_message, cost_paise, started_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13, CASE WHEN $10 = 'initiated' THEN now() ELSE NULL END)
      RETURNING id`,
     [
       args.contactRequestId ?? null,
       args.qrId ?? null,
       hashPhone(args.callerPhone),
       hashPhone(args.calleePhone),
+      normalizePhone(args.callerPhone) || null,
+      normalizePhone(args.calleePhone) || null,
+      args.vehicleLast4 ?? null,
       args.provider,
       args.providerCallId,
       args.status,

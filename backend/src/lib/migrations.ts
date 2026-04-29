@@ -79,6 +79,14 @@ const STATEMENTS: string[] = [
   `CREATE INDEX IF NOT EXISTS call_logs_provider_call_id_idx ON call_logs (provider, provider_call_id)`,
   `CREATE INDEX IF NOT EXISTS call_logs_contact_request_idx ON call_logs (contact_request_id)`,
   `ALTER TABLE call_logs ADD COLUMN IF NOT EXISTS recording_url text NULL`,
+  // Activity-feed columns: surface plaintext phones + IVR vehicle digits to
+  // the QR owner and admin per-user views (logs are server-only via comms pool).
+  `ALTER TABLE call_logs    ADD COLUMN IF NOT EXISTS caller_phone    text NULL`,
+  `ALTER TABLE call_logs    ADD COLUMN IF NOT EXISTS callee_phone    text NULL`,
+  `ALTER TABLE call_logs    ADD COLUMN IF NOT EXISTS vehicle_last4   text NULL`,
+  `ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS recipient_phone text NULL`,
+  `CREATE INDEX IF NOT EXISTS call_logs_qr_created_idx    ON call_logs    (qr_id, created_at DESC)`,
+  `CREATE INDEX IF NOT EXISTS message_logs_qr_created_idx ON message_logs (qr_id, created_at DESC)`,
 
   `CREATE TABLE IF NOT EXISTS comms_rate_buckets (
      id           bigserial PRIMARY KEY,

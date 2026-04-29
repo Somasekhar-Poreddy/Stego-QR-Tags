@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, QrCode, Eye, Edit, SlidersHorizontal, Trash2, X } from "lucide-react";
+import { Plus, QrCode, Eye, Edit, SlidersHorizontal, Trash2, X, Activity, ChevronRight } from "lucide-react";
 import { useQR, QRProfile } from "@/app/context/QRContext";
 import { AppHeader } from "@/app/components/AppHeader";
 import { QRCardDesign } from "@/app/components/QRCardDesign";
@@ -179,6 +179,20 @@ export function MyQRScreen() {
       <AppHeader title="My QR Profiles" showNotification={false} />
 
       <div className="px-4 pt-4 pb-4 space-y-3">
+        <button
+          onClick={() => navigate("/app/activity")}
+          className="w-full bg-white rounded-2xl border border-slate-100 px-4 py-3 flex items-center gap-3 active:bg-slate-50 transition-colors"
+        >
+          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+            <Activity className="w-5 h-5 text-primary" />
+          </div>
+          <div className="flex-1 min-w-0 text-left">
+            <p className="text-sm font-semibold text-slate-800">View Activity</p>
+            <p className="text-[11px] text-slate-400">All recent calls and messages across your QRs</p>
+          </div>
+          <ChevronRight className="w-4 h-4 text-slate-300 flex-shrink-0" />
+        </button>
+
         {profiles.length === 0 ? (
           <div className="text-center py-16">
             <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4">

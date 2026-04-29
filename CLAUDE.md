@@ -80,10 +80,25 @@ pnpm --filter @workspace/stegofy-qr build      # Build frontend → frontend/dis
 - `admin_users` — Admin accounts with roles and permissions
 
 **Server-only (RLS with no policies, accessed via Postgres pool):**
-- `call_logs` — Masked call records with hashed phones
-- `message_logs` — WhatsApp/SMS delivery records with hashed phones
+- `call_logs` — Masked call records. Phones stored as both HMAC hash and plaintext (`caller_phone`, `callee_phone`) so QR owners can see who reached them. Also stores `vehicle_last4` (entered during IVR) and `recording_url`.
+- `message_logs` — WhatsApp/SMS delivery records. Plaintext `recipient_phone` alongside hash for owner activity feeds.
 - `otp_codes` — OTP storage with expiry
 - `pending_disconnects` — Scheduled call terminations (survives server restart)
+
+## Call & Message Activity
+
+Owners and admins surface the comms logs through `routes/activity.ts`:
+- `GET /api/me/activity` — unified feed for every QR the caller owns
+- `GET /api/me/qr/:qrId/activity` — feed scoped to one owned QR
+- `GET /api/admin/users/:userId/activity` — super-admin per-user drilldown
+
+`qr_codes.id → call_logs.qr_id / message_logs.qr_id` is the join key. Cross-DB: `qr_codes` lives in Supabase, logs live in the comms Postgres pool, so the routes resolve owned `qr_id`s via Supabase first, then `WHERE qr_id = ANY($1)` against the pool.
+
+Frontend surfaces:
+- `/app/activity` — top-level feed (entry from `MyQRScreen` "View Activity" button)
+- `ManageQRScreen` "Activity" tab — per-QR feed
+- `UsersScreen` user-detail modal "Comms" tab — admin per-user feed
+- `CommunicationsScreen` user filter — scopes the recent-50 feed to one user (passes `?userId=` to `/admin/comms/health`)
 
 ## Exotel IVR Architecture
 

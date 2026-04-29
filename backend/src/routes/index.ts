@@ -9,6 +9,7 @@ import commsPublicRouter from "./comms-public";
 import commsAdminRouter from "./comms-admin";
 import commsWebhooksRouter from "./comms-webhooks";
 import shippingRouter from "./shipping";
+import activityRouter from "./activity";
 
 const router: IRouter = Router();
 
@@ -22,5 +23,6 @@ router.use(commsPublicRouter);
 router.use(commsAdminRouter);
 router.use(commsWebhooksRouter);
 router.use(shippingRouter);
+router.use(activityRouter);
 
 export default router;
