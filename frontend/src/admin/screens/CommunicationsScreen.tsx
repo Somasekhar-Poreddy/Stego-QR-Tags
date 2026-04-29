@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Phone, MessageCircle, IndianRupee, Activity, RefreshCcw, ShieldCheck, AlertOctagon, X } from "lucide-react";
 import {
   getCommsHealth, getCommsAnalytics, adminGetAllUsers,
@@ -45,15 +45,16 @@ export function CommunicationsScreen() {
   // ?userId filter scopes the recent feed to one user's QRs. Cost / analytics
   // stay global because they're platform metrics.
   const [users, setUsers] = useState<UserOption[]>([]);
+  const [usersLoaded, setUsersLoaded] = useState(false);
   const [userQuery, setUserQuery] = useState("");
   const [userFilter, setUserFilter] = useState<UserOption | null>(null);
   const [showSuggest, setShowSuggest] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
+  const loadUsersOnce = useCallback(() => {
+    if (usersLoaded) return;
+    setUsersLoaded(true);
     adminGetAllUsers()
       .then((rows) => {
-        if (cancelled) return;
         const opts = (rows as Array<Record<string, unknown>>).map((u) => {
           const first = (u.first_name as string | null) ?? "";
           const last = (u.last_name as string | null) ?? "";
@@ -67,9 +68,8 @@ export function CommunicationsScreen() {
         });
         setUsers(opts);
       })
-      .catch(() => { /* picker stays empty — non-blocking */ });
-    return () => { cancelled = true; };
-  }, []);
+      .catch(() => { setUsersLoaded(false); });
+  }, [usersLoaded]);
 
   const suggestions = useMemo(() => {
     if (!userQuery.trim()) return [] as UserOption[];
@@ -156,7 +156,7 @@ export function CommunicationsScreen() {
               type="text"
               value={userQuery}
               onChange={(e) => { setUserQuery(e.target.value); setShowSuggest(true); }}
-              onFocus={() => setShowSuggest(true)}
+              onFocus={() => { loadUsersOnce(); setShowSuggest(true); }}
               onBlur={() => setTimeout(() => setShowSuggest(false), 150)}
               placeholder="Search by name, phone or email…"
               className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:border-primary"
