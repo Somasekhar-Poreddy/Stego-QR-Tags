@@ -374,12 +374,12 @@ router.get("/webhooks/exotel/gather/pin", (_req: Request, res: Response) => {
 
 /**
  * Passthru #2 — Verify vehicle + PIN against database.
- * Returns text/plain with {"select":"keyword"} for SwitchCase routing.
+ * Returns JSON for SwitchCase + Connect applet routing.
  *
- * Keywords:
- *   "verified"      → match found, proceed to Connect
- *   "retry"         → wrong input, try again (attempt < 3)
- *   "max_attempts"  → 3 failed attempts, hang up
+ * Response shape:
+ *   { "select": "verified", "destination": "+91XXXXXXXXXX" }  -> SwitchCase routes to Connect; Connect dials destination
+ *   { "select": "retry" }                                      -> SwitchCase loops back to Gather
+ *   { "select": "max_attempts" }                               -> SwitchCase hangs up
  */
 router.get("/webhooks/exotel/verify", async (req: Request, res: Response) => {
   const json = req.query as Record<string, string>;
@@ -397,13 +397,7 @@ router.get("/webhooks/exotel/verify", async (req: Request, res: Response) => {
   const stored = pendingVehicle.get(callSid);
   if (!stored) {
     logger.warn({ callSid, attempt: attempts.count }, "Verify: no stored vehicle digits");
-    if (attempts.count >= 3) {
-      res.setHeader("Content-Type", "text/plain");
-      res.status(200).send('{"select":"max_attempts"}');
-    } else {
-      res.setHeader("Content-Type", "text/plain");
-      res.status(200).send('{"select":"retry"}');
-    }
+    res.status(200).json({ select: attempts.count >= 3 ? "max_attempts" : "retry" });
     return;
   }
 
@@ -414,13 +408,7 @@ router.get("/webhooks/exotel/verify", async (req: Request, res: Response) => {
 
   if (pin.length < 4) {
     logger.warn({ pinLength: pin.length, attempt: attempts.count }, "Verify: insufficient PIN");
-    if (attempts.count >= 3) {
-      res.setHeader("Content-Type", "text/plain");
-      res.status(200).send('{"select":"max_attempts"}');
-    } else {
-      res.setHeader("Content-Type", "text/plain");
-      res.status(200).send('{"select":"retry"}');
-    }
+    res.status(200).json({ select: attempts.count >= 3 ? "max_attempts" : "retry" });
     return;
   }
 
@@ -431,8 +419,7 @@ router.get("/webhooks/exotel/verify", async (req: Request, res: Response) => {
 
   if (error) {
     logger.error({ err: error.message }, "Verify: DB query failed");
-    res.setHeader("Content-Type", "text/plain");
-    res.status(200).send('{"select":"retry"}');
+    res.status(200).json({ select: "retry" });
     return;
   }
 
@@ -446,19 +433,12 @@ router.get("/webhooks/exotel/verify", async (req: Request, res: Response) => {
 
   if (!qr) {
     logger.info({ vehicleLast4, pin: "****", attempt: attempts.count }, "Verify: no match");
-    if (attempts.count >= 3) {
-      res.setHeader("Content-Type", "text/plain");
-      res.status(200).send('{"select":"max_attempts"}');
-    } else {
-      res.setHeader("Content-Type", "text/plain");
-      res.status(200).send('{"select":"retry"}');
-    }
+    res.status(200).json({ select: attempts.count >= 3 ? "max_attempts" : "retry" });
     return;
   }
 
   if (!(qr.allow_contact ?? true)) {
-    res.setHeader("Content-Type", "text/plain");
-    res.status(200).send('{"select":"max_attempts"}');
+    res.status(200).json({ select: "max_attempts" });
     return;
   }
 
@@ -472,8 +452,7 @@ router.get("/webhooks/exotel/verify", async (req: Request, res: Response) => {
 
   if (!ownerPhone) {
     logger.warn({ qrId: qr.id }, "Verify: no owner phone configured");
-    res.setHeader("Content-Type", "text/plain");
-    res.status(200).send('{"select":"max_attempts"}');
+    res.status(200).json({ select: "max_attempts" });
     return;
   }
 
@@ -506,13 +485,16 @@ router.get("/webhooks/exotel/verify", async (req: Request, res: Response) => {
     logger.warn({ err }, "Verify: failed to log contact request (non-blocking)");
   }
 
-  // Cache for Connect applet
+  // Normalize owner phone for Exotel dial (E.164 format)
+  const normalized = ownerPhone.startsWith("+") ? ownerPhone : `+91${ownerPhone.replace(/^0+/, "")}`;
+
+  // Cache for Connect applet (fallback if Exotel calls /connect URL)
   verifiedCalls.set(callSid, { ownerPhone, qrId: qr.id, expiresAt: Date.now() + 5 * 60_000 });
   attemptCount.delete(callSid);
 
-  logger.info({ qrId: qr.id, callSid }, "Verify: success");
-  res.setHeader("Content-Type", "text/plain");
-  res.status(200).send('{"select":"verified"}');
+  logger.info({ qrId: qr.id, callSid, ownerPhone: "***" }, "Verify: success");
+  // Return both `select` (for SwitchCase routing) and `destination` (for Connect applet to dial)
+  res.status(200).json({ select: "verified", destination: normalized });
 });
 
 /**
