@@ -123,6 +123,19 @@ Gather (vehicle last 4) → Passthru (/api/webhooks/exotel/store-vehicle)
 **Not yet implemented:**
 - Owner callback detection (code exists at `/webhooks/exotel/greeting` but Flow A has no Passthru applet to call it)
 
+**Connect Applet API variants (Exotel):**
+
+Two ways to configure the Connect applet in AppBazaar:
+
+| Variant | URL response format | When to use |
+|---------|---------------------|-------------|
+| **Dynamic URL** | `application/json` — `{ "destination": { "numbers": ["+91..."] }, "max_conversation_duration": N, ... }` | When you need playback greeting, duration enforcement |
+| **Dial Whom** | `text/plain` — just the E.164 phone number | Simple redirect with no extra config |
+
+**We use Dynamic URL.** Our `/webhooks/exotel/connect` returns full JSON (numbers array + duration + callee greeting).
+
+**Belt-and-suspenders:** `/webhooks/exotel/verify` also returns `"destination": "+91..."` in its response body so the Connect applet can dial even if it reads directly from the Passthru response rather than separately GETting `/connect`.
+
 ## Shiprocket Integration
 
 Credentials stored in `settings` table: `shiprocket_email`, `shiprocket_password`, `shiprocket_pickup_pincode`, `shiprocket_auto_ship`, `shiprocket_default_weight/length/breadth/height`.
