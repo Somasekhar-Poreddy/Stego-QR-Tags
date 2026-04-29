@@ -87,35 +87,41 @@ pnpm --filter @workspace/stegofy-qr build      # Build frontend → frontend/dis
 
 ## Exotel IVR Architecture
 
-Two Exotel flows are configured in AppBazaar — **Flow A** and **Flow B**. The system uses **Passthru** applets (HTTP status code routing) and **SwitchCase** applets for branching logic.
+Two Exotel flows are configured in AppBazaar — **Flow A** and **Flow B**. The system uses **Passthru** applets (HTTP status code routing), **SwitchCase** applets for branching logic, and **Gather** applets for DTMF input.
 
 **Flow A** (entry point when someone dials the ExoPhone):
 ```
-Greeting → Passthru (/api/webhooks/exotel/greeting)
-             ├─ 200 OK    → Connect (/api/webhooks/exotel/connect)  [owner callback]
-             └─ non-200   → Transfer to Flow B                       [stranger IVR]
+Greeting: "Thank you for calling Stego Tags. This service helps you contact the vehicle owner securely."
+  → Transfer to Flow B (always)
 ```
+
+Flow A currently has no Passthru or callback detection. The backend endpoint `/webhooks/exotel/greeting` exists with owner callback logic but is **not yet wired up** in Exotel AppBazaar.
 
 **Flow B** (stranger verification — vehicle last-4 digits + 4-digit PIN):
 ```
 Gather (vehicle last 4) → Passthru (/api/webhooks/exotel/store-vehicle)
   → Gather (4-digit PIN) → Passthru (/api/webhooks/exotel/verify)
-      ├─ 200 OK  → Connect (/api/webhooks/exotel/connect)  [owner phone returned]
-      └─ non-200 → loop back to Gather (or hang up after 3 attempts)
+      → SwitchCase on response body:
+          ├─ "verified"      → Connect (/api/webhooks/exotel/connect)
+          ├─ "retry"         → loop back to Gather
+          └─ "max_attempts"  → hang up
 ```
 
 **Passthru applet behavior:** Calls a URL, branches based on HTTP status code:
 - **200 OK** → follows the "success" path
 - **Any non-200 status (404, etc.)** → follows the "failure" path
 
-**SwitchCase applet behavior:** Routes the call to different branches based on a variable or condition value — used for multi-way branching in the IVR flow.
+**SwitchCase applet behavior:** Routes the call to different branches based on `{"select":"keyword"}` in the Passthru response body — used for multi-way branching (verified/retry/max_attempts).
 
-**Owner callback detection** (`/webhooks/exotel/greeting`): Matches caller phone (from `CallFrom` query param) against registered QR owners' phones. If match found AND a contact_request exists within callback window (default 60 min), returns **200** → skips IVR → connects owner to stranger. Otherwise returns **404** → normal stranger IVR via Flow B.
+**Connect applet** (`/webhooks/exotel/connect`): Looks up verified call in memory cache, returns owner phone number. Plays greeting to callee. Enforces `max_conversation_duration` (default 60s from settings).
 
 **In-memory IVR caches** (5-min TTL, keyed by CallSid):
 - `pendingVehicle` — stores vehicle last-4 digits between Gather and Verify
 - `verifiedCalls` — stores owner phone + qrId for Connect applet
 - `attemptCount` — tracks verification attempts (max 3) and callback rate limits
+
+**Not yet implemented:**
+- Owner callback detection (code exists at `/webhooks/exotel/greeting` but Flow A has no Passthru applet to call it)
 
 ## Shiprocket Integration
 
