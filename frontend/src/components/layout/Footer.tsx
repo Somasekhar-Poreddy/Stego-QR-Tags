@@ -92,11 +92,11 @@ export function Footer() {
 
         <div className="pt-8 border-t border-white/10 flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-xs text-slate-500">
-            © {new Date().getFullYear()} Stegofy QR. All rights reserved.
+            StegoTags — A product by <span className="font-semibold text-slate-300">Zentri Studios Pvt. Ltd</span>
           </p>
-          <div className="flex items-center gap-2 text-xs text-slate-500">
-            Powered by <span className="font-semibold text-slate-300">Stegofy</span>
-          </div>
+          <p className="text-xs text-slate-500">
+            © Zentri Studios 2026. All Rights Reserved
+          </p>
         </div>
       </div>
     </footer>
