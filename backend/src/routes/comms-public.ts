@@ -373,10 +373,10 @@ router.post("/qr/:qrId/contact/message", async (req: Request, res: Response) => 
   const intentLabel = ctx.intent ?? "wants to contact you";
   const customerMsg = ctx.message?.trim();
   const body =
-    `Stegofy alert: someone scanned your QR (${ctx.qr.type ?? "tag"}). ` +
+    `StegoTags alert: someone scanned your QR (${ctx.qr.type ?? "tag"}). ` +
     `Reason: ${intentLabel}.` +
     (customerMsg ? ` Message: "${customerMsg}".` : "") +
-    ` Reply to this number or open Stegofy to respond.`;
+    ` Reply to this number or open StegoTags to respond.`;
 
   const contactRequestId = await insertContactRequest({
     qrId: ctx.qrId,

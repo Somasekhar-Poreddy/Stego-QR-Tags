@@ -168,7 +168,7 @@ export const FORM_SCHEMA: Record<string, FormSchemaDef> = {
       { key: "phone", label: "Phone Number", type: "tel", placeholder: "+91 98765 43210", required: true },
     ],
     important: [
-      { key: "company", label: "Company / Designation", type: "text", placeholder: "e.g. CEO, Stegofy Technologies" },
+      { key: "company", label: "Company / Designation", type: "text", placeholder: "e.g. CEO, StegoTags Technologies" },
       { key: "email", label: "Email Address", type: "email", placeholder: "you@company.com" },
     ],
     advanced: [

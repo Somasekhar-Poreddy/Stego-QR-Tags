@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
-import { QrCode, Eye, EyeOff, ArrowRight, CheckCircle2, AlertCircle, Shield } from "lucide-react";
+import { Eye, EyeOff, ArrowRight, CheckCircle2, AlertCircle, Shield } from "lucide-react";
+import { BrandIcon } from "@/components/Brand";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/app/context/AuthContext";
 import { cn } from "@/lib/utils";
@@ -63,9 +64,9 @@ export function ResetPasswordScreen() {
       {/* Branding */}
       <div className="flex-1 flex flex-col items-center justify-center px-6 pt-14 pb-6">
         <div className="bg-white/20 backdrop-blur-sm p-4 rounded-3xl mb-4">
-          <QrCode className="w-10 h-10 text-white" />
+          <BrandIcon size={48} alt="StegoTags" />
         </div>
-        <h1 className="text-3xl font-bold text-white mb-1.5">Stegofy</h1>
+        <h1 className="text-3xl font-bold text-white mb-1.5">StegoTags</h1>
         <p className="text-blue-100 text-sm text-center">Smart QR tags for everything that matters</p>
       </div>
 

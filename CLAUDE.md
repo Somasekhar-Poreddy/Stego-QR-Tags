@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Brand naming
+
+The product is **StegoTags** (rebranded from "Stegofy"). All user-facing copy, manifest names, sticker text, and email templates say "StegoTags". The parent company / domain (`stegofy.com`, `support@stegofy.com`) and internal identifiers (workspace package names, localStorage keys like `stegofy_qr_profiles_v1`, service worker cache name) keep "Stegofy" intentionally — renaming those would either be incorrect (parent company) or log users out (storage keys). Brand assets live in `frontend/public/icon-512.png` and `logo-stegotags.png`, surfaced via the shared `<BrandIcon>` and `<BrandLogo>` components in `frontend/src/components/Brand/`.
+
 ## Commands
 
 ```bash

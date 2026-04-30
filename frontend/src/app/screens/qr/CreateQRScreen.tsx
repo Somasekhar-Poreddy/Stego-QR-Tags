@@ -483,7 +483,7 @@ export function CreateQRScreen() {
                 <div>
                   <p className="text-sm font-semibold text-amber-800">Your privacy is protected</p>
                   <p className="text-xs text-amber-700 mt-0.5">
-                    Masked numbers are routed through Stegofy's secure bridge. Finders see only what you allow.
+                    Masked numbers are routed through StegoTags' secure bridge. Finders see only what you allow.
                   </p>
                 </div>
               </div>

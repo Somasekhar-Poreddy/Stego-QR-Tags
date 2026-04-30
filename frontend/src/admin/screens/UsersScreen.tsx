@@ -592,7 +592,7 @@ function QRPreviewCard({ qr }: { qr: { id: string; qr_url?: string | null; displ
       <div className="bg-white p-1.5 rounded-xl shadow-sm border border-slate-100">
         <QRImage url={qrPageUrl} size={128} />
       </div>
-      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Stegofy</p>
+      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">StegoTags</p>
       <button
         onClick={handleCopy}
         title="Copy URL"

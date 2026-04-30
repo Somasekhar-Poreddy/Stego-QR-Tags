@@ -1,4 +1,5 @@
-import { QrCode, Twitter, Instagram, Facebook, Linkedin, ArrowRight } from "lucide-react";
+import { Twitter, Instagram, Facebook, Linkedin, ArrowRight } from "lucide-react";
+import { BrandLogo } from "@/components/Brand";
 
 export function Footer() {
   return (
@@ -12,11 +13,8 @@ export function Footer() {
           
           {/* Column 1: Brand */}
           <div className="flex flex-col gap-6">
-            <a href="#" className="flex items-center gap-2">
-              <div className="bg-primary text-white p-1.5 rounded-lg">
-                <QrCode className="w-6 h-6" />
-              </div>
-              <span className="text-2xl font-bold text-white">Stegofy</span>
+            <a href="#" className="flex items-center bg-white rounded-xl px-4 py-2.5 w-fit shadow-sm">
+              <BrandLogo height={32} alt="StegoTags" />
             </a>
             <p className="text-sm text-slate-400 leading-relaxed">
               Protecting your vehicles, pets, loved ones, and belongings with secure, instant-connect QR technology.

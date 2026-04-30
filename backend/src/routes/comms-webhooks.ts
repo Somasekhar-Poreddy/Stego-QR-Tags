@@ -559,7 +559,7 @@ router.get("/webhooks/exotel/connect", async (req: Request, res: Response) => {
       type: "text",
       value: isCallback
         ? "The vehicle owner is calling you back. Connecting now."
-        : "Someone is trying to reach you through your Stegofy QR tag. Connecting now.",
+        : "Someone is trying to reach you through your StegoTags QR tag. Connecting now.",
     },
   });
 });

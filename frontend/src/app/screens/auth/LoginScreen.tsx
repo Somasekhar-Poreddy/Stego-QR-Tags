@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
-import { QrCode, Mail, ArrowRight, Eye, EyeOff, ChevronLeft, CheckCircle2, RefreshCw, KeyRound, MessageSquare, AlertCircle } from "lucide-react";
+import { Mail, ArrowRight, Eye, EyeOff, ChevronLeft, CheckCircle2, RefreshCw, KeyRound, MessageSquare, AlertCircle } from "lucide-react";
+import { BrandIcon } from "@/components/Brand";
 import { useAuth } from "@/app/context/AuthContext";
 import { cn } from "@/lib/utils";
 
@@ -177,10 +178,10 @@ export function LoginScreen() {
     <div className="min-h-screen bg-gradient-to-br from-blue-600 via-blue-500 to-violet-600 flex flex-col">
       {/* Branding */}
       <div className="flex-1 flex flex-col items-center justify-center px-6 pt-14 pb-6">
-        <div className="bg-white/20 backdrop-blur-sm p-4 rounded-3xl mb-4">
-          <QrCode className="w-10 h-10 text-white" />
+        <div className="bg-white/20 backdrop-blur-sm p-3 rounded-3xl mb-4">
+          <BrandIcon size={64} alt="StegoTags" />
         </div>
-        <h1 className="text-3xl font-bold text-white mb-1.5">Stegofy</h1>
+        <h1 className="text-3xl font-bold text-white mb-1.5">StegoTags</h1>
         <p className="text-blue-100 text-sm text-center">Smart QR tags for everything that matters</p>
       </div>
 
@@ -286,7 +287,7 @@ export function LoginScreen() {
         {mode !== "forgot" && (
           <>
             <h2 className="text-xl font-bold text-slate-900 mb-1">Welcome back</h2>
-            <p className="text-sm text-slate-500 mb-4">Sign in to your Stegofy account</p>
+            <p className="text-sm text-slate-500 mb-4">Sign in to your StegoTags account</p>
 
             {/* Mode toggle */}
             <div className="flex bg-slate-100 rounded-2xl p-1 mb-5">

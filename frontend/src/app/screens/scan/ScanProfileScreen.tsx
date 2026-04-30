@@ -19,14 +19,14 @@ export function ScanProfileScreen() {
           <p className="text-blue-200 text-sm mt-1">QR Tag Preview</p>
           <div className="flex items-center gap-1.5 mt-3 bg-white/20 rounded-full px-3 py-1.5">
             <Shield className="w-3.5 h-3.5 text-white" />
-            <span className="text-white/90 text-xs font-medium">Protected by Stegofy</span>
+            <span className="text-white/90 text-xs font-medium">Protected by StegoTags</span>
           </div>
         </div>
 
         {/* Info box */}
         <div className="bg-slate-50 rounded-2xl p-4 mb-6 border border-slate-100">
           <p className="text-xs text-slate-500">
-            In production, scanning a Stegofy QR code opens the owner's contact page at{" "}
+            In production, scanning a StegoTags QR code opens the owner's contact page at{" "}
             <span className="font-semibold text-primary">your-domain.com/qr/&lt;id&gt;</span>.
             Create a QR profile and share its link to see the full flow.
           </p>

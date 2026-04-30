@@ -86,7 +86,7 @@ export function UseCases() {
               One Platform. <span className="text-primary">Multiple Everyday Uses.</span>
             </h2>
             <p className="text-lg text-muted-foreground">
-              A single Stegofy account lets you manage unlimited smart tags for every aspect of your life. Update information anytime, anywhere.
+              A single StegoTags account lets you manage unlimited smart tags for every aspect of your life. Update information anytime, anywhere.
             </p>
           </FadeIn>
         </div>

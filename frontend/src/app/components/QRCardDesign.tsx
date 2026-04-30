@@ -3,6 +3,7 @@ import { toPng } from "html-to-image";
 import { Download, Share2, QrCode, Shield } from "lucide-react";
 import QRCodeLib from "qrcode";
 import { QRProfile } from "@/app/context/QRContext";
+import { BrandIcon } from "@/components/Brand";
 import { cn } from "@/lib/utils";
 
 export interface QRCardDesignHandle {
@@ -51,12 +52,10 @@ function CardInner({ profile, qrDataUrl, cardRef }: CardInnerProps) {
       <div className="flex flex-col justify-between px-9 py-8 bg-[#F8FAFC]" style={{ width: 374 }}>
         {/* Logo */}
         <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-600 to-violet-600 flex items-center justify-center shadow-sm">
-            <QrCode className="w-5 h-5 text-white" />
-          </div>
+          <BrandIcon size={36} alt="StegoTags" />
           <div>
             <span className="text-lg font-extrabold bg-gradient-to-r from-blue-600 to-violet-600 bg-clip-text text-transparent leading-none">
-              Stegofy
+              StegoTags
             </span>
             <p className="text-[9px] text-slate-400 leading-none mt-0.5 font-medium tracking-wide">SECURE QR IDENTITY</p>
           </div>
@@ -66,8 +65,8 @@ function CardInner({ profile, qrDataUrl, cardRef }: CardInnerProps) {
         <div className="flex-1 flex flex-col justify-center mt-4 mb-2">
           <p className="text-[11px] text-slate-500 font-medium mb-2 leading-relaxed">
             {profile.type === "vehicle" && profile.formData?.vehicle_number
-              ? `Stegofy QR tag · ${profile.name}.\nContact owner, help in emergency, or wrong parking.`
-              : `Stegofy QR tag · ${profile.name}.`}
+              ? `StegoTags QR tag · ${profile.name}.\nContact owner, help in emergency, or wrong parking.`
+              : `StegoTags QR tag · ${profile.name}.`}
           </p>
 
           <h2
@@ -86,7 +85,7 @@ function CardInner({ profile, qrDataUrl, cardRef }: CardInnerProps) {
 
           <div className="flex items-center gap-1.5">
             <Shield className="w-3 h-3 text-blue-500" />
-            <span className="text-[9px] font-semibold text-blue-500 tracking-wide">Privacy protected by Stegofy</span>
+            <span className="text-[9px] font-semibold text-blue-500 tracking-wide">Privacy protected by StegoTags</span>
           </div>
         </div>
       </div>
@@ -168,7 +167,7 @@ export const QRCardDesign = forwardRef<QRCardDesignHandle, QRCardDesignProps>(fu
       });
       const a = document.createElement("a");
       a.href = dataUrl;
-      a.download = `stegofy-qr-${profile.name.replace(/\s+/g, "-").toLowerCase()}.png`;
+      a.download = `stegotags-qr-${profile.name.replace(/\s+/g, "-").toLowerCase()}.png`;
       a.click();
     } catch (err) {
       console.error("Download failed:", err);
@@ -181,7 +180,7 @@ export const QRCardDesign = forwardRef<QRCardDesignHandle, QRCardDesignProps>(fu
     if (navigator.share) {
       try {
         await navigator.share({
-          title: `Stegofy QR — ${profile.name}`,
+          title: `StegoTags QR — ${profile.name}`,
           text: "Scan this QR code to contact me safely",
           url: resolvedQrUrl,
         });

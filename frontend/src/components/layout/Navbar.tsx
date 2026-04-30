@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
 import {
-  Menu, X, QrCode, ChevronDown,
+  Menu, X, ChevronDown,
   Car, Heart, Cross, Shield, Briefcase, CreditCard, Home, Calendar, ContactRound,
   ShoppingCart, FileText, ShieldCheck, RefreshCcw
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
+import { BrandIcon, BrandLogo } from "@/components/Brand";
 
 const PRODUCTS_MENU = [
   { name: "Vehicle Tags", icon: Car },
@@ -54,11 +55,9 @@ export function Navbar() {
         )}
       >
         {/* Logo */}
-        <a href="#" className="flex items-center gap-2 group flex-shrink-0">
-          <div className="bg-primary text-white p-1.5 rounded-xl group-hover:scale-110 transition-transform">
-            <QrCode className="w-5 h-5" />
-          </div>
-          <span className="text-lg font-bold text-foreground">Stegofy</span>
+        <a href="#" className="flex items-center group flex-shrink-0 transition-transform group-hover:scale-105">
+          <BrandLogo height={32} className="hidden sm:block" />
+          <BrandIcon size={32} className="sm:hidden" />
         </a>
 
         {/* Desktop Nav */}

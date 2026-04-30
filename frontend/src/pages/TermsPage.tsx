@@ -16,7 +16,7 @@ export default function TermsPage() {
 
           <h2>1. Introduction &amp; Acceptance</h2>
           <p>
-            These Terms and Conditions ("Terms") govern your access to and use of the Stegofy platform, including the website at stegotags.stegofy.com, the Stegofy mobile web application, and all related products and services (collectively, the "Platform"), operated by Stegofy ("we," "our," or "us").
+            These Terms and Conditions ("Terms") govern your access to and use of the StegoTags platform, including the website at stegotags.stegofy.com, the StegoTags mobile web application, and all related products and services (collectively, the "Platform"), operated by StegoTags ("we," "our," or "us").
           </p>
           <p>
             By creating an account, purchasing products, scanning a QR tag, or otherwise using the Platform, you agree to be bound by these Terms. If you do not agree, please do not use the Platform.
@@ -26,14 +26,14 @@ export default function TermsPage() {
           <ul>
             <li><strong>"QR Tag"</strong> — a physical product (sticker, band, card, or tag) containing a unique QR code linked to a digital profile on the Platform</li>
             <li><strong>"User" / "Owner"</strong> — a registered individual who creates and manages QR tag profiles</li>
-            <li><strong>"Scanner"</strong> — any person who scans a Stegofy QR code to view or interact with the linked profile</li>
+            <li><strong>"Scanner"</strong> — any person who scans a StegoTags QR code to view or interact with the linked profile</li>
             <li><strong>"Masked Call"</strong> — a phone call routed through our telephony infrastructure where neither party's real phone number is revealed</li>
             <li><strong>"PIN"</strong> — a 4-digit personal identification number assigned to each QR tag for verification purposes</li>
           </ul>
 
           <h2>3. Account Registration &amp; Eligibility</h2>
           <ul>
-            <li>You must be at least 18 years old to create a Stegofy account</li>
+            <li>You must be at least 18 years old to create a StegoTags account</li>
             <li>You must provide a valid Indian mobile phone number for OTP-based authentication</li>
             <li>You are responsible for maintaining the confidentiality of your account and all activities under it</li>
             <li>One phone number may be associated with one account only</li>
@@ -43,7 +43,7 @@ export default function TermsPage() {
           <h2>4. QR Tag Products &amp; Services</h2>
 
           <h3>4.1 Product Categories</h3>
-          <p>Stegofy offers QR-based identification products including but not limited to:</p>
+          <p>StegoTags offers QR-based identification products including but not limited to:</p>
           <ul>
             <li>Vehicle parking tags</li>
             <li>Pet identification tags</li>
@@ -137,7 +137,7 @@ export default function TermsPage() {
 
           <h2>9. Intellectual Property</h2>
           <ul>
-            <li>The Stegofy name, logo, branding, and all Platform content (excluding user-generated content) are our intellectual property</li>
+            <li>The StegoTags name, logo, branding, and all Platform content (excluding user-generated content) are our intellectual property</li>
             <li>You retain ownership of content you upload to your QR profiles</li>
             <li>By uploading content, you grant us a non-exclusive, worldwide licence to display that content as part of the QR tag profile functionality</li>
             <li>You may not use our trademarks, logos, or branding without prior written permission</li>
@@ -155,7 +155,7 @@ export default function TermsPage() {
 
           <h2>11. Disclaimers</h2>
           <ul>
-            <li>Stegofy QR tags are identification and communication tools — they are not substitutes for emergency services, medical devices, or security systems</li>
+            <li>StegoTags QR tags are identification and communication tools — they are not substitutes for emergency services, medical devices, or security systems</li>
             <li>We do not guarantee that a scanned QR tag will result in a successful contact or call connection</li>
             <li>Masked call connectivity depends on third-party telephony providers and network availability</li>
             <li>Delivery timelines depend on courier partners and are outside our direct control</li>
@@ -164,7 +164,7 @@ export default function TermsPage() {
 
           <h2>12. Indemnification</h2>
           <p>
-            You agree to indemnify, defend, and hold harmless Stegofy, its officers, directors, employees, and agents from any claims, damages, losses, liabilities, and expenses (including legal fees) arising from your use of the Platform, violation of these Terms, or infringement of any third-party rights.
+            You agree to indemnify, defend, and hold harmless StegoTags, its officers, directors, employees, and agents from any claims, damages, losses, liabilities, and expenses (including legal fees) arising from your use of the Platform, violation of these Terms, or infringement of any third-party rights.
           </p>
 
           <h2>13. Termination</h2>

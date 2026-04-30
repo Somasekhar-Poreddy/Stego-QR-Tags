@@ -1,4 +1,4 @@
-const CACHE_NAME = "stegofy-v3";
+const CACHE_NAME = "stegotags-v1";
 
 // URLs that must NEVER be cached — always hit the network directly
 const BYPASS_PATTERNS = [

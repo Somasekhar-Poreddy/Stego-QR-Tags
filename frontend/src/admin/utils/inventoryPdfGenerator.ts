@@ -1,7 +1,7 @@
 // =============================================================================
 // Inventory sticker PDF generator
 // =============================================================================
-// Renders Stegofy QR stickers for printing. Two entry points:
+// Renders StegoTags QR stickers for printing. Two entry points:
 //   generateSingleStickerPdf(item)  — one sticker centered on an A4 page
 //   generateBatchStickerPdf(items)  — 8 stickers per A4, paginated
 //
@@ -352,7 +352,7 @@ function drawSticker(
   doc.setTextColor(30, 41, 59); // slate-800
   doc.setFont("helvetica", "bold");
   doc.setFontSize(10);
-  doc.text("Stegofy", x + 14, y + 8);
+  doc.text("StegoTags", x + 14, y + 8);
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(5.5);
@@ -380,11 +380,11 @@ function drawSticker(
   const scanWrapped = doc.splitTextToSize(scanNote, leftW - 10);
   doc.text(scanWrapped, x + 5, y + H - 11, { baseline: "top" });
 
-  // "Privacy protected by Stegofy" tagline (bottom).
+  // "Privacy protected by StegoTags" tagline (bottom).
   doc.setTextColor(59, 130, 246); // blue-500
   doc.setFont("helvetica", "bold");
   doc.setFontSize(5.5);
-  doc.text("Privacy protected by Stegofy", x + 5, y + H - 4);
+  doc.text("Privacy protected by StegoTags", x + 5, y + H - 4);
 
   // ── RIGHT PANEL (40mm, type-colored) ─────────────────────────────────────
   const rightX = x + leftW;

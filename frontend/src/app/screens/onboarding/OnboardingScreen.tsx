@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Car, Heart, Shield, Cross, Briefcase, MoreHorizontal, ArrowRight } from "lucide-react";
 import { useAuth } from "@/app/context/AuthContext";
+import { BrandIcon } from "@/components/Brand";
 import { cn } from "@/lib/utils";
 
 const OPTIONS = [
@@ -26,9 +27,10 @@ export function OnboardingScreen() {
     <div className="min-h-screen bg-white flex flex-col px-6 pt-12 pb-8">
       {/* Header */}
       <div className="mb-10">
+        <BrandIcon size={56} className="mb-4" />
         <div className="inline-flex items-center gap-2 bg-primary/10 px-3 py-1.5 rounded-full text-primary text-xs font-semibold mb-4">
           <span className="w-1.5 h-1.5 bg-primary rounded-full" />
-          Welcome to Stegofy
+          Welcome to StegoTags
         </div>
         <h1 className="text-2xl font-bold text-slate-900 mb-2">
           What would you like to protect today?

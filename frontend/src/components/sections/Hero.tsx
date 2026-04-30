@@ -109,7 +109,7 @@ const SLIDES = [
     subtitle: "Mar 30 · Hall B, Mumbai",
     tag: "Event QR",
     fields: [
-      { label: "Organiser", value: "Stegofy Events", icon: User, color: "text-fuchsia-500", bg: "bg-fuchsia-50" },
+      { label: "Organiser", value: "StegoTags Events", icon: User, color: "text-fuchsia-500", bg: "bg-fuchsia-50" },
       { label: "RSVP", value: "Scan to register", icon: QrCode, color: "text-slate-500", bg: "bg-slate-50" },
     ],
     btnText: "View Event Details",
@@ -120,7 +120,7 @@ const SLIDES = [
     headerBg: "from-slate-700 to-slate-500",
     image: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop&auto=format",
     title: "Raj Kumar",
-    subtitle: "Product Manager · Stegofy",
+    subtitle: "Product Manager · StegoTags",
     tag: "NFC Card",
     fields: [
       { label: "Email", value: "raj@stegofy.in", icon: MapPin, color: "text-slate-500", bg: "bg-slate-50" },

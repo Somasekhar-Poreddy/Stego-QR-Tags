@@ -105,7 +105,7 @@ export function QRSuccessScreen() {
             <p className="text-xs text-red-600 text-center mt-2">{downloadError}</p>
           )}
           <p className="text-[11px] text-slate-400 text-center mt-2">
-            Print and stick this on your item — it matches the physical Stegofy sticker layout.
+            Print and stick this on your item — it matches the physical StegoTags sticker layout.
           </p>
         </div>
       )}

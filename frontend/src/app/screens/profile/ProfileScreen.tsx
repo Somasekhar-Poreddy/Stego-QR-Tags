@@ -552,7 +552,7 @@ export function ProfileScreen() {
           <LogOut className="w-4 h-4" /> Sign Out
         </button>
 
-        <p className="text-center text-[10px] text-slate-300">Stegofy v1.0.0</p>
+        <p className="text-center text-[10px] text-slate-300">StegoTags v1.0.0</p>
       </div>
 
       {/* ── Address Modal ── */}

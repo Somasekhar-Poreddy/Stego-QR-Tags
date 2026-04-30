@@ -103,7 +103,7 @@ router.post("/admin/send-test-email", async (req: Request, res: Response) => {
   const sentAt = new Date().toISOString();
   const html = `
     <p>Hi,</p>
-    <p>This is a test email from your Stegofy admin dashboard, sent to confirm
+    <p>This is a test email from your StegoTags admin dashboard, sent to confirm
     that the configured sending address is working correctly.</p>
     <p>
       <strong>Sending address:</strong> <code>${fromEmail}</code><br />
@@ -116,7 +116,7 @@ router.post("/admin/send-test-email", async (req: Request, res: Response) => {
   try {
     await sendVendorEmail({
       to: adminEmail,
-      subject: "Stegofy: test email from Settings",
+      subject: "StegoTags: test email from Settings",
       html,
     });
   } catch (err) {

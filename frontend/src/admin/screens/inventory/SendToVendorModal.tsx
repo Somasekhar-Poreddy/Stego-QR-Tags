@@ -25,9 +25,9 @@ type Step = "details" | "email";
 
 const DEFAULT_BODY = (batchNumber: string, count: number, vendorName: string) =>
   `<p>Hi ${vendorName || "Team"},</p>
-<p>Please find attached the print-ready PDF for <strong>Batch ${batchNumber}</strong> containing <strong>${count} Stegofy QR stickers</strong> (100&times;70&nbsp;mm each, 8 per A4 page).</p>
+<p>Please find attached the print-ready PDF for <strong>Batch ${batchNumber}</strong> containing <strong>${count} StegoTags QR stickers</strong> (100&times;70&nbsp;mm each, 8 per A4 page).</p>
 <p>Please confirm receipt and let us know the expected dispatch date.</p>
-<p>Thanks,<br/>Stegofy Admin</p>`;
+<p>Thanks,<br/>StegoTags Admin</p>`;
 
 export function SendToVendorModal({ batch, onClose, onDone }: Props) {
   const { toast } = useToast();
@@ -41,7 +41,7 @@ export function SendToVendorModal({ batch, onClose, onDone }: Props) {
 
   const [emailTo, setEmailTo] = useState(batch.vendor_contact ?? "");
   const [emailSubject, setEmailSubject] = useState(
-    `Stegofy QR Batch ${batch.batch_number} – Print Ready`,
+    `StegoTags QR Batch ${batch.batch_number} – Print Ready`,
   );
   const [attachPdf, setAttachPdf] = useState(true);
   const [emailLoading, setEmailLoading] = useState(false);
@@ -70,7 +70,7 @@ export function SendToVendorModal({ batch, onClose, onDone }: Props) {
     const to = emailTo.trim();
     const subject = encodeURIComponent(emailSubject.trim());
     const body = encodeURIComponent(
-      `Hi ${vendorName || "Team"},\n\nPlease find the print-ready PDF for Batch ${batch.batch_number} (${batch.total_count} Stegofy QR stickers).\n\nPlease confirm receipt and let us know the expected dispatch date.\n\nThanks,\nStegofy Admin`,
+      `Hi ${vendorName || "Team"},\n\nPlease find the print-ready PDF for Batch ${batch.batch_number} (${batch.total_count} StegoTags QR stickers).\n\nPlease confirm receipt and let us know the expected dispatch date.\n\nThanks,\nStegoTags Admin`,
     );
     return `mailto:${to}?subject=${subject}&body=${body}`;
   }, [emailTo, emailSubject, vendorName, batch.batch_number, batch.total_count]);

@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/app/context/AuthContext";
+import { BrandIcon } from "@/components/Brand";
 
 interface NavItem {
   path: string;
@@ -86,11 +87,9 @@ function SidebarNav({
       <div className={cn("flex items-center gap-3 px-4 py-5 border-b border-slate-100", collapsed ? "justify-center" : "justify-between")}>
         {!collapsed && (
           <div className="flex items-center gap-2 min-w-0">
-            <div className="w-8 h-8 bg-primary rounded-xl flex items-center justify-center flex-shrink-0">
-              <Shield className="w-4 h-4 text-white" />
-            </div>
+            <BrandIcon size={32} alt="StegoTags" />
             <div className="min-w-0">
-              <p className="text-sm font-extrabold text-slate-900 leading-tight truncate">Stegofy</p>
+              <p className="text-sm font-extrabold text-slate-900 leading-tight truncate">StegoTags</p>
               <p className="text-[10px] font-semibold text-primary">Admin Panel</p>
             </div>
           </div>

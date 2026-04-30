@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useLocation, useSearch } from "wouter";
-import { Shield, Eye, EyeOff, AlertTriangle, Lock } from "lucide-react";
+import { Eye, EyeOff, AlertTriangle, Lock } from "lucide-react";
+import { BrandIcon } from "@/components/Brand";
 import { supabase } from "@/lib/supabase";
 
 /** Hash of UA + screen size — best-effort device fingerprint without any PII. */
@@ -140,11 +141,11 @@ export function AdminLogin() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary to-violet-600 px-4">
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center mb-8 gap-3">
-          <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-sm">
-            <Shield className="w-8 h-8 text-white" />
+          <div className="bg-white/20 rounded-2xl backdrop-blur-sm p-2">
+            <BrandIcon size={56} alt="StegoTags" />
           </div>
           <div className="text-center">
-            <h1 className="text-2xl font-extrabold text-white">Stegofy Admin</h1>
+            <h1 className="text-2xl font-extrabold text-white">StegoTags Admin</h1>
             <p className="text-white/70 text-sm mt-1">Sign in to access the dashboard</p>
           </div>
         </div>
@@ -237,7 +238,7 @@ export function AdminLogin() {
         </form>
 
         <p className="text-center text-white/50 text-xs mt-6">
-          Stegofy Super Admin Panel
+          StegoTags Super Admin Panel
         </p>
       </div>
     </div>

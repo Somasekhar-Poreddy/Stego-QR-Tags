@@ -662,11 +662,11 @@ function ProductForm({
               <div className="grid grid-cols-1 gap-4">
                 <div>
                   <FieldLabel>Product Name *</FieldLabel>
-                  <Input value={form.name} onChange={handleNameChange} placeholder="e.g. Stegofy Pet QR Tag" />
+                  <Input value={form.name} onChange={handleNameChange} placeholder="e.g. StegoTags Pet QR Tag" />
                 </div>
                 <div>
                   <FieldLabel>Slug *</FieldLabel>
-                  <Input value={form.slug} onChange={(v) => set("slug", v)} placeholder="e.g. stegofy-pet-qr-tag" />
+                  <Input value={form.slug} onChange={(v) => set("slug", v)} placeholder="e.g. stegotags-pet-qr-tag" />
                   <p className="text-[10px] text-slate-400 mt-1">Auto-generated from name. Used in URLs.</p>
                 </div>
                 <div>

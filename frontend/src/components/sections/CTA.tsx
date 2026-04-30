@@ -19,7 +19,7 @@ export function CTA() {
             Start Protecting What <br className="hidden sm:block"/> Matters Today
           </h2>
           <p className="text-xl text-blue-100 mb-10 max-w-2xl mx-auto">
-            Join thousands of users who trust Stegofy to keep their belongings, pets, and loved ones safe. Setup takes less than 2 minutes.
+            Join thousands of users who trust StegoTags to keep their belongings, pets, and loved ones safe. Setup takes less than 2 minutes.
           </p>
           
           <div className="flex flex-col sm:flex-row justify-center gap-4">

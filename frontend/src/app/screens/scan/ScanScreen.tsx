@@ -60,7 +60,7 @@ export function ScanScreen() {
         </div>
 
         <p className="absolute bottom-24 left-0 right-0 text-center text-white/60 text-sm px-8">
-          {scanned ? "QR code detected!" : "Point your camera at a Stegofy QR tag"}
+          {scanned ? "QR code detected!" : "Point your camera at a StegoTags QR tag"}
         </p>
       </div>
 

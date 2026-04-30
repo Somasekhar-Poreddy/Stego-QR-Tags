@@ -672,7 +672,7 @@ async function sendClaimWelcomeEmail(opts: ClaimWelcomeEmailOptions): Promise<vo
 
   const html = `
     <div style="font-family: -apple-system, Segoe UI, Roboto, sans-serif; color: #0f172a; max-width: 560px;">
-      <h2 style="margin: 0 0 12px; color: #0f172a;">Welcome to Stegofy, ${safeName}!</h2>
+      <h2 style="margin: 0 0 12px; color: #0f172a;">Welcome to StegoTags, ${safeName}!</h2>
       <p style="margin: 0 0 12px; line-height: 1.5;">
         Your QR sticker is now active and ready to use.
       </p>
@@ -686,18 +686,18 @@ async function sendClaimWelcomeEmail(opts: ClaimWelcomeEmailOptions): Promise<vo
         Print it, peel it, and stick it wherever you need it.
       </p>
       <p style="margin: 16px 0 0; color: #64748b; font-size: 13px;">
-        — The Stegofy team
+        — The StegoTags team
       </p>
     </div>
   `;
 
   await sendVendorEmail({
     to: opts.to,
-    subject: `Your Stegofy QR is active — welcome, ${subjectName}!`,
+    subject: `Your StegoTags QR is active — welcome, ${subjectName}!`,
     html,
     pdfBase64,
     pdfFilename,
-    fromName: "Stegofy",
+    fromName: "StegoTags",
   });
 }
 

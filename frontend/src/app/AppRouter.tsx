@@ -3,7 +3,6 @@ import { useEffect, useRef } from "react";
 import { AppLayout } from "@/app/AppLayout";
 import { useAuth } from "@/app/context/AuthContext";
 import { useQR } from "@/app/context/QRContext";
-import { QrCode } from "lucide-react";
 
 import { LoginScreen } from "@/app/screens/auth/LoginScreen";
 import { SignUpScreen } from "@/app/screens/auth/SignUpScreen";
@@ -25,6 +24,7 @@ import { OrderConfirmationScreen } from "@/app/screens/checkout/OrderConfirmatio
 import { OrdersScreen } from "@/app/screens/orders/OrdersScreen";
 import { ProfileScreen } from "@/app/screens/profile/ProfileScreen";
 import { ActivityScreen } from "@/app/screens/activity/ActivityScreen";
+import { BrandIcon } from "@/components/Brand";
 
 // Simple container for screens that don't need bottom nav (e.g. unauthenticated Create QR)
 function PlainLayout({ children }: { children: React.ReactNode }) {
@@ -40,8 +40,8 @@ function PlainLayout({ children }: { children: React.ReactNode }) {
 function SessionLoader() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-primary to-violet-600 gap-4">
-      <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center">
-        <QrCode className="w-8 h-8 text-white" />
+      <div className="bg-white/20 rounded-2xl p-2">
+        <BrandIcon size={56} alt="StegoTags" />
       </div>
       <div className="flex gap-1.5">
         {[0, 1, 2].map((i) => (

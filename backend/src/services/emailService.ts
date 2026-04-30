@@ -14,7 +14,7 @@ export function isEmailConfigured(): boolean {
 }
 
 const DEFAULT_FROM_EMAIL = "onboarding@resend.dev";
-const DEFAULT_FROM_NAME = "Stegofy Admin";
+const DEFAULT_FROM_NAME = "StegoTags Admin";
 
 export function getFromEmail(): string {
   const configured = (process.env.RESEND_FROM_EMAIL ?? "").trim();

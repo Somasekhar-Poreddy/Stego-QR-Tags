@@ -64,7 +64,7 @@ export async function requestOtp(opts: {
   // to a plain text body (works for Exotel + WhatsApp session messages).
   const templateName = settings.zavu_otp_template_name?.trim();
   const templateLang = settings.zavu_otp_template_lang?.trim() || "en";
-  const body = `Your Stegofy verification code is ${code}. It expires in 10 minutes.`;
+  const body = `Your StegoTags verification code is ${code}. It expires in 10 minutes.`;
 
   const channelPref = (settings.comms_otp_channel ?? "whatsapp_first").toLowerCase();
 

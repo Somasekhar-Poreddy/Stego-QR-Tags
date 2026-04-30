@@ -312,7 +312,7 @@ function drawSticker(
   doc.setTextColor(30, 41, 59);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(10);
-  doc.text("Stegofy", x + 14, y + 8);
+  doc.text("StegoTags", x + 14, y + 8);
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(5.5);
@@ -340,7 +340,7 @@ function drawSticker(
   doc.setTextColor(59, 130, 246);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(5.5);
-  doc.text("Privacy protected by Stegofy", x + 5, y + H - 4);
+  doc.text("Privacy protected by StegoTags", x + 5, y + H - 4);
 
   const rightX = x + leftW;
   const rightW = W - leftW;

@@ -342,7 +342,7 @@ export function ClaimQRScreen() {
             <Sparkles className="w-5 h-5 text-primary" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-slate-900">Claim your Stegofy QR</h1>
+            <h1 className="text-xl font-bold text-slate-900">Claim your StegoTags QR</h1>
             <p className="text-xs text-slate-500">Activate the sticker in front of you.</p>
           </div>
         </div>
@@ -535,7 +535,7 @@ export function ClaimQRScreen() {
               </div>
               <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 flex gap-2">
                 <Shield className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-                <p className="text-[11px] text-amber-700">Your privacy is protected. Masked contacts are routed through Stegofy's secure bridge.</p>
+                <p className="text-[11px] text-amber-700">Your privacy is protected. Masked contacts are routed through StegoTags' secure bridge.</p>
               </div>
               <div className="flex gap-3 pt-1">
                 <button

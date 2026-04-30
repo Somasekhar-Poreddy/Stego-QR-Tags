@@ -43,7 +43,7 @@ export function Scenarios() {
               Built for <span className="text-primary">Real-Life Situations</span>
             </h2>
             <p className="text-lg text-muted-foreground">
-              See how Stegofy smart tags are helping people solve everyday problems safely.
+              See how StegoTags smart tags are helping people solve everyday problems safely.
             </p>
           </FadeIn>
         </div>

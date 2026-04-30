@@ -16,10 +16,10 @@ export default function PrivacyPolicyPage() {
 
           <h2>1. Introduction</h2>
           <p>
-            Stegofy ("we," "our," or "us") operates the Stegofy platform, including the website at stegotags.stegofy.com and the Stegofy mobile web application (collectively, the "Platform"). We provide QR-based identification and safety products — including vehicle parking tags, pet ID tags, child safety bands, medical alert tags, luggage tags, and NFC cards — along with related communication and e-commerce services.
+            StegoTags ("we," "our," or "us") operates the StegoTags platform, including the website at stegotags.stegofy.com and the StegoTags mobile web application (collectively, the "Platform"). We provide QR-based identification and safety products — including vehicle parking tags, pet ID tags, child safety bands, medical alert tags, luggage tags, and NFC cards — along with related communication and e-commerce services.
           </p>
           <p>
-            This Privacy Policy explains how we collect, use, store, share, and protect your personal information when you use our Platform. By accessing or using Stegofy, you agree to the terms of this Privacy Policy.
+            This Privacy Policy explains how we collect, use, store, share, and protect your personal information when you use our Platform. By accessing or using StegoTags, you agree to the terms of this Privacy Policy.
           </p>
 
           <h2>2. Information We Collect</h2>
@@ -42,7 +42,7 @@ export default function PrivacyPolicyPage() {
           </ul>
 
           <h3>2.3 QR Scan Data</h3>
-          <p>When someone scans a Stegofy QR code, we collect:</p>
+          <p>When someone scans a StegoTags QR code, we collect:</p>
           <ul>
             <li>IP address — stored in three forms: masked (last octet zeroed), hashed (irreversible HMAC-SHA256), and encrypted (AES-256-CBC, reversible only by authorised administrators)</li>
             <li>Approximate geolocation derived from IP (city, state, country, pincode)</li>
@@ -80,7 +80,7 @@ export default function PrivacyPolicyPage() {
           <h2>3. How We Use Your Information</h2>
           <p>We use your information to:</p>
           <ul>
-            <li>Provide and operate the Stegofy Platform and QR tag services</li>
+            <li>Provide and operate the StegoTags Platform and QR tag services</li>
             <li>Authenticate your identity via phone OTP</li>
             <li>Facilitate masked calls and messages between QR scanners and tag owners — without revealing either party's real phone number</li>
             <li>Process and ship product orders via our logistics partner</li>
@@ -93,7 +93,7 @@ export default function PrivacyPolicyPage() {
 
           <h2>4. Masked Calling &amp; Number Privacy</h2>
           <p>
-            A core feature of Stegofy is masked calling. When a stranger contacts a QR tag owner through our Platform, the call is routed through our telephony partner (Exotel). Neither party sees the other's real phone number — both see the Stegofy ExoPhone number. This ensures:
+            A core feature of StegoTags is masked calling. When a stranger contacts a QR tag owner through our Platform, the call is routed through our telephony partner (Exotel). Neither party sees the other's real phone number — both see the StegoTags ExoPhone number. This ensures:
           </p>
           <ul>
             <li>The QR tag owner's personal number is never exposed to strangers</li>
@@ -162,7 +162,7 @@ export default function PrivacyPolicyPage() {
 
           <h2>10. Children's Privacy</h2>
           <p>
-            Stegofy child safety products are designed to be managed by parents or legal guardians. Children under 18 cannot create accounts independently. The child safety QR tag profiles are created and managed by the parent/guardian, and any scan-initiated communication is directed to the parent/guardian's registered phone number.
+            StegoTags child safety products are designed to be managed by parents or legal guardians. Children under 18 cannot create accounts independently. The child safety QR tag profiles are created and managed by the parent/guardian, and any scan-initiated communication is directed to the parent/guardian's registered phone number.
           </p>
 
           <h2>11. Changes to This Policy</h2>

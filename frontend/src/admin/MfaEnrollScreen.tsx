@@ -49,7 +49,7 @@ export function MfaEnrollScreen({ onEnrolled }: { onEnrolled: () => void }) {
 
         const { data, error: enrollErr } = await supabase.auth.mfa.enroll({
           factorType: "totp",
-          friendlyName: `Stegofy Admin (${new Date().toLocaleDateString()})`,
+          friendlyName: `StegoTags Admin (${new Date().toLocaleDateString()})`,
         });
         if (cancelled) return;
         if (enrollErr) {

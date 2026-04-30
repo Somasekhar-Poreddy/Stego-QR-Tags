@@ -212,9 +212,9 @@ function ClaimSplash({ displayCode, type }: { displayCode: string; type: string 
       <div className="w-20 h-20 bg-gradient-to-br from-primary to-violet-600 rounded-3xl flex items-center justify-center shadow-lg shadow-primary/30 mb-6">
         <Sparkles className="w-10 h-10 text-white" />
       </div>
-      <h1 className="text-2xl font-bold text-slate-900 mb-2">This Stegofy QR is ready to be activated</h1>
+      <h1 className="text-2xl font-bold text-slate-900 mb-2">This StegoTags QR is ready to be activated</h1>
       <p className="text-sm text-slate-500 mb-6">
-        Claim it now to turn this sticker into your personal {type ?? "Stegofy"} tag. You'll need the 4-digit PIN printed next to the code.
+        Claim it now to turn this sticker into your personal {type ?? "StegoTags"} tag. You'll need the 4-digit PIN printed next to the code.
       </p>
       <div className="bg-white border border-slate-200 rounded-2xl px-4 py-3 mb-6 w-full max-w-xs">
         <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Sticker code</p>
@@ -941,7 +941,7 @@ export function PublicProfileScreen() {
             <div className="w-6 h-6 bg-gradient-to-br from-primary to-violet-600 rounded-md flex items-center justify-center">
               <QrCode className="w-3.5 h-3.5 text-white" />
             </div>
-            <span className="text-sm font-black text-slate-900">Stegofy</span>
+            <span className="text-sm font-black text-slate-900">StegoTags</span>
           </div>
         </div>
       </div>
@@ -1106,13 +1106,13 @@ export function PublicProfileScreen() {
             <button className="hover:text-primary transition-colors">Report wrong info</button>
             <span>·</span>
             <button
-              onClick={() => navigator.share?.({ title: "Stegofy QR", url: window.location.href })}
+              onClick={() => navigator.share?.({ title: "StegoTags QR", url: window.location.href })}
               className="hover:text-primary transition-colors"
             >
               Share
             </button>
           </div>
-          <p className="text-[10px] text-slate-300 mt-3">Protected by Stegofy · Privacy-first QR tagging</p>
+          <p className="text-[10px] text-slate-300 mt-3">Protected by StegoTags · Privacy-first QR tagging</p>
         </div>
       </div>
 

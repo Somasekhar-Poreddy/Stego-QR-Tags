@@ -49,7 +49,7 @@ export function TrustSafety() {
               Privacy-First. <span className="text-primary">Safety-Focused.</span>
             </h2>
             <p className="text-lg text-slate-400">
-              We built Stegofy with a "privacy by default" architecture. Share only what's necessary, exactly when it's needed.
+              We built StegoTags with a "privacy by default" architecture. Share only what's necessary, exactly when it's needed.
             </p>
           </FadeIn>
         </div>

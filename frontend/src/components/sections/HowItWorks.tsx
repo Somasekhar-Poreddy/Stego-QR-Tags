@@ -4,7 +4,7 @@ import { FadeIn } from "@/components/ui/FadeIn";
 import { cn } from "@/lib/utils";
 
 const DIGITAL_STEPS = [
-  { icon: UserPlus, title: "Sign Up", desc: "Create a free Stegofy account in seconds." },
+  { icon: UserPlus, title: "Sign Up", desc: "Create a free StegoTags account in seconds." },
   { icon: Settings, title: "Create Profile", desc: "Add emergency contacts, vehicle info, or pet details." },
   { icon: QrCode, title: "Generate QR", desc: "Get your unique dynamic QR code instantly." },
   { icon: PhoneForwarded, title: "Ready to Scan", desc: "Anyone scanning connects with you securely." }
