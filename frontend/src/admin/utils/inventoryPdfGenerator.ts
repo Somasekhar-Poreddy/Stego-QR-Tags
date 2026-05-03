@@ -335,6 +335,61 @@ function drawTypeIcons(
   }
 }
 
+function drawScissors(doc: jsPDF, x: number, y: number): void {
+  doc.setDrawColor(15, 23, 42);
+  doc.setFillColor(15, 23, 42);
+  doc.setLineWidth(0.25);
+  doc.circle(x + 0.5, y - 0.7, 0.45, "S");
+  doc.circle(x + 0.5, y + 0.7, 0.45, "S");
+  doc.line(x + 0.95, y - 0.7, x + 3.2, y);
+  doc.line(x + 0.95, y + 0.7, x + 3.2, y);
+}
+
+function drawCutLineHorizontal(
+  doc: jsPDF, x1: number, x2: number, y: number, withScissors = true,
+): void {
+  if (withScissors) drawScissors(doc, x1, y);
+  doc.setDrawColor(120, 130, 145);
+  doc.setLineWidth(0.18);
+  doc.setLineDashPattern([1.2, 1.2], 0);
+  doc.line(withScissors ? x1 + 4 : x1, y, x2, y);
+  doc.setLineDashPattern([], 0);
+}
+
+function drawCutLineVertical(
+  doc: jsPDF, x: number, y1: number, y2: number,
+): void {
+  doc.setDrawColor(120, 130, 145);
+  doc.setLineWidth(0.18);
+  doc.setLineDashPattern([1.2, 1.2], 0);
+  doc.line(x, y1, x, y2);
+  doc.setLineDashPattern([], 0);
+}
+
+const ROW_GAP = 4;
+const COL_GAP = 4;
+
+function drawCutGuides(
+  doc: jsPDF, sideMargin: number, topMargin: number, rowsOnPage: number,
+): void {
+  const totalW = STICKER_MM.width * 2 + COL_GAP;
+  for (let r = 1; r < rowsOnPage; r++) {
+    const yLine = topMargin + r * STICKER_MM.height + (r - 1) * ROW_GAP + ROW_GAP / 2;
+    drawCutLineHorizontal(doc, sideMargin - 4, sideMargin + totalW, yLine);
+  }
+  const xLine = sideMargin + STICKER_MM.width + COL_GAP / 2;
+  const yTop = topMargin;
+  const yBot = topMargin + rowsOnPage * STICKER_MM.height + (rowsOnPage - 1) * ROW_GAP;
+  drawCutLineVertical(doc, xLine, yTop, yBot);
+  doc.setDrawColor(15, 23, 42);
+  doc.setFillColor(15, 23, 42);
+  doc.setLineWidth(0.25);
+  doc.circle(xLine - 0.7, yTop - 0.7, 0.45, "S");
+  doc.circle(xLine + 0.7, yTop - 0.7, 0.45, "S");
+  doc.line(xLine - 0.7, yTop - 0.25, xLine, yTop + 1.5);
+  doc.line(xLine + 0.7, yTop - 0.25, xLine, yTop + 1.5);
+}
+
 function drawSticker(
   doc: jsPDF,
   item: { id: string; type?: string | null; qr_code?: string | null; qr_url?: string | null; display_code?: string | null; pin_code?: string | null },
@@ -467,8 +522,10 @@ export async function generateBatchStickerPdf(
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
-  const sideMargin = (pageW - STICKER_MM.width * 2) / 2;
-  const topMargin = (pageH - STICKER_MM.height * 4) / 2;
+  const totalW = STICKER_MM.width * 2 + COL_GAP;
+  const totalH = STICKER_MM.height * 4 + ROW_GAP * 3;
+  const sideMargin = (pageW - totalW) / 2;
+  const topMargin = (pageH - totalH) / 2;
 
   let done = 0;
   const qrDataUrls = await mapConcurrent(items, 10, async (item) => {
@@ -480,17 +537,24 @@ export async function generateBatchStickerPdf(
   });
 
   let slot = 0;
+  let stickersOnPage = 0;
   for (let i = 0; i < items.length; i++) {
     if (slot === 8 && i > 0) {
+      drawCutGuides(doc, sideMargin, topMargin, Math.ceil(stickersOnPage / 2));
       doc.addPage();
       slot = 0;
+      stickersOnPage = 0;
     }
     const col = slot % 2;
     const row = Math.floor(slot / 2);
-    const sx = sideMargin + col * STICKER_MM.width;
-    const sy = topMargin + row * STICKER_MM.height;
+    const sx = sideMargin + col * (STICKER_MM.width + COL_GAP);
+    const sy = topMargin + row * (STICKER_MM.height + ROW_GAP);
     drawSticker(doc, items[i], qrDataUrls[i], sx, sy);
     slot++;
+    stickersOnPage++;
+  }
+  if (stickersOnPage > 0) {
+    drawCutGuides(doc, sideMargin, topMargin, Math.ceil(stickersOnPage / 2));
   }
   return doc;
 }

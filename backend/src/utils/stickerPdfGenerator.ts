@@ -354,6 +354,40 @@ function drawTypeIcons(
   }
 }
 
+function drawScissors(doc: jsPDF, x: number, y: number): void {
+  // Small black scissors icon ~3.5mm wide, centered vertically at y
+  doc.setDrawColor(15, 23, 42);
+  doc.setFillColor(15, 23, 42);
+  doc.setLineWidth(0.25);
+  // Two finger-loop circles on the left
+  doc.circle(x + 0.5, y - 0.7, 0.45, "S");
+  doc.circle(x + 0.5, y + 0.7, 0.45, "S");
+  // Two crossing blades meeting at a point on the right
+  doc.line(x + 0.95, y - 0.7, x + 3.2, y);
+  doc.line(x + 0.95, y + 0.7, x + 3.2, y);
+}
+
+function drawCutLineHorizontal(
+  doc: jsPDF, x1: number, x2: number, y: number, withScissors = true,
+): void {
+  if (withScissors) drawScissors(doc, x1, y);
+  doc.setDrawColor(120, 130, 145);
+  doc.setLineWidth(0.18);
+  doc.setLineDashPattern([1.2, 1.2], 0);
+  doc.line(withScissors ? x1 + 4 : x1, y, x2, y);
+  doc.setLineDashPattern([], 0);
+}
+
+function drawCutLineVertical(
+  doc: jsPDF, x: number, y1: number, y2: number,
+): void {
+  doc.setDrawColor(120, 130, 145);
+  doc.setLineWidth(0.18);
+  doc.setLineDashPattern([1.2, 1.2], 0);
+  doc.line(x, y1, x, y2);
+  doc.setLineDashPattern([], 0);
+}
+
 function drawSticker(
   doc: jsPDF,
   item: InventoryItem,
@@ -483,14 +517,43 @@ function drawSticker(
   doc.text(badge, badgeX + badgeW / 2, badgeY + 3.8, { align: "center" });
 }
 
+const ROW_GAP = 4;
+const COL_GAP = 4;
+
+function drawCutGuides(
+  doc: jsPDF, sideMargin: number, topMargin: number, pageW: number, rowsOnPage: number,
+): void {
+  const totalW = STICKER_MM.width * 2 + COL_GAP;
+  // Horizontal cut lines BETWEEN rows (one in each gap)
+  for (let r = 1; r < rowsOnPage; r++) {
+    const yLine = topMargin + r * STICKER_MM.height + (r - 1) * ROW_GAP + ROW_GAP / 2;
+    drawCutLineHorizontal(doc, sideMargin - 4, sideMargin + totalW, yLine);
+  }
+  // Vertical cut line BETWEEN columns (full height of all rows on this page)
+  const xLine = sideMargin + STICKER_MM.width + COL_GAP / 2;
+  const yTop = topMargin;
+  const yBot = topMargin + rowsOnPage * STICKER_MM.height + (rowsOnPage - 1) * ROW_GAP;
+  drawCutLineVertical(doc, xLine, yTop, yBot);
+  // Small scissors at the top of the vertical cut line
+  doc.setDrawColor(15, 23, 42);
+  doc.setFillColor(15, 23, 42);
+  doc.setLineWidth(0.25);
+  doc.circle(xLine - 0.7, yTop - 0.7, 0.45, "S");
+  doc.circle(xLine + 0.7, yTop - 0.7, 0.45, "S");
+  doc.line(xLine - 0.7, yTop - 0.25, xLine, yTop + 1.5);
+  doc.line(xLine + 0.7, yTop - 0.25, xLine, yTop + 1.5);
+}
+
 export async function generateBatchPdfBase64(
   items: InventoryItem[],
 ): Promise<string> {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
-  const sideMargin = (pageW - STICKER_MM.width * 2) / 2;
-  const topMargin = (pageH - STICKER_MM.height * 4) / 2;
+  const totalW = STICKER_MM.width * 2 + COL_GAP;
+  const totalH = STICKER_MM.height * 4 + ROW_GAP * 3;
+  const sideMargin = (pageW - totalW) / 2;
+  const topMargin = (pageH - totalH) / 2;
 
   const base = appBaseUrl();
   const qrDataUrls = await mapConcurrent(items, 8, async (item) => {
@@ -499,17 +562,26 @@ export async function generateBatchPdfBase64(
   });
 
   let slot = 0;
+  let stickersOnPage = 0;
   for (let i = 0; i < items.length; i++) {
     if (slot === 8 && i > 0) {
+      // Draw cut guides for the just-completed page
+      drawCutGuides(doc, sideMargin, topMargin, pageW, Math.ceil(stickersOnPage / 2));
       doc.addPage();
       slot = 0;
+      stickersOnPage = 0;
     }
     const col = slot % 2;
     const row = Math.floor(slot / 2);
-    const sx = sideMargin + col * STICKER_MM.width;
-    const sy = topMargin + row * STICKER_MM.height;
+    const sx = sideMargin + col * (STICKER_MM.width + COL_GAP);
+    const sy = topMargin + row * (STICKER_MM.height + ROW_GAP);
     drawSticker(doc, items[i], qrDataUrls[i], sx, sy);
     slot++;
+    stickersOnPage++;
+  }
+  // Cut guides for the final (possibly partial) page
+  if (stickersOnPage > 0) {
+    drawCutGuides(doc, sideMargin, topMargin, pageW, Math.ceil(stickersOnPage / 2));
   }
 
   const raw = doc.output("datauristring");
