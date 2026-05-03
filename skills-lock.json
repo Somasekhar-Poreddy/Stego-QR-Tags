@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "skills": {
+    "ai-agent": {
+      "source": "zavudev/zavu-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ai-agent/SKILL.md",
+      "computedHash": "b4c55db109543600bf69ce95e109f16428ae8f0b50a808b88d32c0a82af5b14e"
+    },
+    "broadcast-campaign": {
+      "source": "zavudev/zavu-skills",
+      "sourceType": "github",
+      "skillPath": "skills/broadcast-campaign/SKILL.md",
+      "computedHash": "5e0fab0418c3a3d66c0519ea43f6edc84d4ffd9a8f65ec403ddd51b27cc73e80"
+    },
+    "contacts-management": {
+      "source": "zavudev/zavu-skills",
+      "sourceType": "github",
+      "skillPath": "skills/contacts-management/SKILL.md",
+      "computedHash": "7d11dc6d76e5bd2bd904eb02f2a8544a9822f4b741b5d6e98632b70f18ffabd8"
+    },
+    "phone-numbers": {
+      "source": "zavudev/zavu-skills",
+      "sourceType": "github",
+      "skillPath": "skills/phone-numbers/SKILL.md",
+      "computedHash": "8f693b72970d12e52e0121ba705e08ae334389b366fba7c65ad4efcc04a11986"
+    },
+    "send-message": {
+      "source": "zavudev/zavu-skills",
+      "sourceType": "github",
+      "skillPath": "skills/send-message/SKILL.md",
+      "computedHash": "fd9b006ce31203f7a313dee1f197bad870e67512c9efde184c6d7a15f1d0d62d"
+    },
+    "webhook-setup": {
+      "source": "zavudev/zavu-skills",
+      "sourceType": "github",
+      "skillPath": "skills/webhook-setup/SKILL.md",
+      "computedHash": "bb2685b0277d36d2873193a1bca4cf00abce89e53874bf78055b4adae3813dcb"
+    },
+    "whatsapp-templates": {
+      "source": "zavudev/zavu-skills",
+      "sourceType": "github",
+      "skillPath": "skills/whatsapp-templates/SKILL.md",
+      "computedHash": "b6a9784d6ba6b774d3a9983785c84eb10963f12937d16b9ddecc85d8674375ae"
+    },
+    "zavu-rules": {
+      "source": "zavudev/zavu-skills",
+      "sourceType": "github",
+      "skillPath": "skills/zavu-rules/SKILL.md",
+      "computedHash": "bd452683ef63b6064a7a8a08bb9533bd32a70aa9a8de72123937b405133180fc"
+    }
+  }
+}
