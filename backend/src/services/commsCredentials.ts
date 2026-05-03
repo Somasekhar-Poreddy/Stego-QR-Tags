@@ -22,6 +22,12 @@ export const COMMS_SETTING_KEYS = [
   "zavu_otp_template_name",
   "zavu_otp_template_lang",
   "zavu_webhook_secret",
+  "zavu_vehicle_report_template_name",
+  "zavu_vehicle_report_template_lang",
+  "zavu_scan_alert_template_name",
+  "zavu_scan_alert_template_lang",
+  "scan_alert_cooldown_sec",
+  "scan_alert_max_per_qr_per_hour",
   // Exotel (SMS, masked-call, WhatsApp fallback)
   "exotel_api_key",
   "exotel_api_token",
@@ -69,7 +75,14 @@ export const COMMS_SETTING_KEYS = [
 export type CommsSettingKey = (typeof COMMS_SETTING_KEYS)[number];
 
 const DEFAULTS: Record<string, string> = {
+  zavu_otp_template_name: "stegotags_otp_v1",
   zavu_otp_template_lang: "en",
+  zavu_vehicle_report_template_name: "stegotags_vehicle_report_v1",
+  zavu_vehicle_report_template_lang: "en",
+  zavu_scan_alert_template_name: "stegotags_scan_alert_v1",
+  zavu_scan_alert_template_lang: "en",
+  scan_alert_cooldown_sec: "300",
+  scan_alert_max_per_qr_per_hour: "5",
   comms_routing_whatsapp: "zavu_first",
   comms_routing_sms: "exotel",
   comms_routing_call: "exotel",

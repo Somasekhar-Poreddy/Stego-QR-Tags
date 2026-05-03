@@ -150,6 +150,13 @@ function pickOwnerPhone(qr: QrRow): string | null {
   return null;
 }
 
+function getMaskedVehicleLabel(qr: QrRow): string {
+  const d = qr.data ?? {};
+  const num = String(d.vehicle_number ?? d.registration_number ?? d.plate ?? "");
+  if (num.length >= 4) return num.slice(0, 4) + "****";
+  return qr.type ?? "tag";
+}
+
 interface SharedContactBody {
   qr_id?: string;          // NB: also sent in URL; accepted in body for symmetry
   phone?: string;          // requester phone
@@ -378,6 +385,11 @@ router.post("/qr/:qrId/contact/message", async (req: Request, res: Response) => 
     (customerMsg ? ` Message: "${customerMsg}".` : "") +
     ` Reply to this number or open StegoTags to respond.`;
 
+  const messageParam = customerMsg
+    ? `${intentLabel} — ${customerMsg}`
+    : intentLabel;
+  const tagLabel = getMaskedVehicleLabel(ctx.qr);
+
   const contactRequestId = await insertContactRequest({
     qrId: ctx.qrId,
     phone: ctx.phone,
@@ -391,6 +403,11 @@ router.post("/qr/:qrId/contact/message", async (req: Request, res: Response) => 
   const result = await sendMessageSmart({
     to: ownerPhone,
     body,
+    template: {
+      name: settings.zavu_vehicle_report_template_name || "stegotags_vehicle_report_v1",
+      lang: settings.zavu_vehicle_report_template_lang || "en",
+      params: [messageParam.slice(0, 900), ctx.phone, tagLabel],
+    },
     contactRequestId,
     qrId: ctx.qrId,
   });

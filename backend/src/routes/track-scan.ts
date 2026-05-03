@@ -4,6 +4,8 @@ import { getMaskedIP, getHashedIP } from "../services/ipService.js";
 import { getGeoData } from "../services/geoService.js";
 import { supabaseAdmin } from "../lib/supabaseAdmin.js";
 import { publicScanLimiter } from "../middlewares/rate-limit.js";
+import { maybeSendScanAlert } from "../services/scanAlertService.js";
+import { logger } from "../lib/logger.js";
 
 const router = Router();
 
@@ -115,6 +117,14 @@ router.post("/track-scan", publicScanLimiter, async (req: Request, res: Response
     }
 
     res.status(200).json({ id: (saved as { id: string }).id });
+
+    void maybeSendScanAlert({
+      qrId: qr_id,
+      city: geo.city,
+      timestamp: new Date(),
+    }).catch((err) => {
+      logger.warn({ err, qrId: qr_id }, "Scan alert failed (non-blocking)");
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unexpected error";
     res.status(500).json({ error: message });
