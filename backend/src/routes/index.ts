@@ -10,6 +10,7 @@ import commsAdminRouter from "./comms-admin";
 import commsWebhooksRouter from "./comms-webhooks";
 import shippingRouter from "./shipping";
 import activityRouter from "./activity";
+import adminZavuSetupRouter from "./admin-zavu-setup";
 
 const router: IRouter = Router();
 
@@ -24,5 +25,6 @@ router.use(commsAdminRouter);
 router.use(commsWebhooksRouter);
 router.use(shippingRouter);
 router.use(activityRouter);
+router.use(adminZavuSetupRouter);
 
 export default router;

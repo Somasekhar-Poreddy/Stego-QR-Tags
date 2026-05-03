@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Save, RotateCcw, Settings, Plus, Trash2, ChevronDown, ChevronUp, Eye, EyeOff, Key, Info, Send, Radio, Zap, DollarSign, CheckCircle2, AlertTriangle, Phone, MessageCircle, Shield, Truck } from "lucide-react";
-import { getSettings, upsertSetting, getConfigStatus, sendTestEmail, testCommsProvider, invalidateCommsCache } from "@/services/adminService";
+import { getSettings, upsertSetting, getConfigStatus, sendTestEmail, testCommsProvider, invalidateCommsCache, runZavuSetup, type ZavuSetupSender, type ZavuSetupTemplate } from "@/services/adminService";
 import { cn } from "@/lib/utils";
 
 interface ApiKeyRowDef {
@@ -340,6 +340,215 @@ function TextSetting({ label, value, onChange }: { label: string; value: string;
   );
 }
 
+function ZavuSetupCard({ apiKeySaved, onComplete }: { apiKeySaved: boolean; onComplete: () => void }) {
+  type Phase = "idle" | "discovering" | "picking" | "running" | "done" | "error";
+  const [phase, setPhase] = useState<Phase>("idle");
+  const [error, setError] = useState<string | null>(null);
+  const [senders, setSenders] = useState<ZavuSetupSender[]>([]);
+  const [pickedSenderId, setPickedSenderId] = useState<string | null>(null);
+  const [regenerateSecret, setRegenerateSecret] = useState(false);
+  const [result, setResult] = useState<{
+    senderId: string;
+    webhookSecret: string | null;
+    templates: ZavuSetupTemplate[];
+  } | null>(null);
+
+  const reset = () => {
+    setPhase("idle");
+    setError(null);
+    setSenders([]);
+    setPickedSenderId(null);
+    setRegenerateSecret(false);
+    setResult(null);
+  };
+
+  const start = async () => {
+    setError(null);
+    setResult(null);
+    setPhase("discovering");
+    try {
+      const r = await runZavuSetup();
+      if ("done" in r) {
+        setResult({ senderId: r.senderId, webhookSecret: r.webhookSecret, templates: r.templates });
+        setPhase("done");
+        onComplete();
+        return;
+      }
+      setSenders(r.senders);
+      if (r.needsSenderChoice === false) {
+        setPickedSenderId(r.senderId);
+      } else if (r.senders.length > 0) {
+        setPickedSenderId(r.senders[0].id);
+      }
+      setPhase("picking");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to discover senders");
+      setPhase("error");
+    }
+  };
+
+  const confirm = async () => {
+    if (!pickedSenderId) return;
+    setError(null);
+    setPhase("running");
+    try {
+      const r = await runZavuSetup({ senderId: pickedSenderId, regenerateSecret });
+      if ("done" in r) {
+        setResult({ senderId: r.senderId, webhookSecret: r.webhookSecret, templates: r.templates });
+        setPhase("done");
+        onComplete();
+      } else {
+        setError("Unexpected response from server");
+        setPhase("error");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Setup failed");
+      setPhase("error");
+    }
+  };
+
+  return (
+    <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 mb-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1">
+          <div className="flex items-center gap-2 mb-1">
+            <Zap className="w-4 h-4 text-amber-700" />
+            <p className="font-bold text-slate-900 text-sm">Zavu Auto-Setup</p>
+          </div>
+          <p className="text-xs text-slate-600 leading-relaxed">
+            Save your <strong>Zavu API Key</strong> below first, then click here to:
+            list your senders, configure the webhook URL on the chosen sender, and create
+            the 3 WhatsApp templates (OTP, vehicle report, scan alert) with Meta submission.
+            Sender ID + template IDs will be saved automatically.
+          </p>
+        </div>
+        {phase === "idle" && (
+          <button
+            onClick={start}
+            disabled={!apiKeySaved}
+            className="px-4 py-2 rounded-lg bg-amber-600 text-white text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap hover:bg-amber-700 transition-colors"
+            title={!apiKeySaved ? "Save the Zavu API Key first" : ""}
+          >
+            Run Setup
+          </button>
+        )}
+        {phase === "discovering" && (
+          <span className="text-xs text-amber-700 font-medium">Discovering senders…</span>
+        )}
+        {phase === "running" && (
+          <span className="text-xs text-amber-700 font-medium">Configuring + creating templates…</span>
+        )}
+        {(phase === "done" || phase === "error") && (
+          <button
+            onClick={reset}
+            className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-xs font-medium hover:bg-slate-50"
+          >
+            Run again
+          </button>
+        )}
+      </div>
+
+      {phase === "picking" && (
+        <div className="mt-4 pt-4 border-t border-amber-200 space-y-3">
+          <div>
+            <label className="text-xs font-semibold text-slate-700 block mb-1.5">
+              Choose sender ({senders.length} available)
+            </label>
+            <select
+              value={pickedSenderId ?? ""}
+              onChange={(e) => setPickedSenderId(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-amber-300 bg-white text-sm outline-none focus:border-amber-500"
+            >
+              {senders.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.id} — {s.name ?? "(unnamed)"} {s.phoneNumber ? `· ${s.phoneNumber}` : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+          <label className="flex items-start gap-2 text-xs text-slate-700">
+            <input
+              type="checkbox"
+              checked={regenerateSecret}
+              onChange={(e) => setRegenerateSecret(e.target.checked)}
+              className="mt-0.5"
+            />
+            <span>
+              <strong>Regenerate webhook secret</strong> (only check this if you don't already
+              have a secret saved — regenerating invalidates the previous one and breaks any
+              other integrations using the old secret).
+            </span>
+          </label>
+          <div className="flex gap-2 pt-1">
+            <button
+              onClick={confirm}
+              disabled={!pickedSenderId}
+              className="px-4 py-2 rounded-lg bg-amber-600 text-white text-sm font-semibold disabled:opacity-50 hover:bg-amber-700"
+            >
+              Confirm + Run Setup
+            </button>
+            <button
+              onClick={reset}
+              className="px-4 py-2 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {phase === "error" && error && (
+        <div className="mt-3 p-3 rounded-lg bg-red-100 border border-red-200 text-xs text-red-800">
+          <strong>Setup failed:</strong> {error}
+        </div>
+      )}
+
+      {phase === "done" && result && (
+        <div className="mt-4 pt-4 border-t border-amber-200 space-y-2">
+          <div className="flex items-center gap-2 text-sm text-emerald-700 font-semibold">
+            <CheckCircle2 className="w-4 h-4" />
+            Setup complete — settings saved.
+          </div>
+          <div className="text-xs text-slate-700 space-y-1 mt-2">
+            <div>
+              <span className="text-slate-500">Sender:</span>{" "}
+              <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200">{result.senderId}</code>
+            </div>
+            {result.webhookSecret && (
+              <div className="text-emerald-700">
+                ✓ Webhook secret regenerated and saved
+              </div>
+            )}
+            <div className="mt-2 space-y-1">
+              {result.templates.map((t) => (
+                <div key={t.id} className="flex items-center gap-2">
+                  <span className={cn(
+                    "inline-block w-2 h-2 rounded-full",
+                    t.status === "approved" && "bg-emerald-500",
+                    t.status === "pending" && "bg-amber-500",
+                    t.status === "rejected" && "bg-red-500",
+                    !["approved", "pending", "rejected"].includes(t.status) && "bg-slate-400",
+                  )} />
+                  <span className="font-medium">{t.name}</span>
+                  <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200 text-[10px]">{t.id}</code>
+                  <span className="text-slate-500">
+                    {t.created ? `${t.status} (newly created)` : `${t.status} (already existed)`}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <div className="text-slate-500 mt-2">
+              {result.templates.some((t) => t.created)
+                ? "Newly-created templates are pending Meta approval (typically minutes to 24h). Track in Zavu dashboard → Templates."
+                : "All templates already existed — nothing new to submit."}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function SettingsScreen() {
   const [values, setValues] = useState<Record<string, string>>({});
   const [faqs, setFaqs] = useState<FaqItem[]>([]);
@@ -645,6 +854,17 @@ export function SettingsScreen() {
         {/* ═══ API KEYS TAB ═══ */}
         {activeTab === "keys" && (
           <>
+            <ZavuSetupCard
+              apiKeySaved={Boolean(values.zavu_api_key?.trim())}
+              onComplete={() => {
+                getSettings().then((settings) => {
+                  const map: Record<string, string> = { ...DEFAULT_VALUES };
+                  settings.forEach((s) => { map[s.key] = s.value ?? ""; });
+                  setValues(map);
+                });
+              }}
+            />
+
             <div id="api-keys" className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
               <div className="flex items-center gap-2 mb-2">
                 <Key className="w-4 h-4 text-primary" />

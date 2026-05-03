@@ -1240,6 +1240,47 @@ export async function sendTestEmail(): Promise<{ sent_to: string; from: string }
   return { sent_to: body.sent_to ?? "", from: body.from ?? "" };
 }
 
+export interface ZavuSetupSender {
+  id: string;
+  name: string | null;
+  phoneNumber: string | null;
+}
+
+export interface ZavuSetupTemplate {
+  key: string;
+  id: string;
+  name: string;
+  status: string;
+  created: boolean;
+}
+
+export type ZavuSetupResult =
+  | { needsSenderChoice: true; senders: ZavuSetupSender[] }
+  | { needsSenderChoice: false; senderId: string; senders: ZavuSetupSender[] }
+  | {
+      done: true;
+      senderId: string;
+      webhookUrl: string;
+      webhookSecret: string | null;
+      templates: ZavuSetupTemplate[];
+      savedSettings: string[];
+    };
+
+export async function runZavuSetup(opts: {
+  senderId?: string;
+  regenerateSecret?: boolean;
+} = {}): Promise<ZavuSetupResult> {
+  const res = await authedFetch("/api/admin/zavu/setup", {
+    method: "POST",
+    body: JSON.stringify(opts),
+  });
+  const body = (await res.json().catch(() => ({}))) as Record<string, unknown> & { error?: string };
+  if (!res.ok) {
+    throw new Error(body.error ?? `Zavu setup failed (${res.status})`);
+  }
+  return body as unknown as ZavuSetupResult;
+}
+
 export async function sendVendorEmail(opts: {
   batchId: string;
   to: string;
