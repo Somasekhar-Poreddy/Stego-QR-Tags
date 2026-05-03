@@ -114,7 +114,7 @@ function drawGradientRect(
 }
 
 function drawIconCircle(doc: jsPDF, cx: number, cy: number, r: number): void {
-  const gs = doc.GState({ opacity: 0.2 });
+  const gs = doc.GState({ opacity: 0.35 });
   doc.saveGraphicsState();
   doc.setGState(gs);
   doc.setFillColor(255, 255, 255);
@@ -129,7 +129,7 @@ function setupIconFill(doc: jsPDF): void {
 }
 
 function icoCar(doc: jsPDF, cx: number, cy: number, s: number): void {
-  drawIconCircle(doc, cx, cy, s * 1.3);
+  drawIconCircle(doc, cx, cy, s * 1.5);
   setupIconFill(doc);
   doc.roundedRect(cx - s * 0.65, cy - s * 0.1, s * 1.3, s * 0.5, s * 0.08, s * 0.08, "F");
   doc.roundedRect(cx - s * 0.38, cy - s * 0.48, s * 0.76, s * 0.42, s * 0.12, s * 0.12, "F");
@@ -138,7 +138,7 @@ function icoCar(doc: jsPDF, cx: number, cy: number, s: number): void {
 }
 
 function icoWarning(doc: jsPDF, cx: number, cy: number, s: number): void {
-  drawIconCircle(doc, cx, cy, s * 1.3);
+  drawIconCircle(doc, cx, cy, s * 1.5);
   setupIconFill(doc);
   doc.setLineWidth(0.4);
   doc.line(cx, cy - s * 0.7, cx + s * 0.7, cy + s * 0.5);
@@ -149,7 +149,7 @@ function icoWarning(doc: jsPDF, cx: number, cy: number, s: number): void {
 }
 
 function icoPhone(doc: jsPDF, cx: number, cy: number, s: number): void {
-  drawIconCircle(doc, cx, cy, s * 1.3);
+  drawIconCircle(doc, cx, cy, s * 1.5);
   setupIconFill(doc);
   doc.roundedRect(cx - s * 0.32, cy - s * 0.55, s * 0.64, s * 1.1, s * 0.14, s * 0.14, "S");
   doc.line(cx - s * 0.15, cy - s * 0.35, cx + s * 0.15, cy - s * 0.35);
@@ -157,7 +157,7 @@ function icoPhone(doc: jsPDF, cx: number, cy: number, s: number): void {
 }
 
 function icoAlert(doc: jsPDF, cx: number, cy: number, s: number): void {
-  drawIconCircle(doc, cx, cy, s * 1.3);
+  drawIconCircle(doc, cx, cy, s * 1.5);
   setupIconFill(doc);
   doc.circle(cx, cy, s * 0.6, "S");
   doc.line(cx, cy - s * 0.3, cx, cy + s * 0.05);
@@ -165,7 +165,7 @@ function icoAlert(doc: jsPDF, cx: number, cy: number, s: number): void {
 }
 
 function icoPaw(doc: jsPDF, cx: number, cy: number, s: number): void {
-  drawIconCircle(doc, cx, cy, s * 1.3);
+  drawIconCircle(doc, cx, cy, s * 1.5);
   setupIconFill(doc);
   doc.circle(cx, cy + s * 0.12, s * 0.35, "F");
   doc.circle(cx - s * 0.38, cy - s * 0.25, s * 0.17, "F");
@@ -174,7 +174,7 @@ function icoPaw(doc: jsPDF, cx: number, cy: number, s: number): void {
 }
 
 function icoHouse(doc: jsPDF, cx: number, cy: number, s: number): void {
-  drawIconCircle(doc, cx, cy, s * 1.3);
+  drawIconCircle(doc, cx, cy, s * 1.5);
   setupIconFill(doc);
   doc.rect(cx - s * 0.4, cy - s * 0.05, s * 0.8, s * 0.6, "F");
   doc.setLineWidth(0.5);
@@ -183,7 +183,7 @@ function icoHouse(doc: jsPDF, cx: number, cy: number, s: number): void {
 }
 
 function icoHeart(doc: jsPDF, cx: number, cy: number, s: number): void {
-  drawIconCircle(doc, cx, cy, s * 1.3);
+  drawIconCircle(doc, cx, cy, s * 1.5);
   setupIconFill(doc);
   const r = s * 0.28;
   doc.circle(cx - r, cy - r * 0.3, r, "F");
@@ -194,28 +194,28 @@ function icoHeart(doc: jsPDF, cx: number, cy: number, s: number): void {
 }
 
 function icoPerson(doc: jsPDF, cx: number, cy: number, s: number): void {
-  drawIconCircle(doc, cx, cy, s * 1.3);
+  drawIconCircle(doc, cx, cy, s * 1.5);
   setupIconFill(doc);
   doc.circle(cx, cy - s * 0.4, s * 0.22, "F");
   doc.roundedRect(cx - s * 0.38, cy, s * 0.76, s * 0.5, s * 0.15, s * 0.15, "F");
 }
 
 function icoCross(doc: jsPDF, cx: number, cy: number, s: number): void {
-  drawIconCircle(doc, cx, cy, s * 1.3);
+  drawIconCircle(doc, cx, cy, s * 1.5);
   setupIconFill(doc);
   doc.rect(cx - s * 0.12, cy - s * 0.55, s * 0.24, s * 1.1, "F");
   doc.rect(cx - s * 0.55, cy - s * 0.12, s * 1.1, s * 0.24, "F");
 }
 
 function icoSuitcase(doc: jsPDF, cx: number, cy: number, s: number): void {
-  drawIconCircle(doc, cx, cy, s * 1.3);
+  drawIconCircle(doc, cx, cy, s * 1.5);
   setupIconFill(doc);
   doc.roundedRect(cx - s * 0.55, cy - s * 0.2, s * 1.1, s * 0.75, s * 0.1, s * 0.1, "F");
   doc.roundedRect(cx - s * 0.22, cy - s * 0.5, s * 0.44, s * 0.32, s * 0.08, s * 0.08, "S");
 }
 
 function icoPin(doc: jsPDF, cx: number, cy: number, s: number): void {
-  drawIconCircle(doc, cx, cy, s * 1.3);
+  drawIconCircle(doc, cx, cy, s * 1.5);
   setupIconFill(doc);
   doc.circle(cx, cy - s * 0.15, s * 0.35, "F");
   doc.setLineWidth(0.5);
@@ -224,7 +224,7 @@ function icoPin(doc: jsPDF, cx: number, cy: number, s: number): void {
 }
 
 function icoReturn(doc: jsPDF, cx: number, cy: number, s: number): void {
-  drawIconCircle(doc, cx, cy, s * 1.3);
+  drawIconCircle(doc, cx, cy, s * 1.5);
   setupIconFill(doc);
   doc.setLineWidth(0.45);
   doc.line(cx - s * 0.35, cy - s * 0.45, cx - s * 0.35, cy + s * 0.25);
@@ -234,21 +234,21 @@ function icoReturn(doc: jsPDF, cx: number, cy: number, s: number): void {
 }
 
 function icoTag(doc: jsPDF, cx: number, cy: number, s: number): void {
-  drawIconCircle(doc, cx, cy, s * 1.3);
+  drawIconCircle(doc, cx, cy, s * 1.5);
   setupIconFill(doc);
   doc.roundedRect(cx - s * 0.4, cy - s * 0.55, s * 0.8, s * 1.1, s * 0.15, s * 0.15, "F");
   doc.circle(cx, cy - s * 0.3, s * 0.12, "S");
 }
 
 function icoDoor(doc: jsPDF, cx: number, cy: number, s: number): void {
-  drawIconCircle(doc, cx, cy, s * 1.3);
+  drawIconCircle(doc, cx, cy, s * 1.5);
   setupIconFill(doc);
   doc.roundedRect(cx - s * 0.35, cy - s * 0.55, s * 0.7, s * 1.1, s * 0.06, s * 0.06, "F");
   doc.circle(cx + s * 0.15, cy + s * 0.1, s * 0.08, "S");
 }
 
 function icoBell(doc: jsPDF, cx: number, cy: number, s: number): void {
-  drawIconCircle(doc, cx, cy, s * 1.3);
+  drawIconCircle(doc, cx, cy, s * 1.5);
   setupIconFill(doc);
   doc.setLineWidth(0.45);
   doc.line(cx - s * 0.5, cy + s * 0.25, cx + s * 0.5, cy + s * 0.25);
@@ -257,7 +257,7 @@ function icoBell(doc: jsPDF, cx: number, cy: number, s: number): void {
 }
 
 function icoGlobe(doc: jsPDF, cx: number, cy: number, s: number): void {
-  drawIconCircle(doc, cx, cy, s * 1.3);
+  drawIconCircle(doc, cx, cy, s * 1.5);
   setupIconFill(doc);
   doc.setLineWidth(0.35);
   doc.circle(cx, cy, s * 0.5, "S");
@@ -266,14 +266,14 @@ function icoGlobe(doc: jsPDF, cx: number, cy: number, s: number): void {
 }
 
 function icoBriefcase(doc: jsPDF, cx: number, cy: number, s: number): void {
-  drawIconCircle(doc, cx, cy, s * 1.3);
+  drawIconCircle(doc, cx, cy, s * 1.5);
   setupIconFill(doc);
   doc.roundedRect(cx - s * 0.55, cy - s * 0.15, s * 1.1, s * 0.7, s * 0.08, s * 0.08, "F");
   doc.roundedRect(cx - s * 0.22, cy - s * 0.42, s * 0.44, s * 0.3, s * 0.06, s * 0.06, "S");
 }
 
 function icoCalendar(doc: jsPDF, cx: number, cy: number, s: number): void {
-  drawIconCircle(doc, cx, cy, s * 1.3);
+  drawIconCircle(doc, cx, cy, s * 1.5);
   setupIconFill(doc);
   doc.roundedRect(cx - s * 0.48, cy - s * 0.4, s * 0.96, s * 0.9, s * 0.08, s * 0.08, "F");
   doc.setLineWidth(0.35);
@@ -282,14 +282,14 @@ function icoCalendar(doc: jsPDF, cx: number, cy: number, s: number): void {
 }
 
 function icoWallet(doc: jsPDF, cx: number, cy: number, s: number): void {
-  drawIconCircle(doc, cx, cy, s * 1.3);
+  drawIconCircle(doc, cx, cy, s * 1.5);
   setupIconFill(doc);
   doc.roundedRect(cx - s * 0.55, cy - s * 0.25, s * 1.1, s * 0.7, s * 0.12, s * 0.12, "F");
   doc.circle(cx + s * 0.3, cy + s * 0.15, s * 0.1, "S");
 }
 
 function icoLink(doc: jsPDF, cx: number, cy: number, s: number): void {
-  drawIconCircle(doc, cx, cy, s * 1.3);
+  drawIconCircle(doc, cx, cy, s * 1.5);
   setupIconFill(doc);
   doc.setLineWidth(0.4);
   doc.ellipse(cx - s * 0.18, cy, s * 0.38, s * 0.2, "S");
@@ -297,7 +297,7 @@ function icoLink(doc: jsPDF, cx: number, cy: number, s: number): void {
 }
 
 function icoQR(doc: jsPDF, cx: number, cy: number, s: number): void {
-  drawIconCircle(doc, cx, cy, s * 1.3);
+  drawIconCircle(doc, cx, cy, s * 1.5);
   setupIconFill(doc);
   const sq = s * 0.3;
   doc.rect(cx - s * 0.5, cy - s * 0.5, sq, sq, "F");
@@ -307,7 +307,7 @@ function icoQR(doc: jsPDF, cx: number, cy: number, s: number): void {
 }
 
 function icoStar(doc: jsPDF, cx: number, cy: number, s: number): void {
-  drawIconCircle(doc, cx, cy, s * 1.3);
+  drawIconCircle(doc, cx, cy, s * 1.5);
   setupIconFill(doc);
   doc.setLineWidth(0.45);
   doc.line(cx, cy - s * 0.55, cx + s * 0.35, cy);
