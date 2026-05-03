@@ -17,15 +17,11 @@ let inFlight: Promise<Record<string, string>> | null = null;
 export const COMMS_SETTING_KEYS = [
   // Zavu (WhatsApp primary)
   "zavu_api_key",
-  "zavu_account_id",
-  "zavu_phone_number_id",
-  "zavu_otp_template_name",
-  "zavu_otp_template_lang",
+  "zavu_sender_id",
   "zavu_webhook_secret",
-  "zavu_vehicle_report_template_name",
-  "zavu_vehicle_report_template_lang",
-  "zavu_scan_alert_template_name",
-  "zavu_scan_alert_template_lang",
+  "zavu_otp_template_id",
+  "zavu_vehicle_report_template_id",
+  "zavu_scan_alert_template_id",
   "scan_alert_cooldown_sec",
   "scan_alert_max_per_qr_per_hour",
   // Exotel (SMS, masked-call, WhatsApp fallback)
@@ -75,12 +71,6 @@ export const COMMS_SETTING_KEYS = [
 export type CommsSettingKey = (typeof COMMS_SETTING_KEYS)[number];
 
 const DEFAULTS: Record<string, string> = {
-  zavu_otp_template_name: "stegotags_otp_v1",
-  zavu_otp_template_lang: "en",
-  zavu_vehicle_report_template_name: "stegotags_vehicle_report_v1",
-  zavu_vehicle_report_template_lang: "en",
-  zavu_scan_alert_template_name: "stegotags_scan_alert_v1",
-  zavu_scan_alert_template_lang: "en",
   scan_alert_cooldown_sec: "300",
   scan_alert_max_per_qr_per_hour: "5",
   comms_routing_whatsapp: "zavu_first",

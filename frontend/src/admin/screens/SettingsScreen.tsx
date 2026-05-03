@@ -45,38 +45,38 @@ const API_KEY_ROWS: ApiKeyRowDef[] = [
   {
     key: "zavu_api_key",
     label: "Zavu API Key",
-    hint: "Primary provider for WhatsApp messaging and OTP delivery.",
-    placeholder: "Enter Zavu API key…",
+    hint: "Primary provider for WhatsApp messaging and OTP delivery. Looks like zv_live_… or zv_test_…",
+    placeholder: "zv_live_…",
   },
   {
-    key: "zavu_account_id",
-    label: "Zavu Account ID",
-    hint: "Your Zavu account / business identifier.",
-    placeholder: "zav_xxxxxxxx",
-  },
-  {
-    key: "zavu_phone_number_id",
-    label: "Zavu Phone Number ID",
-    hint: "ID of the registered WhatsApp Business sender number in Zavu.",
-    placeholder: "phn_xxxxxxxx",
-  },
-  {
-    key: "zavu_otp_template_name",
-    label: "Zavu OTP Template Name",
-    hint: "Approved WhatsApp template used to deliver one-time codes.",
-    placeholder: "stegofy_otp",
-  },
-  {
-    key: "zavu_otp_template_lang",
-    label: "Zavu OTP Template Language",
-    hint: "Template language code (e.g. en, en_US, hi).",
-    placeholder: "en",
+    key: "zavu_sender_id",
+    label: "Zavu Sender ID",
+    hint: "Sender profile that owns your WhatsApp Business phone in Zavu (Zavu dashboard → Senders).",
+    placeholder: "snd_xxxxxxxx",
   },
   {
     key: "zavu_webhook_secret",
     label: "Zavu Webhook Secret",
-    hint: "Shared secret used to verify status webhook signatures.",
-    placeholder: "Enter Zavu webhook secret…",
+    hint: "Shown once when you configure the webhook on the sender in Zavu dashboard.",
+    placeholder: "whsec_…",
+  },
+  {
+    key: "zavu_otp_template_id",
+    label: "OTP Template ID",
+    hint: "Approved AUTHENTICATION template for OTP codes. Run scripts/zavu-setup.ts to create.",
+    placeholder: "tpl_xxxxxxxx",
+  },
+  {
+    key: "zavu_vehicle_report_template_id",
+    label: "Vehicle Report Template ID",
+    hint: "Approved UTILITY template sent to owners when a stranger reports about their vehicle.",
+    placeholder: "tpl_xxxxxxxx",
+  },
+  {
+    key: "zavu_scan_alert_template_id",
+    label: "Scan Alert Template ID",
+    hint: "Approved UTILITY template sent to owners when their QR is scanned (opt-in per QR).",
+    placeholder: "tpl_xxxxxxxx",
   },
   // ── Exotel (SMS + masked calls + WhatsApp fallback) ───────────────────
   {
@@ -175,7 +175,6 @@ const DEFAULT_VALUES: Record<string, string> = {
   // Cost Control — monthly budget stored in paise; UI shows ₹.
   monthly_budget_paise: "0",
   over_budget_behavior: "calls_only",
-  zavu_otp_template_lang: "en",
 };
 
 function labelOf(key: string): string {

@@ -174,7 +174,7 @@ export interface SendResult {
 interface SmartSendArgs {
   to: string;
   body: string;
-  template?: { name: string; lang?: string; params?: string[] };
+  template?: { id: string; variables?: Record<string, string> };
   contactRequestId?: string | null;
   qrId?: string | null;
 }
@@ -217,9 +217,8 @@ export async function sendWhatsAppSmart(args: SmartSendArgs): Promise<SendResult
       ? await sendWhatsAppViaZavu({
           to: args.to,
           body: args.body,
-          templateName: args.template?.name,
-          templateLang: args.template?.lang,
-          templateParams: args.template?.params,
+          templateId: args.template?.id,
+          templateVariables: args.template?.variables,
         })
       : await sendWhatsAppViaExotel({ to: args.to, body: args.body });
 
@@ -231,7 +230,7 @@ export async function sendWhatsAppSmart(args: SmartSendArgs): Promise<SendResult
       provider,
       providerMessageId: r.providerMessageId,
       status: r.ok ? "queued" : "failed",
-      template: args.template?.name ?? null,
+      template: args.template?.id ?? null,
       payloadSummary: args.body.slice(0, 200),
       errorCode: r.errorCode,
       errorMessage: r.errorMessage,

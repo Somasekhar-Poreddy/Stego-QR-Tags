@@ -10,5 +10,8 @@
   "devDependencies": {
     "@types/node": "catalog:",
     "tsx": "catalog:"
+  },
+  "dependencies": {
+    "@zavudev/sdk": "^0.38.0"
   }
 }

@@ -178,6 +178,9 @@ importers:
       '@workspace/db':
         specifier: workspace:*
         version: link:../lib/db
+      '@zavudev/sdk':
+        specifier: ^0.38.0
+        version: 0.38.0
       cookie-parser:
         specifier: ^1.4.7
         version: 1.4.7
@@ -510,6 +513,10 @@ importers:
         version: 0.31.9
 
   scripts:
+    dependencies:
+      '@zavudev/sdk':
+        specifier: ^0.38.0
+        version: 0.38.0
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
@@ -1982,6 +1989,9 @@ packages:
     engines: {node: ^20.19.0 || >=22.12.0}
     peerDependencies:
       vite: ^4.2.0 || ^5.0.0 || ^6.0.0 || ^7.0.0
+
+  '@zavudev/sdk@0.38.0':
+    resolution: {integrity: sha512-3/ZjHHMg8wzoyC1ZwNlfuhOWvEPFpaiMBWcVdzF8Go8xbdFmQHr/+s1oiGhhIkO+7vg6Lm6Q7RZfafQR/VKdqA==}
 
   accepts@2.0.0:
     resolution: {integrity: sha512-5cvg6CtKwfgdmVqY1WIiXKc3Q1bkRqGLi+2W/6ao+6Y7gu/RCwRuAhGEzh5B4KlszSuTLgZYuqFqo5bImjNKng==}
@@ -5220,6 +5230,8 @@ snapshots:
       vite: 7.3.2(@types/node@25.3.5)(jiti@2.6.1)(lightningcss@1.31.1)(tsx@4.21.0)(yaml@2.8.2)
     transitivePeerDependencies:
       - supports-color
+
+  '@zavudev/sdk@0.38.0': {}
 
   accepts@2.0.0:
     dependencies:

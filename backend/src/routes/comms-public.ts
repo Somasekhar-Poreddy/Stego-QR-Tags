@@ -400,14 +400,14 @@ router.post("/qr/:qrId/contact/message", async (req: Request, res: Response) => 
     providerMetadata: { channel: "message" },
   });
 
+  const reportTemplateId = settings.zavu_vehicle_report_template_id?.trim();
   const result = await sendMessageSmart({
     to: ownerPhone,
     body,
-    template: {
-      name: settings.zavu_vehicle_report_template_name || "stegotags_vehicle_report_v1",
-      lang: settings.zavu_vehicle_report_template_lang || "en",
-      params: [messageParam.slice(0, 900), ctx.phone, tagLabel],
-    },
+    template: reportTemplateId ? {
+      id: reportTemplateId,
+      variables: { "1": messageParam.slice(0, 900), "2": ctx.phone, "3": tagLabel },
+    } : undefined,
     contactRequestId,
     qrId: ctx.qrId,
   });

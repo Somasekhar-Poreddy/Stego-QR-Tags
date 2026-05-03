@@ -59,12 +59,12 @@ export async function requestOtp(opts: {
   const codeHash = hashCode(code);
   const expires = new Date(Date.now() + OTP_TTL_SECONDS * 1000);
 
-  // Compose a tiny, template-friendly message. If a Zavu template name is
-  // configured we use the template-with-params shape; otherwise we fall back
-  // to a plain text body (works for Exotel + WhatsApp session messages).
-  const templateName = settings.zavu_otp_template_name?.trim();
-  const templateLang = settings.zavu_otp_template_lang?.trim() || "en";
+  // Compose a tiny, template-friendly message. If a Zavu template id is
+  // configured we use the template-with-variables shape; otherwise we fall
+  // back to a plain text body (works for Exotel + WhatsApp session messages).
+  const templateId = settings.zavu_otp_template_id?.trim();
   const body = `Your StegoTags verification code is ${code}. It expires in 10 minutes.`;
+  const template = templateId ? { id: templateId, variables: { "1": code } } : undefined;
 
   const channelPref = (settings.comms_otp_channel ?? "whatsapp_first").toLowerCase();
 
@@ -74,21 +74,11 @@ export async function requestOtp(opts: {
     result = await sendSmsSmart({ to: opts.phone, body, qrId: opts.qrId ?? null });
     channelUsed = result.ok ? "sms" : null;
   } else if (channelPref === "whatsapp") {
-    result = await sendWhatsAppSmart({
-      to: opts.phone,
-      body,
-      template: templateName ? { name: templateName, lang: templateLang, params: [code] } : undefined,
-      qrId: opts.qrId ?? null,
-    });
+    result = await sendWhatsAppSmart({ to: opts.phone, body, template, qrId: opts.qrId ?? null });
     channelUsed = result.ok ? "whatsapp" : null;
   } else {
     // whatsapp_first
-    result = await sendWhatsAppSmart({
-      to: opts.phone,
-      body,
-      template: templateName ? { name: templateName, lang: templateLang, params: [code] } : undefined,
-      qrId: opts.qrId ?? null,
-    });
+    result = await sendWhatsAppSmart({ to: opts.phone, body, template, qrId: opts.qrId ?? null });
     if (result.ok) {
       channelUsed = "whatsapp";
     } else {

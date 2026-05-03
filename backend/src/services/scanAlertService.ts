@@ -37,8 +37,9 @@ export async function maybeSendScanAlert(opts: {
   });
   if (!hourlyBucket.allowed) return;
 
-  const templateName = settings.zavu_scan_alert_template_name || "stegotags_scan_alert_v1";
-  const templateLang = settings.zavu_scan_alert_template_lang || "en";
+  const templateId = settings.zavu_scan_alert_template_id?.trim();
+  if (!templateId) return;
+
   const qrName = getQrLabel(qr);
   const timeStr = opts.timestamp.toLocaleString("en-IN", {
     timeZone: "Asia/Kolkata",
@@ -54,7 +55,7 @@ export async function maybeSendScanAlert(opts: {
   const result = await sendWhatsAppSmart({
     to: ownerPhone,
     body: `Your StegoTags QR "${qrName}" was scanned at ${timeStr} from ${location}.`,
-    template: { name: templateName, lang: templateLang, params: [qrName, timeStr, location] },
+    template: { id: templateId, variables: { "1": qrName, "2": timeStr, "3": location } },
     qrId: opts.qrId,
   });
 

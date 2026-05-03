@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import Zavudev, { APIError } from "@zavudev/sdk";
 import { logger } from "../lib/logger.js";
 import { getCommsSettings } from "./commsCredentials.js";
 
@@ -12,93 +13,82 @@ export interface ZavuSendResult {
 }
 
 interface SendArgs {
-  to: string;             // E.164
-  body?: string;          // plain text fallback
-  templateName?: string;  // approved template name (preferred for utility/auth)
-  templateLang?: string;  // e.g. "en"
-  templateParams?: string[];
+  to: string;
+  body?: string;
+  templateId?: string;
+  templateVariables?: Record<string, string>;
+  senderId?: string;
 }
 
-const DEFAULT_BASE_URL = "https://api.zavu.in/v1";
+let cachedClient: { key: string; client: Zavudev } | null = null;
 
-function getBaseUrl(): string {
-  return (process.env.ZAVU_API_BASE_URL ?? DEFAULT_BASE_URL).replace(/\/$/, "");
+async function getClient(): Promise<Zavudev | null> {
+  const s = await getCommsSettings();
+  if (!s.zavu_api_key) return null;
+  if (cachedClient?.key === s.zavu_api_key) return cachedClient.client;
+  const client = new Zavudev({ apiKey: s.zavu_api_key });
+  cachedClient = { key: s.zavu_api_key, client };
+  return client;
 }
 
 export async function isZavuConfigured(): Promise<boolean> {
   const s = await getCommsSettings();
-  return Boolean(s.zavu_api_key && s.zavu_account_id && s.zavu_phone_number_id);
+  return Boolean(s.zavu_api_key && s.zavu_sender_id);
 }
 
 export async function sendWhatsAppViaZavu(args: SendArgs): Promise<ZavuSendResult> {
+  const client = await getClient();
   const s = await getCommsSettings();
-  if (!s.zavu_api_key || !s.zavu_account_id || !s.zavu_phone_number_id) {
+  if (!client || !s.zavu_sender_id) {
     return {
       ok: false,
       providerMessageId: null,
       status: "failed",
       errorCode: "ZAVU_NOT_CONFIGURED",
-      errorMessage: "Zavu credentials are missing.",
+      errorMessage: "Zavu API key or sender ID is missing.",
     };
   }
 
-  const url = `${getBaseUrl()}/accounts/${encodeURIComponent(s.zavu_account_id)}/messages`;
-
-  const payload: Record<string, unknown> = {
-    phone_number_id: s.zavu_phone_number_id,
-    to: args.to,
-  };
-
-  if (args.templateName) {
-    payload.type = "template";
-    payload.template = {
-      name: args.templateName,
-      language: { code: args.templateLang ?? s.zavu_otp_template_lang ?? "en" },
-      components: args.templateParams && args.templateParams.length > 0
-        ? [{
-            type: "body",
-            parameters: args.templateParams.map((text) => ({ type: "text", text })),
-          }]
-        : [],
-    };
-  } else {
-    payload.type = "text";
-    payload.text = { body: args.body ?? "" };
-  }
+  const senderId = args.senderId ?? s.zavu_sender_id;
 
   try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${s.zavu_api_key}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(10_000),
-    });
-    const json = await res.json().catch(() => ({})) as Record<string, unknown>;
-    if (!res.ok) {
-      const err = json.error as { code?: string; message?: string } | undefined;
+    const response = args.templateId
+      ? await client.messages.send({
+          to: args.to,
+          channel: "whatsapp",
+          messageType: "template",
+          content: {
+            templateId: args.templateId,
+            templateVariables: args.templateVariables ?? {},
+          },
+          "Zavu-Sender": senderId,
+        })
+      : await client.messages.send({
+          to: args.to,
+          channel: "whatsapp",
+          text: args.body ?? "",
+          "Zavu-Sender": senderId,
+        });
+
+    return {
+      ok: true,
+      providerMessageId: response.message.id,
+      status: "queued",
+      errorCode: null,
+      errorMessage: null,
+      raw: response,
+    };
+  } catch (err) {
+    if (err instanceof APIError) {
       return {
         ok: false,
         providerMessageId: null,
         status: "failed",
-        errorCode: err?.code ?? `HTTP_${res.status}`,
-        errorMessage: err?.message ?? `Zavu HTTP ${res.status}`,
-        raw: json,
+        errorCode: String(err.status),
+        errorMessage: err.message,
+        raw: err,
       };
     }
-    const msgId = (json.message_id as string)
-      ?? ((json.messages as Array<{ id?: string }> | undefined)?.[0]?.id ?? null);
-    return {
-      ok: true,
-      providerMessageId: msgId ?? null,
-      status: "queued",
-      errorCode: null,
-      errorMessage: null,
-      raw: json,
-    };
-  } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown Zavu error";
     logger.warn({ err: message }, "Zavu send failed");
     return {
@@ -111,52 +101,46 @@ export async function sendWhatsAppViaZavu(args: SendArgs): Promise<ZavuSendResul
   }
 }
 
-/**
- * Lightweight credential probe used by the admin "Test connection" button.
- * Issues a tiny GET that requires only auth — never sends a message.
- */
 export async function probeZavuCredentials(): Promise<{ ok: boolean; status: number; error: string | null }> {
-  const s = await getCommsSettings();
-  if (!s.zavu_api_key || !s.zavu_account_id) {
-    return { ok: false, status: 0, error: "Missing API key or account id." };
-  }
-  const url = `${getBaseUrl()}/accounts/${encodeURIComponent(s.zavu_account_id)}/phone-numbers`;
+  const client = await getClient();
+  if (!client) return { ok: false, status: 0, error: "Missing API key." };
   try {
-    const res = await fetch(url, {
-      method: "GET",
-      headers: { Authorization: `Bearer ${s.zavu_api_key}` },
-      signal: AbortSignal.timeout(8_000),
-    });
-    if (res.ok) return { ok: true, status: res.status, error: null };
-    if (res.status === 401 || res.status === 403) {
-      return { ok: false, status: res.status, error: "Zavu rejected the credentials." };
-    }
-    return { ok: false, status: res.status, error: `HTTP ${res.status}` };
+    await client.senders.list({ limit: 1 });
+    return { ok: true, status: 200, error: null };
   } catch (err) {
+    if (err instanceof APIError) return { ok: false, status: err.status ?? 0, error: err.message };
     return { ok: false, status: 0, error: err instanceof Error ? err.message : "Network error." };
   }
 }
 
 /**
- * Verify a Zavu webhook signature. Zavu (and most modern webhook providers)
- * sign payloads with HMAC-SHA256 of the raw body using the shared secret.
- * We accept either an X-Zavu-Signature or X-Hub-Signature-256 header.
- *
- * If no secret is configured, we accept the webhook but return `unsigned`,
- * which the caller can log.
+ * Verify Zavu webhook signature.
+ * Header format: X-Zavu-Signature: t=<unix_ts>,v1=<hex_hmac>
+ * Signed payload: `${timestamp}.${rawBody}`
+ * Timestamp older than 5 minutes is rejected (replay protection).
  */
 export async function verifyZavuSignature(
   rawBody: string,
   signatureHeader: string | undefined,
-): Promise<{ ok: boolean; reason: "ok" | "missing_secret" | "missing_header" | "mismatch" }> {
+): Promise<{ ok: boolean; reason: "ok" | "missing_secret" | "missing_header" | "stale" | "mismatch" }> {
   const s = await getCommsSettings();
   const secret = (s.zavu_webhook_secret ?? "").trim();
-  // Fail closed: refuse to process webhooks while no secret is configured.
-  // Otherwise anyone could POST forged status events and corrupt message logs.
   if (!secret) return { ok: false, reason: "missing_secret" };
   if (!signatureHeader) return { ok: false, reason: "missing_header" };
-  const provided = signatureHeader.replace(/^sha256=/, "").trim().toLowerCase();
-  const expected = crypto.createHmac("sha256", secret).update(rawBody).digest("hex");
+
+  const parts = signatureHeader.split(",").map((p) => p.trim());
+  const tPart = parts.find((p) => p.startsWith("t="));
+  const vPart = parts.find((p) => p.startsWith("v1="));
+  if (!tPart || !vPart) return { ok: false, reason: "missing_header" };
+
+  const timestamp = parseInt(tPart.slice(2), 10);
+  const provided = vPart.slice(3).toLowerCase();
+  if (!Number.isFinite(timestamp)) return { ok: false, reason: "missing_header" };
+
+  if (Math.floor(Date.now() / 1000) - timestamp > 300) return { ok: false, reason: "stale" };
+
+  const signedPayload = `${timestamp}.${rawBody}`;
+  const expected = crypto.createHmac("sha256", secret).update(signedPayload).digest("hex");
   try {
     const ok = provided.length === expected.length
       && crypto.timingSafeEqual(Buffer.from(provided, "hex"), Buffer.from(expected, "hex"));
