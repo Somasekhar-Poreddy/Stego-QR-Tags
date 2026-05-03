@@ -1,21 +1,24 @@
 import jsPDF from "jspdf";
 import QRCodeLib from "qrcode";
-import { toPng } from "html-to-image";
 import type { QRInventoryItem } from "@/services/adminService";
 
 export const STICKER_MM = { width: 100, height: 70 } as const;
 
-const TYPE_CONTENT: Record<string, {
+/* ─── Per-type content (matches QRCardDesign.tsx) ─────────────────────────── */
+
+interface TypeContent {
   heading: string;
   sub: string;
   icons: string[];
   iconLabel: string;
   gradFrom: string;
   gradTo: string;
-}> = {
+}
+
+const TYPE_CONTENT: Record<string, TypeContent> = {
   vehicle:    { heading: "Scan to contact\nthe vehicle owner.", sub: "Stegofy QR tag. Contact owner, help\nin emergency, or wrong parking.", icons: ["🚗", "🚨", "📞", "⚠️"], iconLabel: "Wrong Parking, Emergency Contact, any issue with the vehicle, Scan the QR.", gradFrom: "#2563EB", gradTo: "#6D28D9" },
   pet:        { heading: "Scan to help this\npet get home.", sub: "Lost pet? Scan to reach\nthe owner instantly.", icons: ["🐾", "🏠", "📞", "❤️"], iconLabel: "Lost pet? Scan to contact the owner and help them reunite.", gradFrom: "#F43F5E", gradTo: "#BE185D" },
-  child:      { heading: "Scan to contact\nthe parent.", sub: "Lost child? Scan to reach\na parent or guardian immediately.", icons: ["👦", "🏠", "📞", "🆘"], iconLabel: "Lost child? Scan to contact the parent or guardian.", gradFrom: "#22C55E", gradTo: "#0F766E" },
+  child:      { heading: "Scan to contact\nthe parent.", sub: "Lost child? Scan to reach\na parent or guardian.", icons: ["👦", "🏠", "📞", "🆘"], iconLabel: "Lost child? Scan to contact the parent or guardian.", gradFrom: "#22C55E", gradTo: "#0F766E" },
   medical:    { heading: "Scan for emergency\nmedical info.", sub: "Critical health information\nfor first responders.", icons: ["🏥", "❤️", "📞", "🆘"], iconLabel: "Emergency medical info, blood group, allergies — scan now.", gradFrom: "#EF4444", gradTo: "#9F1239" },
   luggage:    { heading: "Scan to return\nthis luggage.", sub: "Found this bag? Scan to reach\nthe owner and return it.", icons: ["🧳", "✈️", "📞", "🙏"], iconLabel: "Found this luggage? Scan to contact the owner.", gradFrom: "#6366F1", gradTo: "#6B21A8" },
   wallet:     { heading: "Scan to return\nthis lost item.", sub: "Found this wallet or keys? Scan\nto reach the owner.", icons: ["👛", "🔑", "📞", "🙏"], iconLabel: "Found this item? Scan to return it to the owner.", gradFrom: "#F59E0B", gradTo: "#C2410C" },
@@ -25,23 +28,166 @@ const TYPE_CONTENT: Record<string, {
   belongings: { heading: "Scan to return\nthis item.", sub: "Found this item? Scan to reach\nthe owner and return it.", icons: ["🎒", "🔍", "📞", "🙏"], iconLabel: "Found this item? Scan to contact the owner.", gradFrom: "#F59E0B", gradTo: "#A16207" },
 };
 
-const SHIELD_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg>`;
+function contentFor(type: string | null | undefined): TypeContent {
+  return TYPE_CONTENT[type ?? ""] ?? TYPE_CONTENT.belongings;
+}
 
-const BRAND_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="36" height="36"><rect x="2" y="2" width="60" height="60" rx="14" fill="none" stroke="#BFDBFE" stroke-width="2"/><rect x="6" y="6" width="52" height="52" rx="11" fill="none" stroke="#93C5FD" stroke-width="1.5"/><rect x="11" y="11" width="42" height="42" rx="9" fill="#2563EB"/><path d="M32 18 L42 22 L42 32 Q42 39 32 44 Q22 39 22 32 L22 22 Z" fill="#FFFFFF"/><path d="M28 27 Q28 25 30 25 L34 25 Q36 25 36 27 L34 28 Q33 27 31 28 Q30 29 32 30 L34 31 Q36 32 36 34 Q36 36 34 36 L30 36 Q28 36 28 34 L30 33 Q31 35 32 34 Q33 33 31 32 L29 31 Q28 30 28 28 Z" fill="#2563EB"/></svg>`;
+/* ─── Emoji → small PNG data URL (cached) ────────────────────────────────── */
+
+const emojiCache = new Map<string, string>();
+
+function emojiToPng(emoji: string, size = 64): string {
+  const cached = emojiCache.get(emoji);
+  if (cached) return cached;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d")!;
+  ctx.font = `${size * 0.7}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(emoji, size / 2, size / 2 + 2);
+  const url = canvas.toDataURL("image/png");
+  emojiCache.set(emoji, url);
+  return url;
+}
+
+/* ─── QR code generation ─────────────────────────────────────────────────── */
 
 async function toQrDataUrl(text: string): Promise<string> {
   return QRCodeLib.toDataURL(text, {
-    width: 512,
-    margin: 1,
+    width: 512, margin: 1,
     color: { dark: "#0F172A", light: "#FFFFFF" },
     errorCorrectionLevel: "H",
   });
 }
 
+/* ─── SVG sticker builder ────────────────────────────────────────────────── */
+
+function esc(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function svgMultiline(lines: string[], x: number, y: number, fontSize: number, lineHeight: number, attrs: string): string {
+  return lines.map((line, i) =>
+    `<text x="${x}" y="${y + i * lineHeight}" font-size="${fontSize}" ${attrs}>${esc(line)}</text>`,
+  ).join("\n");
+}
+
+function buildStickerSvg(
+  item: { type?: string | null; display_code?: string | null; qr_code?: string | null; pin_code?: string | null },
+  qrDataUrl: string,
+): string {
+  const W = 680, H = 360, LEFT = 374;
+  const RIGHT_X = LEFT, RIGHT_W = W - LEFT;
+  const c = contentFor(item.type);
+  const code = item.display_code ?? item.qr_code ?? "STG---------";
+  const pin = item.pin_code ?? "----";
+  const gradId = `g_${Math.random().toString(36).slice(2, 8)}`;
+
+  const emojiImgs = c.icons.map((emoji, i) => {
+    const png = emojiToPng(emoji);
+    const cx = RIGHT_X + RIGHT_W / 2 - 78 + i * 40;
+    const cy = H - 68;
+    return `<circle cx="${cx + 16}" cy="${cy + 16}" r="18" fill="rgba(255,255,255,0.22)"/>
+            <image href="${png}" x="${cx}" y="${cy}" width="32" height="32"/>`;
+  }).join("\n");
+
+  const headingLines = c.heading.split("\n");
+  const subLines = c.sub.split("\n");
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+  <defs>
+    <linearGradient id="${gradId}" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="${c.gradFrom}"/>
+      <stop offset="100%" stop-color="${c.gradTo}"/>
+    </linearGradient>
+    <clipPath id="clip_${gradId}"><rect width="${W}" height="${H}" rx="20"/></clipPath>
+  </defs>
+
+  <g clip-path="url(#clip_${gradId})">
+    <!-- Left panel -->
+    <rect width="${LEFT}" height="${H}" fill="#F8FAFC"/>
+
+    <!-- Right panel gradient -->
+    <rect x="${RIGHT_X}" width="${RIGHT_W}" height="${H}" fill="url(#${gradId})"/>
+
+    <!-- Brand icon -->
+    <g transform="translate(36,32)">
+      <rect width="36" height="36" rx="8" fill="#2563EB"/>
+      <path d="M18 8 L26 11 L26 18 Q26 23.5 18 27 Q10 23.5 10 18 L10 11 Z" fill="#fff"/>
+      <path d="M15 15.5 Q15 14 16.5 14 L19.5 14 Q21 14 21 15.5 L19.5 16 Q19 15.2 17.5 16 Q17 16.8 18.5 17.5 L19.5 18 Q21 18.8 21 20 Q21 21.5 19.5 21.5 L16.5 21.5 Q15 21.5 15 20 L16.5 19 Q17 20.5 18 20 Q18.8 19.2 17.5 18.5 L16.5 18 Q15 17.2 15 16 Z" fill="#2563EB"/>
+    </g>
+
+    <!-- StegoTags text -->
+    <text x="82" y="52" font-family="system-ui,-apple-system,sans-serif" font-size="18" font-weight="800" fill="#2563EB">StegoTags</text>
+    <text x="82" y="64" font-family="system-ui,-apple-system,sans-serif" font-size="9" font-weight="500" fill="#94A3B8" letter-spacing="0.5">SECURE QR IDENTITY</text>
+
+    <!-- Subtitle -->
+    ${svgMultiline(subLines, 36, 115, 11, 16, 'font-family="system-ui,-apple-system,sans-serif" font-weight="500" fill="#64748B"')}
+
+    <!-- Heading -->
+    ${svgMultiline(headingLines, 36, 165, 22, 28, 'font-family="system-ui,-apple-system,sans-serif" font-weight="800" fill="#0F172A"')}
+
+    <!-- Scan instruction -->
+    <text x="36" y="${H - 50}" font-family="system-ui,-apple-system,sans-serif" font-size="9" font-weight="700" fill="#94A3B8" letter-spacing="1">SCAN USING PHONE CAMERA, GOOGLE</text>
+    <text x="36" y="${H - 38}" font-family="system-ui,-apple-system,sans-serif" font-size="9" font-weight="700" fill="#94A3B8" letter-spacing="1">LENS OR ANY QR SCANNER APP.</text>
+
+    <!-- Privacy line with shield -->
+    <g transform="translate(36,${H - 22})">
+      <path d="M6 1 L11 3 L11 7 Q11 10.5 6 12 Q1 10.5 1 7 L1 3 Z" fill="none" stroke="#3B82F6" stroke-width="1.2"/>
+      <text x="16" y="9" font-family="system-ui,-apple-system,sans-serif" font-size="9" font-weight="600" fill="#3B82F6" letter-spacing="0.3">Privacy protected by StegoTags</text>
+    </g>
+
+    <!-- QR code card (shadow + white card + QR) -->
+    <rect x="${RIGHT_X + (RIGHT_W - 172) / 2 + 3}" y="31" width="172" height="172" rx="16" fill="rgba(0,0,0,0.08)"/>
+    <rect x="${RIGHT_X + (RIGHT_W - 172) / 2}" y="28" width="172" height="172" rx="16" fill="#FFFFFF"/>
+    <image href="${qrDataUrl}" x="${RIGHT_X + (RIGHT_W - 148) / 2}" y="40" width="148" height="148"/>
+
+    <!-- Display code -->
+    <text x="${RIGHT_X + RIGHT_W / 2}" y="225" font-family="system-ui,-apple-system,sans-serif" font-size="14" font-weight="800" fill="#FFFFFF" text-anchor="middle" letter-spacing="2">${esc(code)}</text>
+
+    <!-- PIN -->
+    <text x="${RIGHT_X + RIGHT_W / 2}" y="245" font-family="system-ui,-apple-system,sans-serif" font-size="10" font-weight="600" fill="rgba(255,255,255,0.7)" text-anchor="middle" letter-spacing="1">PIN: ${esc(pin)}</text>
+
+    <!-- Emoji icons -->
+    ${emojiImgs}
+
+    <!-- Icon label -->
+    <text x="${RIGHT_X + RIGHT_W / 2}" y="${H - 14}" font-family="system-ui,-apple-system,sans-serif" font-size="7" font-weight="500" fill="rgba(255,255,255,0.8)" text-anchor="middle">${esc(c.iconLabel.length > 60 ? c.iconLabel.slice(0, 57) + "..." : c.iconLabel)}</text>
+  </g>
+</svg>`;
+}
+
+/* ─── SVG → PNG via canvas (no html-to-image, no CORS) ───────────────────── */
+
+function svgToPng(svgString: string, w: number, h: number, scale = 2): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const blob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = w * scale;
+      canvas.height = h * scale;
+      const ctx = canvas.getContext("2d")!;
+      ctx.scale(scale, scale);
+      ctx.drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL("image/png"));
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("SVG render failed"));
+    };
+    img.src = url;
+  });
+}
+
+/* ─── Concurrency helper ─────────────────────────────────────────────────── */
+
 async function mapConcurrent<T, R>(
-  arr: T[],
-  limit: number,
-  fn: (item: T, i: number) => Promise<R>,
+  arr: T[], limit: number, fn: (item: T, i: number) => Promise<R>,
 ): Promise<R[]> {
   const results: R[] = new Array(arr.length);
   let cursor = 0;
@@ -55,86 +201,17 @@ async function mapConcurrent<T, R>(
   return results;
 }
 
-function buildStickerHtml(
-  item: { type?: string | null; display_code?: string | null; qr_code?: string | null; pin_code?: string | null },
-  qrDataUrl: string,
-): string {
-  const content = TYPE_CONTENT[item.type ?? ""] ?? TYPE_CONTENT.belongings;
-  const displayCode = item.display_code ?? item.qr_code ?? "STG---------";
-  const pinCode = item.pin_code ?? "----";
-  const iconCircles = content.icons.map(
-    (ico) => `<div style="width:32px;height:32px;background:rgba(255,255,255,0.2);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);">${ico}</div>`,
-  ).join("");
-
-  return `<div style="width:680px;height:360px;font-family:'Poppins',system-ui,sans-serif;display:flex;border-radius:20px;overflow:hidden;background:#fff;box-shadow:0 25px 50px -12px rgba(0,0,0,0.25);">
-  <div style="width:374px;display:flex;flex-direction:column;justify-content:space-between;padding:32px 36px;background:#F8FAFC;">
-    <div style="display:flex;align-items:center;gap:10px;">
-      ${BRAND_ICON_SVG}
-      <div>
-        <span style="font-size:18px;font-weight:800;background:linear-gradient(to right,#2563EB,#7C3AED);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;color:transparent;line-height:1;">StegoTags</span>
-        <p style="font-size:9px;color:#94A3B8;margin:2px 0 0;font-weight:500;letter-spacing:0.05em;line-height:1;">SECURE QR IDENTITY</p>
-      </div>
-    </div>
-    <div style="flex:1;display:flex;flex-direction:column;justify-content:center;margin-top:16px;margin-bottom:8px;">
-      <p style="font-size:11px;color:#64748B;font-weight:500;margin:0 0 8px;line-height:1.625;white-space:pre-line;">${content.sub}</p>
-      <h2 style="font-size:22px;font-weight:800;color:#0F172A;line-height:1.15;white-space:pre-line;margin:0;">${content.heading}</h2>
-    </div>
-    <div>
-      <p style="font-size:9px;font-weight:700;color:#94A3B8;letter-spacing:0.1em;text-transform:uppercase;margin:0 0 12px;line-height:1.5;">SCAN USING PHONE CAMERA, GOOGLE LENS OR ANY QR SCANNER APP.</p>
-      <div style="display:flex;align-items:center;gap:6px;">${SHIELD_SVG}<span style="font-size:9px;font-weight:600;color:#3B82F6;letter-spacing:0.05em;">Privacy protected by StegoTags</span></div>
-    </div>
-  </div>
-  <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:28px 24px;background:linear-gradient(to bottom right,${content.gradFrom},${content.gradTo});">
-    <div style="background:#fff;border-radius:16px;padding:12px;box-shadow:0 10px 15px -3px rgba(0,0,0,0.1),0 4px 6px -4px rgba(0,0,0,0.1);">
-      <img src="${qrDataUrl}" width="148" height="148" style="display:block;" />
-    </div>
-    <div style="text-align:center;">
-      <p style="color:#fff;font-weight:800;letter-spacing:0.1em;font-size:14px;line-height:1;margin:0;">${displayCode}</p>
-      <p style="color:rgba(255,255,255,0.7);font-size:10px;font-weight:600;margin:4px 0 0;letter-spacing:0.05em;">PIN: ${pinCode}</p>
-    </div>
-    <div style="display:flex;flex-direction:column;align-items:center;gap:8px;width:100%;">
-      <div style="display:flex;gap:8px;">${iconCircles}</div>
-      <p style="color:rgba(255,255,255,0.8);font-size:8px;font-weight:500;text-align:center;line-height:1.5;padding:0 8px;margin:0;">${content.iconLabel}</p>
-    </div>
-  </div>
-</div>`;
-}
+/* ─── Render one sticker to PNG ──────────────────────────────────────────── */
 
 async function renderStickerPng(
   item: { type?: string | null; display_code?: string | null; qr_code?: string | null; pin_code?: string | null },
   qrDataUrl: string,
 ): Promise<string> {
-  await document.fonts.ready;
-
-  const container = document.createElement("div");
-  container.style.cssText = "position:absolute;left:-9999px;top:0;z-index:-1;pointer-events:none;";
-  container.innerHTML = buildStickerHtml(item, qrDataUrl);
-  document.body.appendChild(container);
-
-  const el = container.firstElementChild as HTMLElement;
-  if (!el) {
-    document.body.removeChild(container);
-    throw new Error("Failed to parse sticker HTML");
-  }
-
-  try {
-    let lastErr: Error | null = null;
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try {
-        if (attempt > 0) await new Promise((r) => setTimeout(r, 200 * attempt));
-        const png = await toPng(el, { pixelRatio: 2, cacheBust: true });
-        return png;
-      } catch (e) {
-        lastErr = e instanceof Error ? e : new Error(String(e));
-      }
-    }
-    throw lastErr ?? new Error("toPng failed after retries");
-  } finally {
-    document.body.removeChild(container);
-  }
+  const svg = buildStickerSvg(item, qrDataUrl);
+  return svgToPng(svg, 680, 360, 2);
 }
 
-/* ─── Cut-line helpers ───────────────────────────────────────────────────── */
+/* ─── Scissors + cut guides (jsPDF drawing) ──────────────────────────────── */
 
 function drawScissors(doc: jsPDF, x: number, y: number): void {
   doc.setDrawColor(15, 23, 42);
@@ -146,9 +223,7 @@ function drawScissors(doc: jsPDF, x: number, y: number): void {
   doc.line(x + 0.95, y + 0.7, x + 3.2, y);
 }
 
-function drawCutLineHorizontal(
-  doc: jsPDF, x1: number, x2: number, y: number, withScissors = true,
-): void {
+function drawCutLineHorizontal(doc: jsPDF, x1: number, x2: number, y: number, withScissors = true): void {
   if (withScissors) drawScissors(doc, x1, y);
   doc.setDrawColor(120, 130, 145);
   doc.setLineWidth(0.18);
@@ -157,9 +232,7 @@ function drawCutLineHorizontal(
   doc.setLineDashPattern([], 0);
 }
 
-function drawCutLineVertical(
-  doc: jsPDF, x: number, y1: number, y2: number,
-): void {
+function drawCutLineVertical(doc: jsPDF, x: number, y1: number, y2: number): void {
   doc.setDrawColor(120, 130, 145);
   doc.setLineWidth(0.18);
   doc.setLineDashPattern([1.2, 1.2], 0);
@@ -170,9 +243,7 @@ function drawCutLineVertical(
 const ROW_GAP = 4;
 const COL_GAP = 4;
 
-function drawCutGuides(
-  doc: jsPDF, sideMargin: number, topMargin: number, rowsOnPage: number,
-): void {
+function drawCutGuides(doc: jsPDF, sideMargin: number, topMargin: number, rowsOnPage: number): void {
   const totalW = STICKER_MM.width * 2 + COL_GAP;
   for (let r = 1; r < rowsOnPage; r++) {
     const yLine = topMargin + r * STICKER_MM.height + (r - 1) * ROW_GAP + ROW_GAP / 2;
@@ -191,7 +262,7 @@ function drawCutGuides(
   doc.line(xLine + 0.7, yTop - 0.25, xLine, yTop + 1.5);
 }
 
-/* ─── Public API (same signatures as before) ─────────────────────────────── */
+/* ─── Public API ─────────────────────────────────────────────────────────── */
 
 export async function generateSingleStickerPdf(item: QRInventoryItem): Promise<jsPDF> {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
@@ -252,7 +323,7 @@ export async function generateBatchStickerPdf(
 
 export async function downloadSingleStickerPdf(item: QRInventoryItem): Promise<void> {
   const doc = await generateSingleStickerPdf(item);
-  const fname = item.display_code ?? item.qr_code ?? `stegofy-${item.id.slice(0, 8)}`;
+  const fname = item.display_code ?? item.qr_code ?? `stegotags-${item.id.slice(0, 8)}`;
   doc.save(`${fname}-sticker.pdf`);
 }
 
