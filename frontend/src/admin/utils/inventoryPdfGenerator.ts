@@ -27,6 +27,8 @@ const TYPE_CONTENT: Record<string, {
 
 const SHIELD_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg>`;
 
+const BRAND_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="36" height="36"><rect x="2" y="2" width="60" height="60" rx="14" fill="none" stroke="#BFDBFE" stroke-width="2"/><rect x="6" y="6" width="52" height="52" rx="11" fill="none" stroke="#93C5FD" stroke-width="1.5"/><rect x="11" y="11" width="42" height="42" rx="9" fill="#2563EB"/><path d="M32 18 L42 22 L42 32 Q42 39 32 44 Q22 39 22 32 L22 22 Z" fill="#FFFFFF"/><path d="M28 27 Q28 25 30 25 L34 25 Q36 25 36 27 L34 28 Q33 27 31 28 Q30 29 32 30 L34 31 Q36 32 36 34 Q36 36 34 36 L30 36 Q28 36 28 34 L30 33 Q31 35 32 34 Q33 33 31 32 L29 31 Q28 30 28 28 Z" fill="#2563EB"/></svg>`;
+
 async function toQrDataUrl(text: string): Promise<string> {
   return QRCodeLib.toDataURL(text, {
     width: 512,
@@ -67,7 +69,7 @@ function buildStickerHtml(
   return `<div style="width:680px;height:360px;font-family:'Poppins',system-ui,sans-serif;display:flex;border-radius:20px;overflow:hidden;background:#fff;box-shadow:0 25px 50px -12px rgba(0,0,0,0.25);">
   <div style="width:374px;display:flex;flex-direction:column;justify-content:space-between;padding:32px 36px;background:#F8FAFC;">
     <div style="display:flex;align-items:center;gap:10px;">
-      <img src="/icon-512.png" width="36" height="36" style="object-fit:contain;" />
+      ${BRAND_ICON_SVG}
       <div>
         <span style="font-size:18px;font-weight:800;background:linear-gradient(to right,#2563EB,#7C3AED);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;color:transparent;line-height:1;">StegoTags</span>
         <p style="font-size:9px;color:#94A3B8;margin:2px 0 0;font-weight:500;letter-spacing:0.05em;line-height:1;">SECURE QR IDENTITY</p>
@@ -102,15 +104,31 @@ async function renderStickerPng(
   item: { type?: string | null; display_code?: string | null; qr_code?: string | null; pin_code?: string | null },
   qrDataUrl: string,
 ): Promise<string> {
+  await document.fonts.ready;
+
   const container = document.createElement("div");
-  container.style.cssText = "position:absolute;left:-9999px;top:0;z-index:-1;";
+  container.style.cssText = "position:absolute;left:-9999px;top:0;z-index:-1;pointer-events:none;";
   container.innerHTML = buildStickerHtml(item, qrDataUrl);
   document.body.appendChild(container);
 
+  const el = container.firstElementChild as HTMLElement;
+  if (!el) {
+    document.body.removeChild(container);
+    throw new Error("Failed to parse sticker HTML");
+  }
+
   try {
-    const el = container.firstElementChild as HTMLElement;
-    const png = await toPng(el, { pixelRatio: 2.5, quality: 0.95 });
-    return png;
+    let lastErr: Error | null = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        if (attempt > 0) await new Promise((r) => setTimeout(r, 200 * attempt));
+        const png = await toPng(el, { pixelRatio: 2, cacheBust: true });
+        return png;
+      } catch (e) {
+        lastErr = e instanceof Error ? e : new Error(String(e));
+      }
+    }
+    throw lastErr ?? new Error("toPng failed after retries");
   } finally {
     document.body.removeChild(container);
   }
@@ -201,7 +219,7 @@ export async function generateBatchStickerPdf(
   const sideMargin = (pageW - totalW) / 2;
   const topMargin = (pageH - totalH) / 2;
 
-  const stickerPngs = await mapConcurrent(items, 4, async (item, i) => {
+  const stickerPngs = await mapConcurrent(items, 2, async (item, i) => {
     const qrText = item.qr_url || `${window.location.origin}/qr/${item.id}`;
     const qrDataUrl = await toQrDataUrl(qrText);
     const png = await renderStickerPng(item, qrDataUrl);
