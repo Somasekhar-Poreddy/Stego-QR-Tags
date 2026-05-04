@@ -131,21 +131,58 @@ function svgMultiline(lines: string[], x: number, y: number, fontSize: number, l
 function buildStickerSvg(
   item: { type?: string | null; display_code?: string | null; qr_code?: string | null; pin_code?: string | null },
   qrDataUrl: string,
+  widthMm = 100,
+  heightMm = 70,
 ): string {
-  const W = 680, H = 360, LEFT = 374;
-  const RIGHT_X = LEFT, RIGHT_W = W - LEFT;
+  // Render the SVG at the same aspect ratio as the print slot so jsPDF
+  // doesn't stretch the design. Base width = 1000px for ample resolution.
+  const W = 1000;
+  const H = Math.round(W * (heightMm / widthMm));
+  const LEFT = Math.round(W * 0.54);
+  const RIGHT_X = LEFT;
+  const RIGHT_W = W - LEFT;
   const c = contentFor(item.type);
   const code = item.display_code ?? item.qr_code ?? "STG---------";
   const pin = item.pin_code ?? "----";
   const gradId = `g_${Math.random().toString(36).slice(2, 8)}`;
 
+  // QR card sized to ~50% of the right panel width.
+  const qrCardSize = Math.min(RIGHT_W - 60, H * 0.6);
+  const qrInner = qrCardSize - 24;
+  const qrCardX = RIGHT_X + (RIGHT_W - qrCardSize) / 2;
+  const qrCardY = Math.round(H * 0.08);
+
+  // Display code + PIN below the QR card.
+  const codeY = qrCardY + qrCardSize + 36;
+  const pinY = codeY + 22;
+
+  // Icons row near the bottom of the right panel.
+  const iconSize = Math.round(RIGHT_W * 0.085);
+  const iconCircleR = iconSize * 0.85;
+  const iconGap = iconSize * 0.5;
+  const iconsTotalW = 4 * iconSize + 3 * iconGap;
+  const iconsStartX = RIGHT_X + (RIGHT_W - iconsTotalW) / 2;
+  const iconsY = H - Math.round(H * 0.18);
+
   const emojiImgs = c.icons.map((emoji, i) => {
     const png = emojiToPng(emoji);
-    const cx = RIGHT_X + RIGHT_W / 2 - 78 + i * 40;
-    const cy = H - 68;
-    return `<circle cx="${cx + 16}" cy="${cy + 16}" r="18" fill="rgba(255,255,255,0.22)"/>
-            <image href="${png}" x="${cx}" y="${cy}" width="32" height="32"/>`;
+    const x = iconsStartX + i * (iconSize + iconGap);
+    return `<circle cx="${x + iconSize / 2}" cy="${iconsY + iconSize / 2}" r="${iconCircleR}" fill="rgba(255,255,255,0.22)"/>
+            <image href="${png}" x="${x}" y="${iconsY}" width="${iconSize}" height="${iconSize}"/>`;
   }).join("\n");
+
+  // Icon caption below icons.
+  const captionY = iconsY + iconSize + 22;
+  const caption = c.iconLabel.length > 70 ? c.iconLabel.slice(0, 67) + "..." : c.iconLabel;
+
+  // Left panel layout — vertical proportions.
+  const padX = Math.round(W * 0.04);
+  const brandY = Math.round(H * 0.08);
+  const subY = Math.round(H * 0.27);
+  const headingY = Math.round(H * 0.42);
+  const scanY1 = H - Math.round(H * 0.16);
+  const scanY2 = scanY1 + 14;
+  const privacyY = H - Math.round(H * 0.06);
 
   const headingLines = c.heading.split("\n");
   const subLines = c.sub.split("\n");
@@ -156,59 +193,45 @@ function buildStickerSvg(
       <stop offset="0%" stop-color="${c.gradFrom}"/>
       <stop offset="100%" stop-color="${c.gradTo}"/>
     </linearGradient>
-    <clipPath id="clip_${gradId}"><rect width="${W}" height="${H}" rx="20"/></clipPath>
+    <clipPath id="clip_${gradId}"><rect width="${W}" height="${H}" rx="22"/></clipPath>
   </defs>
 
   <g clip-path="url(#clip_${gradId})">
-    <!-- Left panel -->
     <rect width="${LEFT}" height="${H}" fill="#F8FAFC"/>
-
-    <!-- Right panel gradient -->
     <rect x="${RIGHT_X}" width="${RIGHT_W}" height="${H}" fill="url(#${gradId})"/>
 
-    <!-- Brand icon -->
-    <g transform="translate(36,32)">
-      <rect width="36" height="36" rx="8" fill="#2563EB"/>
-      <path d="M18 8 L26 11 L26 18 Q26 23.5 18 27 Q10 23.5 10 18 L10 11 Z" fill="#fff"/>
-      <path d="M15 15.5 Q15 14 16.5 14 L19.5 14 Q21 14 21 15.5 L19.5 16 Q19 15.2 17.5 16 Q17 16.8 18.5 17.5 L19.5 18 Q21 18.8 21 20 Q21 21.5 19.5 21.5 L16.5 21.5 Q15 21.5 15 20 L16.5 19 Q17 20.5 18 20 Q18.8 19.2 17.5 18.5 L16.5 18 Q15 17.2 15 16 Z" fill="#2563EB"/>
+    <g transform="translate(${padX},${brandY})">
+      <rect width="44" height="44" rx="10" fill="#2563EB"/>
+      <path d="M22 10 L32 13.5 L32 22 Q32 28.5 22 33 Q12 28.5 12 22 L12 13.5 Z" fill="#fff"/>
+      <path d="M18 19 Q18 17 20 17 L24 17 Q26 17 26 19 L24 19.5 Q23 18.5 21 19.5 Q20 20.5 22 21.5 L24 22 Q26 23 26 25 Q26 27 24 27 L20 27 Q18 27 18 25 L20 24 Q21 26 22 25 Q23 24 21 23 L19 22 Q18 21 18 19 Z" fill="#2563EB"/>
     </g>
 
-    <!-- StegoTags text -->
-    <text x="82" y="52" font-family="system-ui,-apple-system,sans-serif" font-size="18" font-weight="800" fill="#2563EB">StegoTags</text>
-    <text x="82" y="64" font-family="system-ui,-apple-system,sans-serif" font-size="9" font-weight="500" fill="#94A3B8" letter-spacing="0.5">SECURE QR IDENTITY</text>
+    <text x="${padX + 56}" y="${brandY + 22}" font-family="system-ui,-apple-system,sans-serif" font-size="22" font-weight="800" fill="#2563EB">StegoTags</text>
+    <text x="${padX + 56}" y="${brandY + 38}" font-family="system-ui,-apple-system,sans-serif" font-size="11" font-weight="500" fill="#94A3B8" letter-spacing="0.6">SECURE QR IDENTITY</text>
 
-    <!-- Subtitle -->
-    ${svgMultiline(subLines, 36, 115, 11, 16, 'font-family="system-ui,-apple-system,sans-serif" font-weight="500" fill="#64748B"')}
+    ${svgMultiline(subLines, padX, subY, 14, 20, 'font-family="system-ui,-apple-system,sans-serif" font-weight="500" fill="#64748B"')}
 
-    <!-- Heading -->
-    ${svgMultiline(headingLines, 36, 165, 22, 28, 'font-family="system-ui,-apple-system,sans-serif" font-weight="800" fill="#0F172A"')}
+    ${svgMultiline(headingLines, padX, headingY, 28, 36, 'font-family="system-ui,-apple-system,sans-serif" font-weight="800" fill="#0F172A"')}
 
-    <!-- Scan instruction -->
-    <text x="36" y="${H - 50}" font-family="system-ui,-apple-system,sans-serif" font-size="9" font-weight="700" fill="#94A3B8" letter-spacing="1">SCAN USING PHONE CAMERA, GOOGLE</text>
-    <text x="36" y="${H - 38}" font-family="system-ui,-apple-system,sans-serif" font-size="9" font-weight="700" fill="#94A3B8" letter-spacing="1">LENS OR ANY QR SCANNER APP.</text>
+    <text x="${padX}" y="${scanY1}" font-family="system-ui,-apple-system,sans-serif" font-size="11" font-weight="700" fill="#94A3B8" letter-spacing="1.4">SCAN USING PHONE CAMERA, GOOGLE</text>
+    <text x="${padX}" y="${scanY2}" font-family="system-ui,-apple-system,sans-serif" font-size="11" font-weight="700" fill="#94A3B8" letter-spacing="1.4">LENS OR ANY QR SCANNER APP.</text>
 
-    <!-- Privacy line with shield -->
-    <g transform="translate(36,${H - 22})">
-      <path d="M6 1 L11 3 L11 7 Q11 10.5 6 12 Q1 10.5 1 7 L1 3 Z" fill="none" stroke="#3B82F6" stroke-width="1.2"/>
-      <text x="16" y="9" font-family="system-ui,-apple-system,sans-serif" font-size="9" font-weight="600" fill="#3B82F6" letter-spacing="0.3">Privacy protected by StegoTags</text>
+    <g transform="translate(${padX},${privacyY - 11})">
+      <path d="M7 1 L13 3 L13 8 Q13 12 7 14 Q1 12 1 8 L1 3 Z" fill="none" stroke="#3B82F6" stroke-width="1.4"/>
+      <text x="20" y="11" font-family="system-ui,-apple-system,sans-serif" font-size="11" font-weight="600" fill="#3B82F6" letter-spacing="0.3">Privacy protected by StegoTags</text>
     </g>
 
-    <!-- QR code card (shadow + white card + QR) -->
-    <rect x="${RIGHT_X + (RIGHT_W - 172) / 2 + 3}" y="31" width="172" height="172" rx="16" fill="rgba(0,0,0,0.08)"/>
-    <rect x="${RIGHT_X + (RIGHT_W - 172) / 2}" y="28" width="172" height="172" rx="16" fill="#FFFFFF"/>
-    <image href="${qrDataUrl}" x="${RIGHT_X + (RIGHT_W - 148) / 2}" y="40" width="148" height="148"/>
+    <!-- QR card with shadow -->
+    <rect x="${qrCardX + 4}" y="${qrCardY + 4}" width="${qrCardSize}" height="${qrCardSize}" rx="20" fill="rgba(0,0,0,0.12)"/>
+    <rect x="${qrCardX}" y="${qrCardY}" width="${qrCardSize}" height="${qrCardSize}" rx="20" fill="#FFFFFF"/>
+    <image href="${qrDataUrl}" x="${qrCardX + (qrCardSize - qrInner) / 2}" y="${qrCardY + (qrCardSize - qrInner) / 2}" width="${qrInner}" height="${qrInner}"/>
 
-    <!-- Display code -->
-    <text x="${RIGHT_X + RIGHT_W / 2}" y="225" font-family="system-ui,-apple-system,sans-serif" font-size="14" font-weight="800" fill="#FFFFFF" text-anchor="middle" letter-spacing="2">${esc(code)}</text>
+    <text x="${RIGHT_X + RIGHT_W / 2}" y="${codeY}" font-family="system-ui,-apple-system,sans-serif" font-size="20" font-weight="800" fill="#FFFFFF" text-anchor="middle" letter-spacing="2.5">${esc(code)}</text>
+    <text x="${RIGHT_X + RIGHT_W / 2}" y="${pinY}" font-family="system-ui,-apple-system,sans-serif" font-size="13" font-weight="600" fill="rgba(255,255,255,0.78)" text-anchor="middle" letter-spacing="1.2">PIN: ${esc(pin)}</text>
 
-    <!-- PIN -->
-    <text x="${RIGHT_X + RIGHT_W / 2}" y="245" font-family="system-ui,-apple-system,sans-serif" font-size="10" font-weight="600" fill="rgba(255,255,255,0.7)" text-anchor="middle" letter-spacing="1">PIN: ${esc(pin)}</text>
-
-    <!-- Emoji icons -->
     ${emojiImgs}
 
-    <!-- Icon label -->
-    <text x="${RIGHT_X + RIGHT_W / 2}" y="${H - 14}" font-family="system-ui,-apple-system,sans-serif" font-size="7" font-weight="500" fill="rgba(255,255,255,0.8)" text-anchor="middle">${esc(c.iconLabel.length > 60 ? c.iconLabel.slice(0, 57) + "..." : c.iconLabel)}</text>
+    <text x="${RIGHT_X + RIGHT_W / 2}" y="${captionY}" font-family="system-ui,-apple-system,sans-serif" font-size="10" font-weight="500" fill="rgba(255,255,255,0.85)" text-anchor="middle">${esc(caption)}</text>
   </g>
 </svg>`;
 }
@@ -268,10 +291,13 @@ async function renderStickerPng(
   qrDataUrl: string,
   dpi = 300,
   widthMm = 100,
+  heightMm = 70,
 ): Promise<string> {
-  const svg = buildStickerSvg(item, qrDataUrl);
-  const scale = dpiToScale(dpi, widthMm, 680);
-  return svgToPng(svg, 680, 360, scale);
+  const svg = buildStickerSvg(item, qrDataUrl, widthMm, heightMm);
+  const W = 1000;
+  const H = Math.round(W * (heightMm / widthMm));
+  const scale = dpiToScale(dpi, widthMm, W);
+  return svgToPng(svg, W, H, scale);
 }
 
 /* ─── Scissors + cut guides (jsPDF drawing) ──────────────────────────────── */
@@ -339,9 +365,10 @@ export async function generateSingleStickerPng(
   settings: PrintSettings = DEFAULT_PRINT_SETTINGS,
 ): Promise<string> {
   const wMm = settings.customWidthMm ?? settings.size.widthMm;
+  const hMm = settings.customHeightMm ?? settings.size.heightMm;
   const qrText = item.qr_url || `${window.location.origin}/qr/${item.id}`;
   const qrDataUrl = await toQrDataUrl(qrText);
-  return renderStickerPng(item, qrDataUrl, settings.dpi, wMm);
+  return renderStickerPng(item, qrDataUrl, settings.dpi, wMm, hMm);
 }
 
 export async function generateSingleStickerPdf(
@@ -358,7 +385,7 @@ export async function generateSingleStickerPdf(
 
   const qrText = item.qr_url || `${window.location.origin}/qr/${item.id}`;
   const qrDataUrl = await toQrDataUrl(qrText);
-  const png = await renderStickerPng(item, qrDataUrl, settings.dpi, wMm);
+  const png = await renderStickerPng(item, qrDataUrl, settings.dpi, wMm, hMm);
   doc.addImage(png, "PNG", x, y, wMm, hMm);
   return doc;
 }
@@ -376,7 +403,7 @@ export async function generateBatchStickerPdf(
   const stickerPngs = await mapConcurrent(items, 2, async (item, i) => {
     const qrText = item.qr_url || `${window.location.origin}/qr/${item.id}`;
     const qrDataUrl = await toQrDataUrl(qrText);
-    const png = await renderStickerPng(item, qrDataUrl, settings.dpi, wMm);
+    const png = await renderStickerPng(item, qrDataUrl, settings.dpi, wMm, hMm);
     if (onProgress) onProgress(i + 1, items.length);
     return png;
   });
