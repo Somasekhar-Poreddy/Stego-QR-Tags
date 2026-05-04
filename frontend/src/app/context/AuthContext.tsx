@@ -159,7 +159,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const loadingTimeout = setTimeout(() => {
       if (mounted) setLoading(false);
-    }, 10000);
+    }, 20000);
 
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!mounted) return;

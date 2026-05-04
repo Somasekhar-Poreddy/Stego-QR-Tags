@@ -37,9 +37,11 @@ export function useIdleLogout({
   const lastActivityRef = useRef<number>(Date.now());
   const onLogoutRef = useRef(onLogout);
   onLogoutRef.current = onLogout;
+  const justResetRef = useRef(false);
 
   // Reset to "fully active" state.
   const reset = useCallback(() => {
+    justResetRef.current = true;
     lastActivityRef.current = Date.now();
     setWarning(false);
     setSecondsLeft(Math.ceil(warningMs / 1000));
@@ -65,6 +67,10 @@ export function useIdleLogout({
     events.forEach((e) => window.addEventListener(e, onActivity, { passive: true }));
 
     const tick = () => {
+      if (justResetRef.current) {
+        justResetRef.current = false;
+        return;
+      }
       const idleFor = Date.now() - lastActivityRef.current;
       const timeUntilLogout = idleMs - idleFor;
 

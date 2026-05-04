@@ -139,6 +139,7 @@ export function AdminRouter() {
 
   const cacheHit = seedInfo !== null;
   const [checking, setChecking] = useState(!cacheHit);
+  const [bootstrapTimedOut, setBootstrapTimedOut] = useState(false);
   const [adminInfo, setAdminInfo] = useState<AdminInfo>(
     seedInfo ?? { id: "", name: "", email: "", role: "", permissions: {} },
   );
@@ -183,6 +184,19 @@ export function AdminRouter() {
     enabled: enabledIdle,
     onLogout: () => forceSignOut("idle"),
   });
+
+  const handleStaySignedIn = useCallback(async () => {
+    resetIdle();
+    try { await supabase.auth.refreshSession(); } catch { /* keepalive handles failures */ }
+  }, [resetIdle]);
+
+  // Bootstrap timeout — if checking stays true for 15s, show a retry button
+  // instead of an infinite spinner.
+  useEffect(() => {
+    if (!checking) { setBootstrapTimedOut(false); return; }
+    const t = setTimeout(() => setBootstrapTimedOut(true), 15000);
+    return () => clearTimeout(t);
+  }, [checking]);
 
   // Tier 1.2 — absolute session cap.
   useAbsoluteSessionCap({
@@ -401,7 +415,28 @@ export function AdminRouter() {
     };
   }, [checking, user?.id, adminInfo.role]);
 
+  if (!authLoading && !user && !recovering) {
+    navigate("/admin/login?reason=session-lost");
+    return null;
+  }
+
   if (checking || mfaState === "unknown") {
+    if (bootstrapTimedOut) {
+      return (
+        <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 gap-4">
+          <p className="text-sm text-slate-600">Taking longer than expected…</p>
+          <button
+            onClick={() => { setBootstrapTimedOut(false); setChecking(true); }}
+            className="px-4 py-2 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary/90"
+          >
+            Retry
+          </button>
+          <a href="/admin/login" className="text-xs text-slate-400 hover:text-slate-600 underline">
+            Back to login
+          </a>
+        </div>
+      );
+    }
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
@@ -464,7 +499,7 @@ export function AdminRouter() {
       <IdleWarningModal
         open={idleWarning}
         secondsLeft={secondsLeft}
-        onStay={resetIdle}
+        onStay={handleStaySignedIn}
         onLogout={() => forceSignOut("manual")}
       />
 
