@@ -9,7 +9,8 @@ import {
   type QRInventoryItem,
   type QRInventoryBatch,
 } from "@/services/adminService";
-import { downloadBatchStickerPdf, downloadSingleStickerPdf } from "@/admin/utils/inventoryPdfGenerator";
+import { downloadBatchStickers, downloadSingleSticker, type PrintSettings } from "@/admin/utils/inventoryPdfGenerator";
+import { PrintSettingsModal } from "@/admin/components/PrintSettingsModal";
 import { QR_TYPES, STATUS_LABELS, statusBadge, formatDate } from "./inventoryHelpers";
 import { BulkStatusModal } from "./BulkStatusModal";
 import { InventoryDetailSlideOver } from "./InventoryDetailSlideOver";
@@ -54,6 +55,8 @@ export function InventoryTab({ initialBatchId, initialFocus }: Props) {
   const [openToEdit, setOpenToEdit] = useState(false);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showPrintSettings, setShowPrintSettings] = useState(false);
+  const [printTarget, setPrintTarget] = useState<"batch" | QRInventoryItem | null>(null);
 
   // Sequential loads to avoid Supabase auth-lock contention. Each call
   // shares the deduplicated ensureFreshSession, but running them back-to-
@@ -119,21 +122,40 @@ export function InventoryTab({ initialBatchId, initialFocus }: Props) {
     }
   };
 
-  const handleBulkDownload = async () => {
+  const handleBulkDownload = () => {
     if (!anySelected) return;
     const picked = items.filter((i) => selected.has(i.id));
     if (picked.length === 0) {
       setError("Selected items are on other pages — load them first or use the batch download.");
       return;
     }
-    setBulkPdfProgress({ done: 0, total: picked.length });
-    try {
-      await downloadBatchStickerPdf(picked, "selection", (done, total) => setBulkPdfProgress({ done, total }));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "PDF generation failed.");
-    } finally {
-      setBulkPdfProgress(null);
+    setPrintTarget("batch");
+    setShowPrintSettings(true);
+  };
+
+  const handlePrintConfirm = async (settings: PrintSettings) => {
+    setShowPrintSettings(false);
+    if (printTarget === "batch") {
+      const picked = items.filter((i) => selected.has(i.id));
+      setBulkPdfProgress({ done: 0, total: picked.length });
+      try {
+        await downloadBatchStickers(picked, settings, "selection", (done, total) => setBulkPdfProgress({ done, total }));
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Generation failed.");
+      } finally {
+        setBulkPdfProgress(null);
+      }
+    } else if (printTarget && typeof printTarget === "object") {
+      setDownloadingId(printTarget.id);
+      try {
+        await downloadSingleSticker(printTarget, settings);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Generation failed.");
+      } finally {
+        setDownloadingId(null);
+      }
     }
+    setPrintTarget(null);
   };
 
   const handleExportCsv = () => {
@@ -157,8 +179,20 @@ export function InventoryTab({ initialBatchId, initialFocus }: Props) {
     return m;
   }, [batches]);
 
+  const printStickerCount = printTarget === "batch"
+    ? items.filter((i) => selected.has(i.id)).length
+    : printTarget ? 1 : 0;
+
   return (
     <div className="space-y-4">
+      <PrintSettingsModal
+        open={showPrintSettings}
+        onClose={() => { setShowPrintSettings(false); setPrintTarget(null); }}
+        onConfirm={handlePrintConfirm}
+        stickerCount={printStickerCount}
+        loading={!!bulkPdfProgress || !!downloadingId}
+      />
+
       {/* Status chips */}
       <div className="flex flex-wrap gap-2">
         {STATUS_TABS.map((t) => (
@@ -284,11 +318,9 @@ export function InventoryTab({ initialBatchId, initialFocus }: Props) {
                         <button
                           title="Download sticker PDF"
                           disabled={downloadingId === item.id}
-                          onClick={async () => {
-                            setDownloadingId(item.id);
-                            try { await downloadSingleStickerPdf(item); }
-                            catch (e) { setError(e instanceof Error ? e.message : "PDF failed."); }
-                            finally { setDownloadingId(null); }
+                          onClick={() => {
+                            setPrintTarget(item);
+                            setShowPrintSettings(true);
                           }}
                           className="p-1.5 rounded-lg text-slate-400 hover:text-green-700 hover:bg-green-50 transition-colors disabled:opacity-40"
                         >

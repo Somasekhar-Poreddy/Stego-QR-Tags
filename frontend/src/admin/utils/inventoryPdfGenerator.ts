@@ -2,7 +2,61 @@ import jsPDF from "jspdf";
 import QRCodeLib from "qrcode";
 import type { QRInventoryItem } from "@/services/adminService";
 
-export const STICKER_MM = { width: 100, height: 53 } as const;
+export const STICKER_MM = { width: 100, height: 70 } as const;
+
+/* ─── Print settings types ───────────────────────────────────────────────── */
+
+export interface StickerSize {
+  label: string;
+  widthMm: number;
+  heightMm: number;
+}
+
+export const STICKER_SIZES: StickerSize[] = [
+  { label: "Standard (100 × 70 mm)", widthMm: 100, heightMm: 70 },
+  { label: "Wide (100 × 53 mm)", widthMm: 100, heightMm: 53 },
+  { label: "Compact (80 × 50 mm)", widthMm: 80, heightMm: 50 },
+  { label: "Large (120 × 84 mm)", widthMm: 120, heightMm: 84 },
+];
+
+export interface DpiPreset {
+  label: string;
+  value: number;
+  description: string;
+}
+
+export const DPI_PRESETS: DpiPreset[] = [
+  { label: "Draft", value: 150, description: "Fast, small file" },
+  { label: "Standard", value: 300, description: "Good quality" },
+  { label: "High", value: 600, description: "Print-shop quality" },
+];
+
+export type OutputFormat = "pdf" | "png";
+
+export interface PrintSettings {
+  size: StickerSize;
+  dpi: number;
+  format: OutputFormat;
+  customWidthMm?: number;
+  customHeightMm?: number;
+}
+
+export const DEFAULT_PRINT_SETTINGS: PrintSettings = {
+  size: STICKER_SIZES[0],
+  dpi: 300,
+  format: "pdf",
+};
+
+export function computePageLayout(widthMm: number, heightMm: number, gapMm = 4) {
+  const pageW = 210, pageH = 297; // A4
+  const cols = Math.max(1, Math.floor((pageW + gapMm) / (widthMm + gapMm)));
+  const rows = Math.max(1, Math.floor((pageH + gapMm) / (heightMm + gapMm)));
+  const totalW = cols * widthMm + (cols - 1) * gapMm;
+  const totalH = rows * heightMm + (rows - 1) * gapMm;
+  const sideMargin = (pageW - totalW) / 2;
+  const topMargin = (pageH - totalH) / 2;
+  return { cols, rows, perPage: cols * rows, sideMargin, topMargin, totalW, totalH };
+}
 
 /* ─── Per-type content (matches QRCardDesign.tsx) ─────────────────────────── */
 
@@ -203,12 +257,21 @@ async function mapConcurrent<T, R>(
 
 /* ─── Render one sticker to PNG ──────────────────────────────────────────── */
 
+function dpiToScale(dpi: number, widthMm: number, svgW: number): number {
+  const widthInches = widthMm / 25.4;
+  const targetPx = widthInches * dpi;
+  return Math.max(1, Math.round(targetPx / svgW));
+}
+
 async function renderStickerPng(
   item: { type?: string | null; display_code?: string | null; qr_code?: string | null; pin_code?: string | null },
   qrDataUrl: string,
+  dpi = 300,
+  widthMm = 100,
 ): Promise<string> {
   const svg = buildStickerSvg(item, qrDataUrl);
-  return svgToPng(svg, 680, 360, 4);
+  const scale = dpiToScale(dpi, widthMm, 680);
+  return svgToPng(svg, 680, 360, scale);
 }
 
 /* ─── Scissors + cut guides (jsPDF drawing) ──────────────────────────────── */
@@ -240,64 +303,80 @@ function drawCutLineVertical(doc: jsPDF, x: number, y1: number, y2: number): voi
   doc.setLineDashPattern([], 0);
 }
 
-const ROW_GAP = 4;
-const COL_GAP = 4;
+const GAP_MM = 4;
 
-function drawCutGuides(doc: jsPDF, sideMargin: number, topMargin: number, rowsOnPage: number): void {
-  const totalW = STICKER_MM.width * 2 + COL_GAP;
+function drawCutGuidesForLayout(
+  doc: jsPDF, layout: ReturnType<typeof computePageLayout>,
+  widthMm: number, heightMm: number, rowsOnPage: number, colsOnPage: number,
+): void {
+  const { sideMargin, topMargin } = layout;
+  const totalW = colsOnPage * widthMm + (colsOnPage - 1) * GAP_MM;
   for (let r = 1; r < rowsOnPage; r++) {
-    const yLine = topMargin + r * STICKER_MM.height + (r - 1) * ROW_GAP + ROW_GAP / 2;
+    const yLine = topMargin + r * heightMm + (r - 1) * GAP_MM + GAP_MM / 2;
     drawCutLineHorizontal(doc, sideMargin - 4, sideMargin + totalW, yLine);
   }
-  const xLine = sideMargin + STICKER_MM.width + COL_GAP / 2;
-  const yTop = topMargin;
-  const yBot = topMargin + rowsOnPage * STICKER_MM.height + (rowsOnPage - 1) * ROW_GAP;
-  drawCutLineVertical(doc, xLine, yTop, yBot);
-  doc.setDrawColor(15, 23, 42);
-  doc.setFillColor(15, 23, 42);
-  doc.setLineWidth(0.25);
-  doc.circle(xLine - 0.7, yTop - 0.7, 0.45, "S");
-  doc.circle(xLine + 0.7, yTop - 0.7, 0.45, "S");
-  doc.line(xLine - 0.7, yTop - 0.25, xLine, yTop + 1.5);
-  doc.line(xLine + 0.7, yTop - 0.25, xLine, yTop + 1.5);
+  if (colsOnPage > 1) {
+    for (let c = 1; c < colsOnPage; c++) {
+      const xLine = sideMargin + c * widthMm + (c - 1) * GAP_MM + GAP_MM / 2;
+      const yTop = topMargin;
+      const yBot = topMargin + rowsOnPage * heightMm + (rowsOnPage - 1) * GAP_MM;
+      drawCutLineVertical(doc, xLine, yTop, yBot);
+      doc.setDrawColor(15, 23, 42);
+      doc.setFillColor(15, 23, 42);
+      doc.setLineWidth(0.25);
+      doc.circle(xLine - 0.7, yTop - 0.7, 0.45, "S");
+      doc.circle(xLine + 0.7, yTop - 0.7, 0.45, "S");
+      doc.line(xLine - 0.7, yTop - 0.25, xLine, yTop + 1.5);
+      doc.line(xLine + 0.7, yTop - 0.25, xLine, yTop + 1.5);
+    }
+  }
 }
 
 /* ─── Public API ─────────────────────────────────────────────────────────── */
 
-export async function generateSingleStickerPdf(item: QRInventoryItem): Promise<jsPDF> {
-  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-  const pageW = doc.internal.pageSize.getWidth();
-  const pageH = doc.internal.pageSize.getHeight();
-  const x = (pageW - STICKER_MM.width) / 2;
-  const y = (pageH - STICKER_MM.height) / 2;
-
+export async function generateSingleStickerPng(
+  item: QRInventoryItem,
+  settings: PrintSettings = DEFAULT_PRINT_SETTINGS,
+): Promise<string> {
+  const wMm = settings.customWidthMm ?? settings.size.widthMm;
   const qrText = item.qr_url || `${window.location.origin}/qr/${item.id}`;
   const qrDataUrl = await toQrDataUrl(qrText);
-  const png = await renderStickerPng(item, qrDataUrl);
-  doc.addImage(png, "PNG", x, y, STICKER_MM.width, STICKER_MM.height);
-  return doc;
+  return renderStickerPng(item, qrDataUrl, settings.dpi, wMm);
 }
 
-const ROWS_PER_PAGE = 5;
-const COLS_PER_PAGE = 2;
-const STICKERS_PER_PAGE = ROWS_PER_PAGE * COLS_PER_PAGE;
-
-export async function generateBatchStickerPdf(
-  items: QRInventoryItem[],
-  onProgress?: (done: number, total: number) => void,
+export async function generateSingleStickerPdf(
+  item: QRInventoryItem,
+  settings: PrintSettings = DEFAULT_PRINT_SETTINGS,
 ): Promise<jsPDF> {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
-  const totalW = STICKER_MM.width * COLS_PER_PAGE + COL_GAP * (COLS_PER_PAGE - 1);
-  const totalH = STICKER_MM.height * ROWS_PER_PAGE + ROW_GAP * (ROWS_PER_PAGE - 1);
-  const sideMargin = (pageW - totalW) / 2;
-  const topMargin = (pageH - totalH) / 2;
+  const wMm = settings.customWidthMm ?? settings.size.widthMm;
+  const hMm = settings.customHeightMm ?? settings.size.heightMm;
+  const x = (pageW - wMm) / 2;
+  const y = (pageH - hMm) / 2;
+
+  const qrText = item.qr_url || `${window.location.origin}/qr/${item.id}`;
+  const qrDataUrl = await toQrDataUrl(qrText);
+  const png = await renderStickerPng(item, qrDataUrl, settings.dpi, wMm);
+  doc.addImage(png, "PNG", x, y, wMm, hMm);
+  return doc;
+}
+
+export async function generateBatchStickerPdf(
+  items: QRInventoryItem[],
+  settings: PrintSettings = DEFAULT_PRINT_SETTINGS,
+  onProgress?: (done: number, total: number) => void,
+): Promise<jsPDF> {
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  const wMm = settings.customWidthMm ?? settings.size.widthMm;
+  const hMm = settings.customHeightMm ?? settings.size.heightMm;
+  const layout = computePageLayout(wMm, hMm, GAP_MM);
 
   const stickerPngs = await mapConcurrent(items, 2, async (item, i) => {
     const qrText = item.qr_url || `${window.location.origin}/qr/${item.id}`;
     const qrDataUrl = await toQrDataUrl(qrText);
-    const png = await renderStickerPng(item, qrDataUrl);
+    const png = await renderStickerPng(item, qrDataUrl, settings.dpi, wMm);
     if (onProgress) onProgress(i + 1, items.length);
     return png;
   });
@@ -305,37 +384,76 @@ export async function generateBatchStickerPdf(
   let slot = 0;
   let stickersOnPage = 0;
   for (let i = 0; i < items.length; i++) {
-    if (slot === STICKERS_PER_PAGE && i > 0) {
-      drawCutGuides(doc, sideMargin, topMargin, Math.ceil(stickersOnPage / COLS_PER_PAGE));
+    if (slot === layout.perPage && i > 0) {
+      drawCutGuidesForLayout(doc, layout, wMm, hMm, Math.ceil(stickersOnPage / layout.cols), Math.min(stickersOnPage, layout.cols));
       doc.addPage();
       slot = 0;
       stickersOnPage = 0;
     }
-    const col = slot % COLS_PER_PAGE;
-    const row = Math.floor(slot / COLS_PER_PAGE);
-    const sx = sideMargin + col * (STICKER_MM.width + COL_GAP);
-    const sy = topMargin + row * (STICKER_MM.height + ROW_GAP);
-    doc.addImage(stickerPngs[i], "PNG", sx, sy, STICKER_MM.width, STICKER_MM.height);
+    const col = slot % layout.cols;
+    const row = Math.floor(slot / layout.cols);
+    const sx = layout.sideMargin + col * (wMm + GAP_MM);
+    const sy = layout.topMargin + row * (hMm + GAP_MM);
+    doc.addImage(stickerPngs[i], "PNG", sx, sy, wMm, hMm);
     slot++;
     stickersOnPage++;
   }
   if (stickersOnPage > 0) {
-    drawCutGuides(doc, sideMargin, topMargin, Math.ceil(stickersOnPage / COLS_PER_PAGE));
+    drawCutGuidesForLayout(doc, layout, wMm, hMm, Math.ceil(stickersOnPage / layout.cols), Math.min(stickersOnPage, layout.cols));
   }
   return doc;
 }
 
-export async function downloadSingleStickerPdf(item: QRInventoryItem): Promise<void> {
-  const doc = await generateSingleStickerPdf(item);
+export async function downloadSingleSticker(
+  item: QRInventoryItem,
+  settings: PrintSettings = DEFAULT_PRINT_SETTINGS,
+): Promise<void> {
   const fname = item.display_code ?? item.qr_code ?? `stegotags-${item.id.slice(0, 8)}`;
-  doc.save(`${fname}-sticker.pdf`);
+  if (settings.format === "png") {
+    const png = await generateSingleStickerPng(item, settings);
+    const a = document.createElement("a");
+    a.href = png;
+    a.download = `${fname}-sticker.png`;
+    a.click();
+  } else {
+    const doc = await generateSingleStickerPdf(item, settings);
+    doc.save(`${fname}-sticker.pdf`);
+  }
 }
 
+export async function downloadBatchStickers(
+  items: QRInventoryItem[],
+  settings: PrintSettings = DEFAULT_PRINT_SETTINGS,
+  batchNumber?: string,
+  onProgress?: (done: number, total: number) => void,
+): Promise<void> {
+  if (settings.format === "png") {
+    const pngs = await mapConcurrent(items, 2, async (item, i) => {
+      const png = await generateSingleStickerPng(item, settings);
+      if (onProgress) onProgress(i + 1, items.length);
+      return { name: `${item.display_code ?? item.qr_code ?? item.id.slice(0, 8)}.png`, data: png };
+    });
+    for (const { name, data } of pngs) {
+      const a = document.createElement("a");
+      a.href = data;
+      a.download = name;
+      a.click();
+      await new Promise((r) => setTimeout(r, 200));
+    }
+  } else {
+    const doc = await generateBatchStickerPdf(items, settings, onProgress);
+    doc.save(`${batchNumber ?? "stickers"}-stickers.pdf`);
+  }
+}
+
+// Legacy API (backward compatibility — callers that don't pass settings yet)
+export async function downloadSingleStickerPdf(item: QRInventoryItem): Promise<void> {
+  return downloadSingleSticker(item);
+}
 export async function downloadBatchStickerPdf(
   items: QRInventoryItem[],
   batchNumber?: string,
   onProgress?: (done: number, total: number) => void,
 ): Promise<void> {
-  const doc = await generateBatchStickerPdf(items, onProgress);
-  doc.save(`${batchNumber ?? "stickers"}-stickers.pdf`);
+  return downloadBatchStickers(items, DEFAULT_PRINT_SETTINGS, batchNumber, onProgress);
 }
