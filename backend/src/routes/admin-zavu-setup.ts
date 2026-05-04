@@ -20,14 +20,15 @@ interface TemplateSpec {
 }
 
 const TEMPLATES: TemplateSpec[] = [
-  // OTP template requires AUTHENTICATION category (needs 2,000+ conversations).
-  // Until then, OTP goes via SMS. Uncomment when account qualifies.
-  // {
-  //   name: "stegotags_otp_v4",
-  //   settingKey: "zavu_otp_template_id",
-  //   whatsappCategory: "AUTHENTICATION",
-  //   ...
-  // },
+  {
+    name: "stegotags_otp_v4",
+    settingKey: "zavu_otp_template_id",
+    body: "{{1}} is your verification code.",
+    whatsappCategory: "AUTHENTICATION",
+    variables: ["otp_code"],
+    addSecurityRecommendation: true,
+    codeExpirationMinutes: 10,
+  },
   {
     name: "stegotags_vehicle_report_v2",
     settingKey: "zavu_vehicle_report_template_id",
