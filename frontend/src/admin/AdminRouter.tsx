@@ -415,11 +415,6 @@ export function AdminRouter() {
     };
   }, [checking, user?.id, adminInfo.role]);
 
-  if (!authLoading && !user && !recovering) {
-    navigate("/admin/login?reason=session-lost");
-    return null;
-  }
-
   if (checking || mfaState === "unknown") {
     if (bootstrapTimedOut) {
       return (
