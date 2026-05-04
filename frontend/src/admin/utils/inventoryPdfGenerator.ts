@@ -70,7 +70,7 @@ interface TypeContent {
 }
 
 const TYPE_CONTENT: Record<string, TypeContent> = {
-  vehicle:    { heading: "Scan to contact\nthe vehicle owner.", sub: "Stegofy QR tag. Contact owner, help\nin emergency, or wrong parking.", icons: ["🚗", "🚨", "📞", "⚠️"], iconLabel: "Wrong Parking, Emergency Contact, any issue with the vehicle, Scan the QR.", gradFrom: "#2563EB", gradTo: "#6D28D9" },
+  vehicle:    { heading: "Scan to contact\nthe vehicle owner.", sub: "StegoTags QR tag. Contact owner, help\nin emergency, or wrong parking.", icons: ["🚗", "🚨", "📞", "⚠️"], iconLabel: "Wrong Parking, Emergency Contact, any issue with the Vehicle, Scan the QR.", gradFrom: "#2563EB", gradTo: "#6D28D9" },
   pet:        { heading: "Scan to help this\npet get home.", sub: "Lost pet? Scan to reach\nthe owner instantly.", icons: ["🐾", "🏠", "📞", "❤️"], iconLabel: "Lost pet? Scan to contact the owner and help them reunite.", gradFrom: "#F43F5E", gradTo: "#BE185D" },
   child:      { heading: "Scan to contact\nthe parent.", sub: "Lost child? Scan to reach\na parent or guardian.", icons: ["👦", "🏠", "📞", "🆘"], iconLabel: "Lost child? Scan to contact the parent or guardian.", gradFrom: "#22C55E", gradTo: "#0F766E" },
   medical:    { heading: "Scan for emergency\nmedical info.", sub: "Critical health information\nfor first responders.", icons: ["🏥", "❤️", "📞", "🆘"], iconLabel: "Emergency medical info, blood group, allergies — scan now.", gradFrom: "#EF4444", gradTo: "#9F1239" },
@@ -89,6 +89,29 @@ function contentFor(type: string | null | undefined): TypeContent {
 /* ─── Emoji → small PNG data URL (cached) ────────────────────────────────── */
 
 const emojiCache = new Map<string, string>();
+
+let logoDataUrlPromise: Promise<string> | null = null;
+
+function getLogoDataUrl(): Promise<string> {
+  if (logoDataUrlPromise) return logoDataUrlPromise;
+  logoDataUrlPromise = (async () => {
+    try {
+      const res = await fetch("/web-app-manifest-512x512.png");
+      if (!res.ok) throw new Error("logo fetch failed");
+      const blob = await res.blob();
+      return await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    } catch {
+      // Fallback: empty (SVG falls back to inline drawing).
+      return "";
+    }
+  })();
+  return logoDataUrlPromise;
+}
 
 function emojiToPng(emoji: string, size = 64): string {
   const cached = emojiCache.get(emoji);
@@ -122,6 +145,22 @@ function esc(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
+function wrapText(text: string, maxChars: number): string[] {
+  const words = text.split(/\s+/);
+  const lines: string[] = [];
+  let current = "";
+  for (const word of words) {
+    if ((current + " " + word).trim().length <= maxChars) {
+      current = (current + " " + word).trim();
+    } else {
+      if (current) lines.push(current);
+      current = word;
+    }
+  }
+  if (current) lines.push(current);
+  return lines;
+}
+
 function svgMultiline(lines: string[], x: number, y: number, fontSize: number, lineHeight: number, attrs: string): string {
   return lines.map((line, i) =>
     `<text x="${x}" y="${y + i * lineHeight}" font-size="${fontSize}" ${attrs}>${esc(line)}</text>`,
@@ -133,6 +172,7 @@ function buildStickerSvg(
   qrDataUrl: string,
   widthMm = 100,
   heightMm = 70,
+  logoDataUrl = "",
 ): string {
   // Render the SVG at the same aspect ratio as the print slot so jsPDF
   // doesn't stretch the design. Base width = 1000px for ample resolution.
@@ -156,24 +196,28 @@ function buildStickerSvg(
   const codeY = qrCardY + qrCardSize + 36;
   const pinY = codeY + 22;
 
-  // Icons row near the bottom of the right panel.
-  const iconSize = Math.round(RIGHT_W * 0.085);
-  const iconCircleR = iconSize * 0.85;
-  const iconGap = iconSize * 0.5;
+  // Icons row — moved UP closer to PIN, with solid white circle backgrounds
+  // so the colored emoji pop against the gradient.
+  const iconSize = Math.round(RIGHT_W * 0.095);
+  const iconCircleR = iconSize * 0.92;
+  const iconGap = iconSize * 0.45;
   const iconsTotalW = 4 * iconSize + 3 * iconGap;
   const iconsStartX = RIGHT_X + (RIGHT_W - iconsTotalW) / 2;
-  const iconsY = H - Math.round(H * 0.18);
+  const iconsY = pinY + 24;
 
   const emojiImgs = c.icons.map((emoji, i) => {
     const png = emojiToPng(emoji);
     const x = iconsStartX + i * (iconSize + iconGap);
-    return `<circle cx="${x + iconSize / 2}" cy="${iconsY + iconSize / 2}" r="${iconCircleR}" fill="rgba(255,255,255,0.22)"/>
-            <image href="${png}" x="${x}" y="${iconsY}" width="${iconSize}" height="${iconSize}"/>`;
+    return `<circle cx="${x + iconSize / 2}" cy="${iconsY + iconSize / 2}" r="${iconCircleR + 2}" fill="rgba(0,0,0,0.10)"/>
+            <circle cx="${x + iconSize / 2}" cy="${iconsY + iconSize / 2}" r="${iconCircleR}" fill="#FFFFFF"/>
+            <image href="${png}" x="${x + 2}" y="${iconsY + 2}" width="${iconSize - 4}" height="${iconSize - 4}"/>`;
   }).join("\n");
 
-  // Icon caption below icons.
-  const captionY = iconsY + iconSize + 22;
-  const caption = c.iconLabel.length > 70 ? c.iconLabel.slice(0, 67) + "..." : c.iconLabel;
+  // Caption below icons — shows the full description e.g.
+  // "Wrong Parking, Emergency Contact, any issue with the Vehicle, Scan the QR."
+  const captionY = iconsY + iconSize + 30;
+  const captionMaxChars = Math.floor(RIGHT_W / 6.5);
+  const captionLines = wrapText(c.iconLabel, captionMaxChars);
 
   // Left panel layout — vertical proportions.
   const padX = Math.round(W * 0.04);
@@ -200,14 +244,17 @@ function buildStickerSvg(
     <rect width="${LEFT}" height="${H}" fill="#F8FAFC"/>
     <rect x="${RIGHT_X}" width="${RIGHT_W}" height="${H}" fill="url(#${gradId})"/>
 
-    <g transform="translate(${padX},${brandY})">
-      <rect width="44" height="44" rx="10" fill="#2563EB"/>
-      <path d="M22 10 L32 13.5 L32 22 Q32 28.5 22 33 Q12 28.5 12 22 L12 13.5 Z" fill="#fff"/>
-      <path d="M18 19 Q18 17 20 17 L24 17 Q26 17 26 19 L24 19.5 Q23 18.5 21 19.5 Q20 20.5 22 21.5 L24 22 Q26 23 26 25 Q26 27 24 27 L20 27 Q18 27 18 25 L20 24 Q21 26 22 25 Q23 24 21 23 L19 22 Q18 21 18 19 Z" fill="#2563EB"/>
-    </g>
+    ${logoDataUrl
+      ? `<image href="${logoDataUrl}" x="${padX}" y="${brandY}" width="48" height="48" preserveAspectRatio="xMidYMid meet"/>`
+      : `<g transform="translate(${padX},${brandY})">
+          <rect width="48" height="48" rx="11" fill="#2563EB"/>
+          <path d="M24 11 L35 15 L35 24 Q35 31 24 36 Q13 31 13 24 L13 15 Z" fill="#fff"/>
+          <path d="M19 21 Q19 19 21 19 L26 19 Q28 19 28 21 L26 21.5 Q25 20.5 23 21.5 Q22 22.5 24 23.5 L26 24 Q28 25 28 27 Q28 29 26 29 L21 29 Q19 29 19 27 L21 26 Q22 28 23 27 Q24 26 22 25 L20 24 Q19 23 19 21 Z" fill="#2563EB"/>
+        </g>`
+    }
 
-    <text x="${padX + 56}" y="${brandY + 22}" font-family="system-ui,-apple-system,sans-serif" font-size="22" font-weight="800" fill="#2563EB">StegoTags</text>
-    <text x="${padX + 56}" y="${brandY + 38}" font-family="system-ui,-apple-system,sans-serif" font-size="11" font-weight="500" fill="#94A3B8" letter-spacing="0.6">SECURE QR IDENTITY</text>
+    <text x="${padX + 60}" y="${brandY + 24}" font-family="system-ui,-apple-system,sans-serif" font-size="24" font-weight="800" fill="#2563EB">StegoTags</text>
+    <text x="${padX + 60}" y="${brandY + 42}" font-family="system-ui,-apple-system,sans-serif" font-size="11" font-weight="500" fill="#94A3B8" letter-spacing="0.6">SECURE QR IDENTITY</text>
 
     ${svgMultiline(subLines, padX, subY, 14, 20, 'font-family="system-ui,-apple-system,sans-serif" font-weight="500" fill="#64748B"')}
 
@@ -231,7 +278,9 @@ function buildStickerSvg(
 
     ${emojiImgs}
 
-    <text x="${RIGHT_X + RIGHT_W / 2}" y="${captionY}" font-family="system-ui,-apple-system,sans-serif" font-size="10" font-weight="500" fill="rgba(255,255,255,0.85)" text-anchor="middle">${esc(caption)}</text>
+    ${captionLines.map((line, i) =>
+      `<text x="${RIGHT_X + RIGHT_W / 2}" y="${captionY + i * 14}" font-family="system-ui,-apple-system,sans-serif" font-size="11" font-weight="600" fill="#FFFFFF" text-anchor="middle">${esc(line)}</text>`,
+    ).join("\n")}
   </g>
 </svg>`;
 }
@@ -293,7 +342,8 @@ async function renderStickerPng(
   widthMm = 100,
   heightMm = 70,
 ): Promise<string> {
-  const svg = buildStickerSvg(item, qrDataUrl, widthMm, heightMm);
+  const logoDataUrl = await getLogoDataUrl();
+  const svg = buildStickerSvg(item, qrDataUrl, widthMm, heightMm, logoDataUrl);
   const W = 1000;
   const H = Math.round(W * (heightMm / widthMm));
   const scale = dpiToScale(dpi, widthMm, W);
