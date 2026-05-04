@@ -29,13 +29,17 @@ const WEBHOOK_URL = "https://stegotags.stegofy.com/api/webhooks/zavu/status";
 const WEBHOOK_EVENTS = ["message.delivered", "message.failed", "message.sent"];
 
 const TEMPLATES = [
-  {
-    name: "stegotags_otp_v3",
-    settingKey: "zavu_otp_template_id",
-    body: "Your StegoTags verification code is {{1}} — it expires in 10 minutes. Do not share this code with anyone.",
-    whatsappCategory: "UTILITY" as const,
-    variables: ["otp_code"],
-  },
+  // OTP requires AUTHENTICATION category (2,000+ conversations needed).
+  // Uncomment when account qualifies:
+  // {
+  //   name: "stegotags_otp_v4",
+  //   settingKey: "zavu_otp_template_id",
+  //   body: "Your StegoTags verification code is {{1}} — it expires in 10 minutes. Do not share this code with anyone.",
+  //   whatsappCategory: "AUTHENTICATION" as const,
+  //   variables: ["otp_code"],
+  //   addSecurityRecommendation: true,
+  //   codeExpirationMinutes: 10,
+  // },
   {
     name: "stegotags_vehicle_report_v2",
     settingKey: "zavu_vehicle_report_template_id",

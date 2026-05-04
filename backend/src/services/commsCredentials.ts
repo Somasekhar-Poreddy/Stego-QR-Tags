@@ -76,7 +76,7 @@ const DEFAULTS: Record<string, string> = {
   comms_routing_whatsapp: "zavu_first",
   comms_routing_sms: "exotel",
   comms_routing_call: "exotel",
-  comms_otp_channel: "whatsapp_first",
+  comms_otp_channel: "sms",
   comms_cost_cap_inr_per_day: "500",
   comms_cost_warn_threshold_inr_per_day: "350",
   comms_tariff_whatsapp_paise: "75",
