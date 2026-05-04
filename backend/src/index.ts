@@ -2,6 +2,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { ensureCommsSchema } from "./lib/migrations";
 import { startPendingDisconnectFlusher } from "./services/commsRouter";
+import { reconcileZavuTemplates } from "./services/zavuTemplateSync";
 
 const rawPort = process.env["PORT"];
 
@@ -40,6 +41,12 @@ async function main() {
       process.exit(1);
     }
     logger.info({ port }, "Server listening");
+
+    // Reconcile Zavu templates after the server is up — runs in the
+    // background so it doesn't block the port from accepting traffic.
+    void reconcileZavuTemplates().catch((err) => {
+      logger.warn({ err: err instanceof Error ? err.message : err }, "Zavu template sync failed (non-blocking)");
+    });
   });
 }
 
