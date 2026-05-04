@@ -30,25 +30,25 @@ const WEBHOOK_EVENTS = ["message.delivered", "message.failed", "message.sent"];
 
 const TEMPLATES = [
   {
-    name: "stegotags_otp_v1",
+    name: "stegotags_otp_v2",
     settingKey: "zavu_otp_template_id",
-    body: "Your StegoTags verification code is {{1}}. It expires in 10 minutes.",
+    body: "Your StegoTags verification code is {{1}} — it expires in 10 minutes. Do not share this code with anyone.",
     whatsappCategory: "AUTHENTICATION" as const,
     variables: ["otp_code"],
     addSecurityRecommendation: true,
     codeExpirationMinutes: 10,
   },
   {
-    name: "stegotags_vehicle_report_v1",
+    name: "stegotags_vehicle_report_v2",
     settingKey: "zavu_vehicle_report_template_id",
-    body: "StegoTags: Someone reported about your vehicle ({{3}}): {{1}}. Their number: {{2}}.",
+    body: "StegoTags Alert: Someone reported about your vehicle ({{3}}). Reason: {{1}}. You can reach them at {{2}} to follow up.",
     whatsappCategory: "UTILITY" as const,
     variables: ["message", "stranger_phone", "vehicle_label"],
   },
   {
-    name: "stegotags_scan_alert_v1",
+    name: "stegotags_scan_alert_v2",
     settingKey: "zavu_scan_alert_template_id",
-    body: 'Your StegoTags QR "{{1}}" was scanned at {{2}} from {{3}}.',
+    body: 'Your StegoTags QR tag "{{1}}" was just scanned at {{2}} from {{3}}. Open StegoTags to view details.',
     whatsappCategory: "UTILITY" as const,
     variables: ["qr_name", "timestamp", "location"],
   },
