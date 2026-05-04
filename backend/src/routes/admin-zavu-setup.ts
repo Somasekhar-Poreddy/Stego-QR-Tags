@@ -21,13 +21,11 @@ interface TemplateSpec {
 
 const TEMPLATES: TemplateSpec[] = [
   {
-    name: "stegotags_otp_v2",
+    name: "stegotags_otp_v3",
     settingKey: "zavu_otp_template_id",
     body: "Your StegoTags verification code is {{1}} — it expires in 10 minutes. Do not share this code with anyone.",
-    whatsappCategory: "AUTHENTICATION",
+    whatsappCategory: "UTILITY",
     variables: ["otp_code"],
-    addSecurityRecommendation: true,
-    codeExpirationMinutes: 10,
   },
   {
     name: "stegotags_vehicle_report_v2",
