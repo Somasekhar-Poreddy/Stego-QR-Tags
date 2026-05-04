@@ -617,6 +617,7 @@ export function SettingsScreen() {
     "comms_routing_whatsapp",
     "comms_routing_sms",
     "comms_routing_call",
+    "comms_otp_channel",
     "monthly_budget_paise",
     "over_budget_behavior",
   ]);
@@ -769,6 +770,17 @@ export function SettingsScreen() {
                     <option value="exotel">Exotel</option>
                     <option value="off">Disabled</option>
                   </select>
+                </div>
+                <div>
+                  <label className="text-sm font-semibold text-slate-800 block mb-1.5">OTP channel</label>
+                  <select value={values.comms_otp_channel ?? "whatsapp_first"} onChange={(e) => set("comms_otp_channel", e.target.value)} className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm outline-none focus:border-primary transition-colors bg-white">
+                    <option value="whatsapp_first">WhatsApp first, fall back to SMS</option>
+                    <option value="whatsapp">WhatsApp only</option>
+                    <option value="sms">SMS only</option>
+                  </select>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Channel used to send signup / scan OTPs. Users can also tap "Send via SMS instead" on the signup screen.
+                  </p>
                 </div>
               </div>
 

@@ -32,6 +32,7 @@ export async function requestOtp(opts: {
   qrId?: string | null;
   purpose: string;        // e.g. "scan_contact"
   ip?: string | null;
+  channelOverride?: "whatsapp" | "sms" | null;
 }): Promise<OtpRequestResult> {
   const pool = getCommsPool();
   const settings = await getCommsSettings();
@@ -66,7 +67,7 @@ export async function requestOtp(opts: {
   const body = `Your StegoTags verification code is ${code}. It expires in 10 minutes.`;
   const template = templateId ? { id: templateId, variables: { "1": code } } : undefined;
 
-  const channelPref = (settings.comms_otp_channel ?? "whatsapp_first").toLowerCase();
+  const channelPref = (opts.channelOverride ?? settings.comms_otp_channel ?? "whatsapp_first").toLowerCase();
 
   let result;
   let channelUsed: "whatsapp" | "sms" | null = null;

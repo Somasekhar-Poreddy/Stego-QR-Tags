@@ -161,7 +161,7 @@ export function SignUpScreen() {
     if (key === "mobile") { setPhoneOtpSent(false); setPhoneVerified(false); setPhoneOtp(""); setPhoneOtpError(null); setPhoneChannel(null); }
   };
 
-  const handleSendPhoneOtp = async () => {
+  const handleSendPhoneOtp = async (channel?: "whatsapp" | "sms") => {
     const mobile = form.mobile.replace(/\D/g, "");
     if (mobile.length !== 10) {
       setErrors((p) => ({ ...p, mobile: "Enter a valid 10-digit mobile number" }));
@@ -170,22 +170,25 @@ export function SignUpScreen() {
     setPhoneOtpLoading(true);
     setPhoneOtpError(null);
     try {
-      // Check if this phone number is already registered.
-      const { data: existing } = await supabase
-        .from("user_profiles")
-        .select("id")
-        .eq("mobile", mobile)
-        .limit(1);
-      if (existing && existing.length > 0) {
-        setPhoneOtpError("This mobile number is already registered. Please sign in instead.");
-        setPhoneOtpLoading(false);
-        return;
+      // Skip the duplicate check when explicitly switching channels — user
+      // already passed the check on the first attempt.
+      if (!channel) {
+        const { data: existing } = await supabase
+          .from("user_profiles")
+          .select("id")
+          .eq("mobile", mobile)
+          .limit(1);
+        if (existing && existing.length > 0) {
+          setPhoneOtpError("This mobile number is already registered. Please sign in instead.");
+          setPhoneOtpLoading(false);
+          return;
+        }
       }
 
       const res = await fetch(apiUrl("/api/otp/request"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: `+91${mobile}` }),
+        body: JSON.stringify({ phone: `+91${mobile}`, ...(channel ? { channel } : {}) }),
       });
       const data = await res.json() as { ok?: boolean; channel?: string; error?: string };
       if (!res.ok || !data.ok) {
@@ -554,7 +557,7 @@ export function SignUpScreen() {
               <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
             ) : (
               <button
-                onClick={handleSendPhoneOtp}
+                onClick={() => handleSendPhoneOtp()}
                 disabled={form.mobile.length !== 10 || phoneOtpLoading || phoneOtpSent}
                 className="text-xs font-bold text-primary px-2.5 py-1 bg-primary/10 rounded-xl flex-shrink-0 disabled:opacity-50 hover:bg-primary/20 transition-colors active:scale-95"
               >
@@ -612,7 +615,7 @@ export function SignUpScreen() {
                 </p>
               ) : (
                 <button
-                  onClick={handleSendPhoneOtp}
+                  onClick={() => handleSendPhoneOtp()}
                   disabled={phoneOtpLoading}
                   className="text-[11px] text-primary font-semibold flex items-center gap-1 disabled:opacity-50"
                 >
@@ -620,6 +623,18 @@ export function SignUpScreen() {
                 </button>
               )}
             </div>
+
+            {phoneChannel === "whatsapp" && (
+              <div className="text-center pt-2 border-t border-primary/10">
+                <button
+                  onClick={() => handleSendPhoneOtp("sms")}
+                  disabled={phoneOtpLoading}
+                  className="text-[11px] text-slate-500 hover:text-primary underline disabled:opacity-50"
+                >
+                  Didn't receive on WhatsApp? Send via SMS instead
+                </button>
+              </div>
+            )}
           </div>
         )}
 

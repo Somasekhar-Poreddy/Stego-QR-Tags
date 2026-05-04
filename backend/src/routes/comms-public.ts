@@ -42,7 +42,11 @@ router.get("/comms/public-flags", async (_req: Request, res: Response) => {
 /* ─────────────────────────── OTP ─────────────────────────── */
 
 router.post("/otp/request", async (req: Request, res: Response) => {
-  const { phone, qr_id } = (req.body ?? {}) as { phone?: string; qr_id?: string };
+  const { phone, qr_id, channel } = (req.body ?? {}) as {
+    phone?: string;
+    qr_id?: string;
+    channel?: "whatsapp" | "sms";
+  };
   const normalized = normalizePhone(phone);
   if (!isValidIndianMobile(normalized)) {
     res.status(400).json({ error: "Please enter a valid Indian mobile number." });
@@ -59,11 +63,13 @@ router.post("/otp/request", async (req: Request, res: Response) => {
     return;
   }
 
+  const channelOverride = channel === "whatsapp" || channel === "sms" ? channel : null;
   const result = await requestOtp({
     phone: normalized,
     qrId: qr_id ?? null,
     purpose: OTP_PURPOSE_SCAN,
     ip: getClientIp(req),
+    channelOverride,
   });
   if (!result.ok) {
     res.status(502).json({
