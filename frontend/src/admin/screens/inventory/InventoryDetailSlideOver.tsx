@@ -10,7 +10,8 @@ import {
   type QRInventoryItem,
   type QRInventoryEvent,
 } from "@/services/adminService";
-import { downloadSingleStickerPdf } from "@/admin/utils/inventoryPdfGenerator";
+import { downloadSingleSticker, type PrintSettings } from "@/admin/utils/inventoryPdfGenerator";
+import { PrintSettingsModal } from "@/admin/components/PrintSettingsModal";
 import { STATUS_LABELS, statusBadge, formatDateTime, QR_TYPES } from "./inventoryHelpers";
 import { cn } from "@/lib/utils";
 
@@ -114,12 +115,18 @@ export function InventoryDetailSlideOver({ itemId, onClose, onChanged, openToEdi
     }
   };
 
-  const handleDownloadPdf = async () => {
+  const [showPrintSettings, setShowPrintSettings] = useState(false);
+  const handleDownloadPdf = () => {
     if (!item) return;
+    setShowPrintSettings(true);
+  };
+  const handlePrintConfirm = async (settings: PrintSettings) => {
+    if (!item) return;
+    setShowPrintSettings(false);
     try {
-      await downloadSingleStickerPdf(item);
+      await downloadSingleSticker(item, settings);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to generate PDF.");
+      setError(e instanceof Error ? e.message : "Failed to generate sticker.");
     }
   };
 
@@ -256,6 +263,12 @@ export function InventoryDetailSlideOver({ itemId, onClose, onChanged, openToEdi
           </div>
         )}
       </aside>
+      <PrintSettingsModal
+        open={showPrintSettings}
+        onClose={() => setShowPrintSettings(false)}
+        onConfirm={handlePrintConfirm}
+        stickerCount={1}
+      />
     </div>
   );
 }

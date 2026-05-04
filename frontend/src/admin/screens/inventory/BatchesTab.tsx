@@ -10,7 +10,8 @@ import {
   type BatchStatus,
   type QRInventoryBatch,
 } from "@/services/adminService";
-import { downloadBatchStickerPdf } from "@/admin/utils/inventoryPdfGenerator";
+import { downloadBatchStickers, type PrintSettings } from "@/admin/utils/inventoryPdfGenerator";
+import { PrintSettingsModal } from "@/admin/components/PrintSettingsModal";
 import { BATCH_STATUS_LABELS, batchStatusBadge, formatDate } from "./inventoryHelpers";
 import { SendToVendorModal } from "./SendToVendorModal";
 import { CategorySettingsModal } from "./CategorySettingsModal";
@@ -42,6 +43,9 @@ export function BatchesTab({ onViewBatchItems }: Props) {
   const [busy, setBusy] = useState<string | null>(null); // batch id currently being acted on
   const [sendTarget, setSendTarget] = useState<QRInventoryBatch | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [printTarget, setPrintTarget] = useState<QRInventoryBatch | null>(null);
+  const [printItems, setPrintItems] = useState<Awaited<ReturnType<typeof getBatchById>>["items"]>([]);
+  const [showPrintSettings, setShowPrintSettings] = useState(false);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -84,11 +88,28 @@ export function BatchesTab({ onViewBatchItems }: Props) {
         setError("Batch has no items.");
         return;
       }
-      await downloadBatchStickerPdf(items, batch.batch_number);
+      setPrintItems(items);
+      setPrintTarget(batch);
+      setShowPrintSettings(true);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "PDF generation failed.");
+      setError(e instanceof Error ? e.message : "Failed to load batch items.");
     } finally {
       setBusy(null);
+    }
+  };
+
+  const handlePrintConfirm = async (settings: PrintSettings) => {
+    if (!printTarget) return;
+    setShowPrintSettings(false);
+    setBusy(printTarget.id);
+    try {
+      await downloadBatchStickers(printItems, settings, printTarget.batch_number);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Generation failed.");
+    } finally {
+      setBusy(null);
+      setPrintTarget(null);
+      setPrintItems([]);
     }
   };
 
@@ -243,6 +264,14 @@ export function BatchesTab({ onViewBatchItems }: Props) {
       )}
 
       {showSettings && <CategorySettingsModal onClose={() => setShowSettings(false)} />}
+
+      <PrintSettingsModal
+        open={showPrintSettings}
+        onClose={() => { setShowPrintSettings(false); setPrintTarget(null); setPrintItems([]); }}
+        onConfirm={handlePrintConfirm}
+        stickerCount={printItems.length}
+        loading={!!busy}
+      />
     </div>
   );
 }
