@@ -58,9 +58,12 @@ const AuthContext = createContext<AuthContextType | null>(null);
 // and shows blank until cache clear" bug: the next user mounts with the
 // previous account's QR list and admin-info still in localStorage, which
 // then fights with the fresh fetch.
+const USER_CACHE_KEY = "stegofy_user_cache_v1";
+
 const APP_CACHE_KEYS = [
   "stegofy_qr_profiles_v1",
   "stegofy_admin_login_at",
+  USER_CACHE_KEY,
 ];
 const APP_CACHE_PREFIXES = [
   "stegofy_admin_info_v1:",
@@ -131,17 +134,33 @@ async function fetchAndBuildUser(supabaseUser: any): Promise<User> {
   };
 }
 
+function tryParseUser(raw: string): User | null {
+  try {
+    const o = JSON.parse(raw);
+    if (o && typeof o === "object" && typeof o.id === "string" && typeof o.name === "string") {
+      return o as User;
+    }
+  } catch {}
+  return null;
+}
+
+function cacheUser(u: User): void {
+  try { localStorage.setItem(USER_CACHE_KEY, JSON.stringify(u)); } catch {}
+}
+
+const _cachedUser = tryParseUser(localStorage.getItem(USER_CACHE_KEY) ?? "");
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [step, _setStep] = useState<AuthStep>(_recoveryPending ? "reset-password" : "login");
-  const [user, setUser] = useState<User | null>(null);
+  const [step, _setStep] = useState<AuthStep>(_recoveryPending ? "reset-password" : (_cachedUser ? "app" : "login"));
+  const [user, setUser] = useState<User | null>(_cachedUser);
   const [authError, setAuthError] = useState<string | null>(null);
   const [urlError] = useState<string | null>(_urlError);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!_cachedUser);
   const [recovering, setRecovering] = useState(false);
 
   const otpSignupInProgress = useRef(false);
   const passwordRecoveryInProgress = useRef(_recoveryPending);
-  const prevUserIdRef = useRef<string | null>(null);
+  const prevUserIdRef = useRef<string | null>(_cachedUser?.id ?? null);
   const explicitLogoutRef = useRef(false);
 
   const setStep = (s: AuthStep) => {
@@ -184,6 +203,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (mounted) {
             prevUserIdRef.current = session.user.id;
             setUser(built);
+            cacheUser(built);
             setStep("app");
           }
         }
@@ -242,6 +262,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (mounted) {
             prevUserIdRef.current = session.user.id;
             setUser(built);
+            cacheUser(built);
             setStep("app");
             setLoading(false);
           }
@@ -331,6 +352,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       prevUserIdRef.current = data.user.id;
       const built = await fetchAndBuildUser(data.user);
       setUser(built);
+      cacheUser(built);
       setStep("app");
       setLoading(false);
     } catch (err: any) {
@@ -358,6 +380,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (data.user) {
         const built = await fetchAndBuildUser(data.user);
         setUser(built);
+        cacheUser(built);
         setStep("app");
       }
     } catch (err: any) {

@@ -137,18 +137,25 @@ export function AdminRouter() {
       : null;
   const seedInfo = moduleCache ?? storageSeed;
 
+  const emptyInfo: AdminInfo = { id: "", name: "", email: "", role: "", permissions: {} };
   const cacheHit = seedInfo !== null;
-  const [checking, setChecking] = useState(!cacheHit);
-  const [bootstrapTimedOut, setBootstrapTimedOut] = useState(false);
-  const [adminInfo, setAdminInfo] = useState<AdminInfo>(
-    seedInfo ?? { id: "", name: "", email: "", role: "", permissions: {} },
+
+  type AdminPhase =
+    | { kind: "bootstrapping"; info: AdminInfo }
+    | { kind: "timeout"; info: AdminInfo }
+    | { kind: "mfa-check"; info: AdminInfo }
+    | { kind: "mfa-challenge"; info: AdminInfo }
+    | { kind: "mfa-enroll"; info: AdminInfo }
+    | { kind: "ready"; info: AdminInfo };
+
+  const [phase, setPhase] = useState<AdminPhase>(
+    cacheHit
+      ? { kind: "mfa-check", info: seedInfo! }
+      : { kind: "bootstrapping", info: emptyInfo },
   );
 
-  // MFA gate state. `unknown` means we haven't checked yet; `ok` means the
-  // session is at AAL2 (or MFA isn't required for this role); `challenge`
-  // means MFA is enrolled but not satisfied for this session; `enroll` means
-  // a super_admin needs to set up MFA for the first time.
-  const [mfaState, setMfaState] = useState<"unknown" | "ok" | "challenge" | "enroll">("unknown");
+  const adminInfo = phase.info;
+  const checking = phase.kind === "bootstrapping" || phase.kind === "timeout";
 
   // Auto sign-out + redirect helper, shared by idle timeout, absolute cap,
   // and the warning-modal "Sign out" button.
@@ -177,7 +184,7 @@ export function AdminRouter() {
 
   // Tier 1.1 — idle logout. Only enabled once we've actually got an admin
   // user; otherwise the hook would tick on the login screen for no reason.
-  const enabledIdle = !!user && !authLoading && !checking;
+  const enabledIdle = !!user && !authLoading && phase.kind === "ready";
   const { warning: idleWarning, secondsLeft, reset: resetIdle } = useIdleLogout({
     idleMs: IDLE_LOGOUT_MS,
     warningMs: IDLE_WARNING_MS,
@@ -190,13 +197,11 @@ export function AdminRouter() {
     try { await supabase.auth.refreshSession(); } catch { /* keepalive handles failures */ }
   }, [resetIdle]);
 
-  // Bootstrap timeout — if checking stays true for 15s, show a retry button
-  // instead of an infinite spinner.
   useEffect(() => {
-    if (!checking) { setBootstrapTimedOut(false); return; }
-    const t = setTimeout(() => setBootstrapTimedOut(true), 15000);
+    if (phase.kind !== "bootstrapping") return;
+    const t = setTimeout(() => setPhase((p) => p.kind === "bootstrapping" ? { kind: "timeout", info: p.info } : p), 15000);
     return () => clearTimeout(t);
-  }, [checking]);
+  }, [phase.kind]);
 
   // Tier 1.2 — absolute session cap.
   useAbsoluteSessionCap({
@@ -221,8 +226,8 @@ export function AdminRouter() {
       return;
     }
 
-    if (_cachedUserId !== user.id) {
-      setChecking(true);
+    if (_cachedUserId !== user.id && phase.kind !== "bootstrapping") {
+      setPhase({ kind: "bootstrapping", info: phase.info });
     }
 
     // Capture the (already null-checked above) user into a local so the
@@ -349,13 +354,11 @@ export function AdminRouter() {
         // Persist so sibling tabs see the real name instantly.
         writeAdminInfoToStorage(currentUser.id, info);
       }
-      setAdminInfo(info);
-
       if (!isPathAllowed(location, info.role, info.permissions)) {
         navigate("/admin");
       }
 
-      setChecking(false);
+      setPhase({ kind: "mfa-check", info });
     }
 
     bootstrap();
@@ -363,49 +366,42 @@ export function AdminRouter() {
   }, [authLoading, user?.id, recovering]);
 
   useEffect(() => {
-    if (checking) return;
-    if (!isPathAllowed(location, adminInfo.role, adminInfo.permissions)) {
+    if (phase.kind !== "ready") return;
+    if (!isPathAllowed(location, phase.info.role, phase.info.permissions)) {
       navigate("/admin");
     }
-  }, [location, checking, adminInfo, navigate]);
+  }, [location, phase, navigate]);
 
   // MFA enforcement. Runs once we know the admin role.
   // - super_admin must have a verified TOTP factor.
   // - any role that has enrolled MFA must satisfy it for this session.
   useEffect(() => {
-    if (checking || !user) return;
+    if (phase.kind !== "mfa-check" || !user) return;
 
     let cancelled = false;
+    const info = phase.info;
     async function evaluateMfa() {
       try {
         const aal = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
         if (cancelled) return;
 
-        // currentLevel === 'aal2' means MFA already satisfied for this session.
         if (aal.data?.currentLevel === "aal2") {
-          setMfaState("ok");
+          setPhase({ kind: "ready", info });
           return;
         }
 
-        // currentLevel === 'aal1' but nextLevel === 'aal2' means MFA is
-        // enrolled but not satisfied — challenge required.
         if (aal.data?.currentLevel === "aal1" && aal.data?.nextLevel === "aal2") {
-          setMfaState("challenge");
+          setPhase({ kind: "mfa-challenge", info });
           return;
         }
 
-        // No MFA enrolled. Force enrollment for super_admin only; let other
-        // roles in without it (they can opt-in later via Settings).
-        if (adminInfo.role === "super_admin") {
-          setMfaState("enroll");
+        if (info.role === "super_admin") {
+          setPhase({ kind: "mfa-enroll", info });
         } else {
-          setMfaState("ok");
+          setPhase({ kind: "ready", info });
         }
       } catch {
-        // If the MFA check itself fails we don't want to lock everyone out
-        // of the dashboard — fall open and let the regular session checks
-        // handle the auth path.
-        if (!cancelled) setMfaState("ok");
+        if (!cancelled) setPhase({ kind: "ready", info });
       }
     }
 
@@ -413,25 +409,27 @@ export function AdminRouter() {
     return () => {
       cancelled = true;
     };
-  }, [checking, user?.id, adminInfo.role]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase.kind, user?.id]);
 
-  if (checking || mfaState === "unknown") {
-    if (bootstrapTimedOut) {
-      return (
-        <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 gap-4">
-          <p className="text-sm text-slate-600">Taking longer than expected…</p>
-          <button
-            onClick={() => { setBootstrapTimedOut(false); setChecking(true); }}
-            className="px-4 py-2 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary/90"
-          >
-            Retry
-          </button>
-          <a href="/admin/login" className="text-xs text-slate-400 hover:text-slate-600 underline">
-            Back to login
-          </a>
-        </div>
-      );
-    }
+  if (phase.kind === "timeout") {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 gap-4">
+        <p className="text-sm text-slate-600">Taking longer than expected…</p>
+        <button
+          onClick={() => setPhase({ kind: "bootstrapping", info: phase.info })}
+          className="px-4 py-2 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary/90"
+        >
+          Retry
+        </button>
+        <a href="/admin/login" className="text-xs text-slate-400 hover:text-slate-600 underline">
+          Back to login
+        </a>
+      </div>
+    );
+  }
+
+  if (phase.kind === "bootstrapping" || phase.kind === "mfa-check") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
@@ -439,12 +437,12 @@ export function AdminRouter() {
     );
   }
 
-  if (mfaState === "challenge") {
-    return <MfaChallengeScreen onVerified={() => setMfaState("ok")} />;
+  if (phase.kind === "mfa-challenge") {
+    return <MfaChallengeScreen onVerified={() => setPhase({ kind: "ready", info: phase.info })} />;
   }
 
-  if (mfaState === "enroll") {
-    return <MfaEnrollScreen onEnrolled={() => setMfaState("ok")} />;
+  if (phase.kind === "mfa-enroll") {
+    return <MfaEnrollScreen onEnrolled={() => setPhase({ kind: "ready", info: phase.info })} />;
   }
 
   const needsProfile = !adminInfo.name || adminInfo.name.trim() === "" || adminInfo.name === adminInfo.email?.split("@")[0];
@@ -461,7 +459,7 @@ export function AdminRouter() {
           currentName={adminInfo.name}
           currentEmail={adminInfo.email ?? user?.email ?? ""}
           onComplete={(name) => {
-            setAdminInfo((prev) => ({ ...prev, name }));
+            setPhase((prev) => ({ ...prev, info: { ...prev.info, name } }));
           }}
         />
       )}
