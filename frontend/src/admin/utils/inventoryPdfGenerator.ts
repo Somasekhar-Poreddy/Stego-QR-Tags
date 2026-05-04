@@ -2,7 +2,7 @@ import jsPDF from "jspdf";
 import QRCodeLib from "qrcode";
 import type { QRInventoryItem } from "@/services/adminService";
 
-export const STICKER_MM = { width: 100, height: 70 } as const;
+export const STICKER_MM = { width: 100, height: 53 } as const;
 
 /* ─── Per-type content (matches QRCardDesign.tsx) ─────────────────────────── */
 
@@ -161,7 +161,7 @@ function buildStickerSvg(
 
 /* ─── SVG → PNG via canvas (no html-to-image, no CORS) ───────────────────── */
 
-function svgToPng(svgString: string, w: number, h: number, scale = 2): Promise<string> {
+function svgToPng(svgString: string, w: number, h: number, scale = 4): Promise<string> {
   return new Promise((resolve, reject) => {
     const blob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -208,7 +208,7 @@ async function renderStickerPng(
   qrDataUrl: string,
 ): Promise<string> {
   const svg = buildStickerSvg(item, qrDataUrl);
-  return svgToPng(svg, 680, 360, 2);
+  return svgToPng(svg, 680, 360, 4);
 }
 
 /* ─── Scissors + cut guides (jsPDF drawing) ──────────────────────────────── */
@@ -278,6 +278,10 @@ export async function generateSingleStickerPdf(item: QRInventoryItem): Promise<j
   return doc;
 }
 
+const ROWS_PER_PAGE = 5;
+const COLS_PER_PAGE = 2;
+const STICKERS_PER_PAGE = ROWS_PER_PAGE * COLS_PER_PAGE;
+
 export async function generateBatchStickerPdf(
   items: QRInventoryItem[],
   onProgress?: (done: number, total: number) => void,
@@ -285,8 +289,8 @@ export async function generateBatchStickerPdf(
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
-  const totalW = STICKER_MM.width * 2 + COL_GAP;
-  const totalH = STICKER_MM.height * 4 + ROW_GAP * 3;
+  const totalW = STICKER_MM.width * COLS_PER_PAGE + COL_GAP * (COLS_PER_PAGE - 1);
+  const totalH = STICKER_MM.height * ROWS_PER_PAGE + ROW_GAP * (ROWS_PER_PAGE - 1);
   const sideMargin = (pageW - totalW) / 2;
   const topMargin = (pageH - totalH) / 2;
 
@@ -301,14 +305,14 @@ export async function generateBatchStickerPdf(
   let slot = 0;
   let stickersOnPage = 0;
   for (let i = 0; i < items.length; i++) {
-    if (slot === 8 && i > 0) {
-      drawCutGuides(doc, sideMargin, topMargin, Math.ceil(stickersOnPage / 2));
+    if (slot === STICKERS_PER_PAGE && i > 0) {
+      drawCutGuides(doc, sideMargin, topMargin, Math.ceil(stickersOnPage / COLS_PER_PAGE));
       doc.addPage();
       slot = 0;
       stickersOnPage = 0;
     }
-    const col = slot % 2;
-    const row = Math.floor(slot / 2);
+    const col = slot % COLS_PER_PAGE;
+    const row = Math.floor(slot / COLS_PER_PAGE);
     const sx = sideMargin + col * (STICKER_MM.width + COL_GAP);
     const sy = topMargin + row * (STICKER_MM.height + ROW_GAP);
     doc.addImage(stickerPngs[i], "PNG", sx, sy, STICKER_MM.width, STICKER_MM.height);
@@ -316,7 +320,7 @@ export async function generateBatchStickerPdf(
     stickersOnPage++;
   }
   if (stickersOnPage > 0) {
-    drawCutGuides(doc, sideMargin, topMargin, Math.ceil(stickersOnPage / 2));
+    drawCutGuides(doc, sideMargin, topMargin, Math.ceil(stickersOnPage / COLS_PER_PAGE));
   }
   return doc;
 }
