@@ -170,6 +170,18 @@ export function SignUpScreen() {
     setPhoneOtpLoading(true);
     setPhoneOtpError(null);
     try {
+      // Check if this phone number is already registered.
+      const { data: existing } = await supabase
+        .from("user_profiles")
+        .select("id")
+        .eq("mobile", mobile)
+        .limit(1);
+      if (existing && existing.length > 0) {
+        setPhoneOtpError("This mobile number is already registered. Please sign in instead.");
+        setPhoneOtpLoading(false);
+        return;
+      }
+
       const res = await fetch(apiUrl("/api/otp/request"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -240,9 +252,23 @@ export function SignUpScreen() {
     setOtpLoading(true);
     setOtpError(null);
 
-    // Use signUp (not signInWithOtp) so first_name + last_name are passed as metadata.
-    // This lets the DB trigger insert the profile row correctly — no "Database error" anymore.
-    // A random temp password is used here; the real password is set after OTP verification.
+    // Check if this email is already registered before attempting signUp.
+    // Supabase signUp sometimes silently succeeds for existing emails.
+    try {
+      const { data: existingUser } = await supabase
+        .from("user_profiles")
+        .select("id")
+        .eq("email", form.email.trim().toLowerCase())
+        .limit(1);
+      if (existingUser && existingUser.length > 0) {
+        setOtpError("An account with this email already exists. Please sign in instead.");
+        setOtpLoading(false);
+        return;
+      }
+    } catch {
+      // If the check fails, proceed with signUp — Supabase will catch real duplicates.
+    }
+
     const tempPassword = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2).toUpperCase() + "!1";
 
     const { error } = await supabase.auth.signUp({
